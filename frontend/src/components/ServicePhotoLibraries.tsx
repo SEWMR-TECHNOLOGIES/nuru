@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
 import { photoLibrariesApi, PhotoLibrary } from '@/lib/api/photoLibraries';
+import MediaThumb from '@/components/MediaThumb';
 import { showCaughtError } from '@/lib/api';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import SvgIcon from '@/components/ui/svg-icon';
@@ -92,7 +93,7 @@ const ServicePhotoLibraries = () => {
         {mosaicPhotos.length > 0 && (
           <div className={`absolute inset-0 grid gap-0.5 opacity-25 ${mosaicPhotos.length >= 4 ? 'grid-cols-3' : mosaicPhotos.length >= 2 ? 'grid-cols-2' : 'grid-cols-1'}`}>
             {mosaicPhotos.slice(0, mosaicPhotos.length >= 4 ? 6 : mosaicPhotos.length).map((p, i) => (
-              <img key={i} src={p.url} alt="" className="w-full h-full object-cover" />
+              <MediaThumb key={i} url={p.url} mediaType={p.media_type} className="w-full h-full object-cover" showPlayBadge={false} />
             ))}
           </div>
         )}
@@ -169,19 +170,19 @@ const ServicePhotoLibraries = () => {
               <div className="relative h-48 bg-muted overflow-hidden">
                 {lib.photos && lib.photos.length > 0 ? (
                   lib.photos.length === 1 ? (
-                    <img src={lib.photos[0].url} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                    <MediaThumb url={lib.photos[0].url} mediaType={lib.photos[0].media_type} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                   ) : lib.photos.length === 2 ? (
                     <div className="grid grid-cols-2 h-full gap-0.5">
                       {lib.photos.slice(0, 2).map((p, i) => (
-                        <img key={i} src={p.url} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        <MediaThumb key={i} url={p.url} mediaType={p.media_type} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                       ))}
                     </div>
                   ) : (
                     <div className="grid grid-cols-3 h-full gap-0.5">
-                      <img src={lib.photos[0].url} alt="" className="col-span-2 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                      <MediaThumb url={lib.photos[0].url} mediaType={lib.photos[0].media_type} className="col-span-2 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
                       <div className="flex flex-col gap-0.5">
                         {lib.photos.slice(1, 3).map((p, i) => (
-                          <img key={i} src={p.url} alt="" className="w-full flex-1 object-cover" />
+                          <MediaThumb key={i} url={p.url} mediaType={p.media_type} className="w-full flex-1 object-cover" />
                         ))}
                       </div>
                     </div>

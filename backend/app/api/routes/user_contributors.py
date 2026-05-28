@@ -7,9 +7,9 @@ from datetime import datetime
 from typing import Optional
 
 import pytz
-from fastapi import APIRouter, Depends, Body, Query, File, Form, UploadFile
-from sqlalchemy import func as sa_func, or_, and_
-from sqlalchemy.orm import Session, joinedload
+from fastapi import APIRouter, Depends, Body, Query, File, Form, UploadFile, Request
+from sqlalchemy import func as sa_func, or_, and_, text
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from core.database import get_db
 from models import (
@@ -23,6 +23,7 @@ from models import (
 from utils.auth import get_current_user
 from utils.helpers import standard_response, format_phone_display
 from utils.validation_functions import validate_phone_number
+from utils.event_owner import get_event_owner_display_name
 
 EAT = pytz.timezone("Africa/Nairobi")
 
@@ -1197,31 +1198,41 @@ def update_event_contributor(event_id: str, ec_id: str, body: dict = Body(...), 
         from utils.offline_claims import contributor_notify_phones
         recipients = contributor_notify_phones(ec)
         if recipients:
-            total_paid = sum(
-                float(c.amount or 0) for c in ec.contributions
-                if c.confirmation_status is None
-                or c.confirmation_status == ContributionStatusEnum.confirmed
-            )
             currency = _currency_code(db, event)
             organizer = db.query(User).filter(User.id == event.organizer_id).first()
             organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
+            # Decide template variant: first-time set, increase, or reduction.
+            # Reductions currently fall back to ``set`` (no dedicated template).
+            is_first_time = old_pledge <= 0
+            is_increase = new_pledge > old_pledge and old_pledge > 0
             for ph in recipients:
                 try:
                     from utils.whatsapp import wa_contribution_target_set
                     wa_contribution_target_set(
                         ph, ec.contributor.name,
-                        event.name, new_pledge, total_paid, currency,
+                        event.name, new_pledge, 0, currency,
                         organizer_phone=organizer_phone
                     )
                 except Exception:
                     pass
                 try:
-                    from utils.sms import sms_contribution_target_set
-                    sms_contribution_target_set(
-                        ph, ec.contributor.name,
-                        event.name, new_pledge, total_paid, currency,
-                        organizer_phone=organizer_phone
-                    )
+                    if is_increase:
+                        from utils.sms import sms_contribution_target_updated
+                        sms_contribution_target_updated(
+                            ph, ec.contributor.name, event.name,
+                            increase=(new_pledge - old_pledge),
+                            total_target=new_pledge,
+                            currency=currency,
+                            organizer_phone=organizer_phone,
+                        )
+                    else:
+                        # First-time set, or reduction (fallback to set template).
+                        from utils.sms import sms_contribution_target_set
+                        sms_contribution_target_set(
+                            ph, ec.contributor.name, event.name,
+                            new_pledge, currency=currency,
+                            organizer_phone=organizer_phone,
+                        )
                 except Exception:
                     pass
 
@@ -1265,26 +1276,63 @@ def remove_from_event(event_id: str, ec_id: str, db: Session = Depends(get_db), 
 # ══════════════════════════════════════════════
 
 @router.post("/events/{event_id}/contributors/{ec_id}/payments")
-def record_payment(event_id: str, ec_id: str, body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def record_payment(
+    event_id: str,
+    ec_id: str,
+    body: dict = Body(...),
+    request: Request = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    import time as _time
+    _t0 = _time.perf_counter()
+
     try:
         eid = uuid.UUID(event_id)
         ecid = uuid.UUID(ec_id)
     except ValueError:
         return standard_response(False, "Invalid ID")
 
+    # Idempotency: if the client passes Idempotency-Key, replay-safe.
+    idem_key = None
+    try:
+        if request is not None:
+            idem_key = (request.headers.get("Idempotency-Key") or "").strip() or None
+    except Exception:
+        idem_key = None
+    if idem_key:
+        try:
+            existing = db.execute(
+                text(
+                    "SELECT response_id FROM contribution_idempotency "
+                    "WHERE user_id = :u AND scope = :s AND idem_key = :k"
+                ),
+                {"u": str(current_user.id), "s": f"contrib:{ec_id}", "k": idem_key},
+            ).first()
+            if existing and existing[0]:
+                return standard_response(True, "Payment recorded (idempotent replay)", {
+                    "id": str(existing[0]),
+                    "replayed": True,
+                })
+        except Exception as _e:
+            print(f"[record_payment] idempotency lookup failed: {_e}")
+
     event, is_creator, cm, perms = _get_event_access(db, eid, current_user)
     if not event:
         return standard_response(False, "Event not found")
-    # Must be creator or have manage_contributions permission
     if not is_creator:
         if not cm or not perms or not perms.can_manage_contributions:
             return standard_response(False, "You do not have permission to record contributions")
 
+    # Load contributor + ALL existing contributions in one round-trip so the
+    # total_paid recompute below doesn't trigger a lazy SELECT.
     ec = db.query(EventContributor).options(
         joinedload(EventContributor.contributor),
+        selectinload(EventContributor.contributions),
     ).filter(EventContributor.id == ecid, EventContributor.event_id == eid).first()
     if not ec:
         return standard_response(False, "Event contributor not found")
+    print(f"[contrib.timing] step=load ms={int((_time.perf_counter()-_t0)*1000)}")
 
     amount = body.get("amount")
     if not amount or float(amount) <= 0:
@@ -1319,6 +1367,21 @@ def record_payment(event_id: str, ec_id: str, body: dict = Body(...), db: Sessio
     )
     db.add(contribution)
     db.commit()
+    print(f"[contrib.timing] step=insert ms={int((_time.perf_counter()-_t0)*1000)}")
+
+    # Persist idempotency record so retries return the same contribution id.
+    if idem_key:
+        try:
+            db.execute(
+                text(
+                    "INSERT INTO contribution_idempotency (idem_key, user_id, scope, response_id) "
+                    "VALUES (:k, :u, :s, :r) ON CONFLICT (user_id, scope, idem_key) DO NOTHING"
+                ),
+                {"k": idem_key, "u": str(current_user.id), "s": f"contrib:{ec_id}", "r": str(contribution.id)},
+            )
+            db.commit()
+        except Exception as _e:
+            print(f"[record_payment] idempotency persist failed: {_e}")
 
     # Post into event group workspace (if one exists). Best-effort.
     # Only announce CONFIRMED contributions — pending committee submissions
@@ -1440,19 +1503,26 @@ def send_thank_you_sms(event_id: str, ec_id: str, body: dict = Body(default={}),
     custom_message = (body.get("custom_message") or "").strip()
     organizer_phone = format_phone_display(current_user.phone) if current_user.phone else None
 
+    # Compute total contributed amount (confirmed contributions) for this contributor on this event
+    total_paid = sum(
+        float(c.amount or 0) for c in ec.contributions
+        if c.confirmation_status is None or c.confirmation_status == ContributionStatusEnum.confirmed
+    )
+    currency_code = _currency_code(db, event)
+
     sms_failed = False
     for ph in recipients:
         # WhatsApp first
         try:
             from utils.whatsapp import wa_thank_you
-            wa_thank_you(ph, contributor.name, event.name, custom_message, organizer_phone=organizer_phone)
+            wa_thank_you(ph, contributor.name, event.name, custom_message, organizer_phone=organizer_phone, total_paid=total_paid, currency=currency_code)
         except Exception:
             pass
 
         # SMS fallback
         try:
             from utils.sms import sms_thank_you
-            sms_thank_you(ph, contributor.name, event.name, custom_message, organizer_phone=organizer_phone)
+            sms_thank_you(ph, contributor.name, event.name, custom_message, organizer_phone=organizer_phone, total_paid=total_paid, currency=currency_code)
         except Exception:
             sms_failed = True
 
@@ -1468,27 +1538,155 @@ def send_thank_you_sms(event_id: str, ec_id: str, body: dict = Body(default={}),
 
 @router.post("/events/{event_id}/contributors/bulk")
 def bulk_add_contributors(event_id: str, body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """
-    Bulk add/update contributors to an event.
-    Body: { contributors: [{ name, phone, pledge_amount? }], send_sms?: bool, mode?: "targets" | "contributions", payment_method?: str }
-    - For each row: validate phone (Tanzanian), find existing contributor by phone, create if new.
-    - If contributor already linked to event: update pledge/record payment. If not: link them.
-    - send_sms: if false, skip all SMS notifications. Default false for bulk.
+    """Queue a contributor bulk-import job and return immediately.
+
+    Body: { contributors: [{ name, phone, amount? }], send_sms?: bool,
+            mode?: "targets" | "contributions", payment_method?: str }
+
+    Processing happens in a Celery background task
+    (``tasks.contributor_imports.process_contributor_import_job``). The
+    caller polls ``GET /events/{event_id}/contributor-imports/{job_id}``
+    for live status, counts and per-row errors.
     """
     try:
         eid = uuid.UUID(event_id)
     except ValueError:
         return standard_response(False, "Invalid event ID")
 
-    # Bulk upload is CREATOR ONLY
-    event = db.query(Event).filter(Event.id == eid, Event.organizer_id == current_user.id).first()
-    if not event:
-        return standard_response(False, "Only event creator can perform bulk uploads")
+    # Owner OR creator may bulk-upload.
+    from utils.event_owner import user_can_manage_event
+    event = db.query(Event).filter(Event.id == eid).first()
+    if not event or not user_can_manage_event(event, current_user):
+        return standard_response(False, "Only the event owner or creator can perform bulk uploads")
 
     rows = body.get("contributors", [])
     if not rows or not isinstance(rows, list):
         return standard_response(False, "No contributors provided")
 
+    if len(rows) > 2000:
+        return standard_response(False, "Maximum 2000 contributors per upload")
+
+    from models import ContributorImportJob
+    job = ContributorImportJob(
+        id=uuid.uuid4(),
+        event_id=eid,
+        created_by=current_user.id,
+        status="queued",
+        mode=(body.get("mode") or "targets"),
+        payment_method=body.get("payment_method"),
+        send_sms=bool(body.get("send_sms", False)),
+        total_rows=len(rows),
+        payload={"contributors": rows},
+        errors=[],
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    try:
+        from tasks.contributor_imports import process_contributor_import_job
+        process_contributor_import_job.delay(str(job.id))
+    except Exception as e:
+        # On Vercel (no Celery) fall back to inline execution so behaviour
+        # degrades gracefully — the request still returns the job row.
+        try:
+            from tasks.contributor_imports import process_contributor_import_job as _proc
+            _proc.run(str(job.id))
+        except Exception as e2:
+            print(f"[bulk_import] enqueue+inline failed: {e} / {e2}")
+
+    return standard_response(
+        True,
+        "Upload received. Processing contributors in the background.",
+        {
+            "job_id": str(job.id),
+            "status": job.status,
+            "total_rows": job.total_rows,
+        },
+    )
+
+
+@router.get("/events/{event_id}/contributor-imports/{job_id}")
+def get_contributor_import_status(event_id: str, job_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Poll a contributor-import job for status and progress."""
+    try:
+        eid = uuid.UUID(event_id)
+        jid = uuid.UUID(job_id)
+    except ValueError:
+        return standard_response(False, "Invalid id")
+
+    from utils.event_owner import user_can_manage_event
+    from models import ContributorImportJob
+    event = db.query(Event).filter(Event.id == eid).first()
+    if not event or not user_can_manage_event(event, current_user):
+        return standard_response(False, "Not authorised")
+
+    job = db.query(ContributorImportJob).filter(
+        ContributorImportJob.id == jid,
+        ContributorImportJob.event_id == eid,
+    ).first()
+    if not job:
+        return standard_response(False, "Job not found")
+
+    return standard_response(True, "OK", {
+        "job_id": str(job.id),
+        "status": job.status,
+        "mode": job.mode,
+        "total_rows": job.total_rows,
+        "processed_rows": job.processed_rows,
+        "successful_rows": job.successful_rows,
+        "failed_rows": job.failed_rows,
+        "error_message": job.error_message,
+        "started_at": job.started_at.isoformat() if job.started_at else None,
+        "finished_at": job.finished_at.isoformat() if job.finished_at else None,
+        "created_at": job.created_at.isoformat() if job.created_at else None,
+    })
+
+
+@router.get("/events/{event_id}/contributor-imports/{job_id}/errors")
+def get_contributor_import_errors(event_id: str, job_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Return the list of per-row errors for a completed job."""
+    try:
+        eid = uuid.UUID(event_id)
+        jid = uuid.UUID(job_id)
+    except ValueError:
+        return standard_response(False, "Invalid id")
+
+    from utils.event_owner import user_can_manage_event
+    from models import ContributorImportJob
+    event = db.query(Event).filter(Event.id == eid).first()
+    if not event or not user_can_manage_event(event, current_user):
+        return standard_response(False, "Not authorised")
+
+    job = db.query(ContributorImportJob).filter(
+        ContributorImportJob.id == jid,
+        ContributorImportJob.event_id == eid,
+    ).first()
+    if not job:
+        return standard_response(False, "Job not found")
+
+    return standard_response(True, "OK", {
+        "job_id": str(job.id),
+        "errors": list(job.errors or []),
+    })
+
+
+# NOTE: the original synchronous bulk implementation has been moved into
+# ``tasks.contributor_imports.process_contributor_import_job``. The legacy
+# inline body below is retained as a private helper for reference but is
+# no longer reachable from the HTTP layer.
+def _legacy_bulk_add_contributors_inline(event_id: str, body: dict, db: Session, current_user: User):
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID")
+
+    event = db.query(Event).filter(Event.id == eid, Event.organizer_id == current_user.id).first()
+    if not event:
+        return standard_response(False, "Only event creator can perform bulk uploads")
+    rows = body.get("contributors", [])
+    if not rows or not isinstance(rows, list):
+        return standard_response(False, "No contributors provided")
     if len(rows) > 500:
         return standard_response(False, "Maximum 500 contributors per upload")
 
@@ -1564,15 +1762,26 @@ def bulk_add_contributors(event_id: str, body: dict = Body(...), db: Session = D
 
                 if send_sms and amount > 0 and amount != old_pledge:
                     from utils.offline_claims import contributor_notify_phones
+                    # Pledge reductions fall back to ``set`` (no reduction template yet).
+                    is_increase = amount > old_pledge and old_pledge > 0
                     for ph in contributor_notify_phones(ec):
                         try:
-                            from utils.sms import sms_contribution_target_set
-                            total_paid = sum(float(c.amount or 0) for c in ec.contributions)
-                            sms_contribution_target_set(
-                                ph, contributor.name,
-                                event.name, amount, total_paid, currency,
-                                organizer_phone=organizer_phone
-                            )
+                            if is_increase:
+                                from utils.sms import sms_contribution_target_updated
+                                sms_contribution_target_updated(
+                                    ph, contributor.name, event.name,
+                                    increase=(amount - old_pledge),
+                                    total_target=amount,
+                                    currency=currency,
+                                    organizer_phone=organizer_phone,
+                                )
+                            else:
+                                from utils.sms import sms_contribution_target_set
+                                sms_contribution_target_set(
+                                    ph, contributor.name, event.name,
+                                    amount, currency=currency,
+                                    organizer_phone=organizer_phone,
+                                )
                         except Exception:
                             pass
             else:
@@ -2425,7 +2634,7 @@ def my_contributions(
             "event_start_date": event.start_date.isoformat() if event.start_date else None,
             "event_start_time": event.start_date.strftime("%H:%M") if event.start_date else None,
             "event_location": event.location,
-            "organizer_name": f"{organizer.first_name} {organizer.last_name}".strip() if organizer else None,
+            "organizer_name": get_event_owner_display_name(event, db=db) or (f"{organizer.first_name} {organizer.last_name}".strip() if organizer else None),
             "event_contributor_id": str(ec.id),
             "currency": currency,
             "pledge_amount": pledge,
@@ -2906,11 +3115,8 @@ def send_share_sms(
     # anyway.) The previous token becomes invalid — desired for security.
     plain = issue_share_token(db, ec)
     url = build_share_url(currency_code, plain)
-    organiser = db.query(User).filter(User.id == event.organizer_id).first()
-    organiser_name = (
-        " ".join(p for p in [getattr(organiser, "first_name", None), getattr(organiser, "last_name", None)] if p).strip()
-        or "Your host"
-    )
+    from utils.event_owner import get_event_owner_display_name
+    organiser_name = get_event_owner_display_name(event, db=db, fallback="Your host")
 
     from utils.offline_claims import contributor_notify_phones
     recipients = contributor_notify_phones(ec)

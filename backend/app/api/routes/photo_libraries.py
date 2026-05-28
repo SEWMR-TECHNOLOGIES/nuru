@@ -21,6 +21,7 @@ from models import (
 )
 from utils.auth import get_current_user, get_optional_user
 from utils.helpers import standard_response
+from utils.event_owner import get_event_owner_display_name
 from services.share_links import host_for_currency
 
 EAT = pytz.timezone("Africa/Nairobi")
@@ -713,7 +714,7 @@ def get_service_confirmed_events(
             "agreed_price": float(es.agreed_price) if es.agreed_price else None,
             "timing": timing,
             "organizer_id": str(event.organizer_id) if event.organizer_id else None,
-            "organizer_name": f"{event.organizer.first_name} {event.organizer.last_name}" if event.organizer else None,
+            "organizer_name": get_event_owner_display_name(event, db=db) or (f"{event.organizer.first_name} {event.organizer.last_name}" if event.organizer else None),
             "organizer_avatar": event.organizer.profile.profile_picture_url if event.organizer and event.organizer.profile else None,
             "photo_library": photo_library_data,
             "has_library": library is not None,

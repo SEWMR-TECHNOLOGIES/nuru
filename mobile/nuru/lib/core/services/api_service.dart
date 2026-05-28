@@ -149,6 +149,7 @@ class AuthApi {
     required String phone,
     required String password,
     String? email,
+    String? registeredBy,
   }) {
     return ApiService.post('/users/signup', {
       'first_name': firstName,
@@ -157,6 +158,7 @@ class AuthApi {
       'phone': phone,
       'password': password,
       'email': email ?? '',
+      if (registeredBy != null && registeredBy.isNotEmpty) 'registered_by': registeredBy,
     }, auth: false);
   }
 

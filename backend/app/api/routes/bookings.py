@@ -374,17 +374,27 @@ def respond_to_booking(booking_id: str, body: dict = Body(...), db: Session = De
                 from utils.notify import notify_booking_accepted
                 notify_booking_accepted(db, b.requester_user_id, current_user.id, b.event_id, event_name, service_name)
                 db.commit()
+                # Resolve recipient language once, share across WA + SMS
+                from utils.message_templates import resolve_user_language
+                lang = resolve_user_language(db, requester.id) if requester else "sw"
                 # WhatsApp first
                 if requester and requester.phone:
                     try:
                         from utils.whatsapp import wa_booking_accepted
-                        wa_booking_accepted(requester.phone, requester.first_name, f"{current_user.first_name} {current_user.last_name}", service_name, event_name)
+                        wa_booking_accepted(requester.phone, requester.first_name, f"{current_user.first_name} {current_user.last_name}", service_name, event_name, lang=lang)
                     except Exception:
                         pass
-                # SMS fallback
+                # SMS fallback (catalogue-rendered in recipient's language)
                 if requester and requester.phone:
-                    from utils.sms import _send
-                    _send(requester.phone, f"NURU BOOKING\nHello {requester.first_name}, great news — {current_user.first_name} {current_user.last_name} has accepted your booking for \"{service_name}\" at {event_name}. Open Nuru to see the next steps.")
+                    from utils.sms import sms_booking_accepted
+                    sms_booking_accepted(
+                        requester.phone,
+                        requester.first_name,
+                        f"{current_user.first_name} {current_user.last_name}",
+                        service_name,
+                        event_name,
+                        lang=lang,
+                    )
             elif new_status == "rejected":
                 from utils.notify import notify_booking_rejected
                 notify_booking_rejected(db, b.requester_user_id, current_user.id, b.event_id, event_name, service_name)

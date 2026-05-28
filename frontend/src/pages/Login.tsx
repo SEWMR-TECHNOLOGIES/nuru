@@ -11,6 +11,7 @@ import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, showApiErrorsShadcn } from "@/lib/api";
+import { prefetchMyGroupsAfterLogin } from "@/components/eventGroups/MyGroups";
 import nuruLogo from "@/assets/nuru-logo.png";
 import { CountryPhoneInput, maskPhoneDisplay } from "@/components/ui/country-phone-input";
 import { useLanguage } from "@/lib/i18n/LanguageContext";
@@ -79,6 +80,9 @@ const Login = () => {
         localStorage.setItem("login", Date.now().toString());
 
         qc.setQueryData(["currentUser"], user);
+        // Fire-and-forget: warm the My Groups cache with any event groups
+        // the contributor-claim service just attached on the backend.
+        void prefetchMyGroupsAfterLogin();
         toast({ title: t('welcome_back_excl'), description: response.message });
         navigate(returnUrl || "/", { replace: true });
       } else {

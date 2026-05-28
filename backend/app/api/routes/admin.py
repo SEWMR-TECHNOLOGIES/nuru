@@ -3999,3 +3999,35 @@ def delete_name_flag(
     db.commit()
 
     return standard_response(True, "Flag deleted")
+
+
+# ──────────────────────────────────────────────
+# Repair: Contributor → User claim
+# ──────────────────────────────────────────────
+@router.post("/repair/contributor-claim/{user_id}")
+def repair_contributor_claim_one(
+    user_id: str,
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin),
+):
+    """Re-run contributor claim for a single user (admin backfill)."""
+    from services.contributor_claim import claim_for_user_id
+    summary = claim_for_user_id(db, user_id)
+    return standard_response(True, "Claim repair completed", summary)
+
+
+@router.post("/repair/contributor-claim/all")
+def repair_contributor_claim_all(
+    body: dict = Body(default={}),
+    db: Session = Depends(get_db),
+    admin: AdminUser = Depends(require_admin),
+):
+    """Run contributor claim for every active user. Use sparingly."""
+    from services.contributor_claim import claim_for_all_users
+    limit = body.get("limit")
+    try:
+        limit = int(limit) if limit is not None else None
+    except (TypeError, ValueError):
+        limit = None
+    summary = claim_for_all_users(db, limit=limit)
+    return standard_response(True, "Bulk claim repair completed", summary)

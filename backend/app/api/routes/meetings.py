@@ -110,6 +110,11 @@ def _is_host_or_cohost(meeting: EventMeeting, user_id: str, db: Session) -> bool
 
 def _notify_participants(meeting: EventMeeting, participants, event: Event, db: Session):
     """Send WhatsApp-first notifications to meeting participants."""
+    from utils.message_templates import resolve_user_language
+    from utils.datetime_format import format_event_datetime
+    from utils.meeting_redirect import mint_meeting_redirect_token
+
+    event_tz = getattr(event, "timezone", None) or "Africa/Nairobi"
     for p in participants:
         user = db.query(User).filter(User.id == p.user_id).first()
         if not user:
@@ -118,19 +123,39 @@ def _notify_participants(meeting: EventMeeting, participants, event: Event, db: 
         phone = getattr(user, 'phone', None) or getattr(user, 'phone_number', None)
         meeting_link = f"https://nuru.tz/meet/{meeting.room_id}"
         event_name = event.name
-        scheduled_time = meeting.scheduled_at.strftime("%b %d, %Y at %I:%M %p") if meeting.scheduled_at else "TBA"
+        lang = resolve_user_language(db, p.user_id)
+        scheduled_time = (
+            format_event_datetime(meeting.scheduled_at, lang, event_tz)
+            if meeting.scheduled_at else ""
+        )
 
-        # WhatsApp first, then SMS fallback
+        # WhatsApp first (Meta template), then SMS fallback (catalogue body)
         wa_sent = False
         if phone:
             try:
-                wa_sent = wa_meeting_invitation(phone, event_name, meeting.title, scheduled_time, meeting_link)
+                # Mint a per-participant redirect token so the WhatsApp
+                # dynamic URL button (https://nuru.tz/m/{{1}}) resolves
+                # back to the real meeting URL without exposing it in
+                # the message body. Falls back to inline link via SMS
+                # if minting or WhatsApp delivery fails.
+                redirect_token = mint_meeting_redirect_token(
+                    db,
+                    target_url=meeting_link,
+                    meeting_id=meeting.id,
+                    user_id=p.user_id,
+                )
+                wa_sent = wa_meeting_invitation(
+                    phone, event_name, meeting.title, scheduled_time,
+                    meeting_link,
+                    meeting_redirect_token=redirect_token,
+                    lang=lang,
+                )
             except Exception as e:
                 print(f"[Meeting] WhatsApp invitation failed for {phone}: {e}")
 
             if not wa_sent:
                 try:
-                    sms_meeting_invitation(phone, event_name, meeting.title, scheduled_time, meeting_link)
+                    sms_meeting_invitation(phone, event_name, meeting.title, scheduled_time, meeting_link, lang=lang)
                 except Exception as e:
                     print(f"[Meeting] SMS invitation also failed for {phone}: {e}")
 

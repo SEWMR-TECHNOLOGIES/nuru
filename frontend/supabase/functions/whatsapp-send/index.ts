@@ -1,4 +1,12 @@
-// WhatsApp Send Edge Function — uses built-in Deno.serve
+// WhatsApp Send Edge Function
+// =============================
+// Source of truth for all 48 production templates:
+// backend/app/docs/whatsapp_templates_catalogue.md
+//
+// Every action below maps to ONE catalogue entry (lang-aware _sw / _en pair)
+// with placeholder counts and button structures that match Meta exactly.
+// Money values arrive pre-formatted as a single combined string (e.g.
+// "TZS 10,000") under *_text keys — Meta forbids placeholder reuse.
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -8,686 +16,600 @@ const corsHeaders = {
 
 const GRAPH_API = "https://graph.facebook.com/v21.0";
 
+// ── Helpers ────────────────────────────────────────────
+type Lang = "sw" | "en";
+const pickLang = (raw: unknown, fallback: Lang = "sw"): Lang =>
+  String(raw || fallback).toLowerCase() === "en" ? "en" : "sw";
+
+const T = (text: unknown) => ({ type: "text", text: String(text ?? "") });
+
+const bodyParams = (vals: unknown[]) => [{ type: "body", parameters: vals.map(T) }];
+
+const urlButton = (suffix: string) => ({
+  type: "button",
+  sub_type: "url",
+  index: "0",
+  parameters: [{ type: "text", text: String(suffix || "").slice(0, 60) }],
+});
+
+// ── Catalogue-aligned builders ─────────────────────────
+// Each function returns { name, lang, components } given (lang, params).
+// Templates with dynamic URL buttons append a button component.
+
+type Built = { name: string; lang: Lang; components: Array<Record<string, unknown>> };
+
+const BUILDERS: Record<string, (lang: Lang, p: any) => Built> = {
+  // #1/2 — guest_invitation, dynamic URL button = rsvp_code
+  guest_invitation: (lang, p) => ({
+    name: `nuru_guest_invitation_${lang}`,
+    lang,
+    components: [
+      ...bodyParams([
+        p.guest_name || "Guest",
+        p.organizer_name || "The organizer",
+        p.event_name || "an event",
+        p.event_date || p.event_date_and_time || "TBA",
+        p.event_venue || p.venue || "TBA",
+      ]),
+      urlButton(p.rsvp_code || ""),
+    ],
+  }),
+
+  // #3/4 — committee_invite
+  committee_invite: (lang, p) => ({
+    name: `nuru_committee_invite_${lang}`,
+    lang,
+    components: bodyParams([
+      p.member_name || "Member",
+      p.organizer_name || "The organizer",
+      p.role || "committee member",
+      p.event_name || "an event",
+      p.custom_message || (lang === "sw" ? "Karibu kwenye kamati." : "Welcome to the committee."),
+    ]),
+  }),
+
+  // #5/6 — welcome_registered_by, dynamic URL button = setup_token
+  welcome_registered_by: (lang, p) => ({
+    name: `nuru_welcome_registered_by_${lang}`,
+    lang,
+    components: [
+      ...bodyParams([
+        p.new_user_name || p.recipient_first_name || "rafiki",
+        p.registered_by_name || p.inviter_name || "Mtumiaji wa Nuru",
+      ]),
+      urlButton(p.setup_token || ""),
+    ],
+  }),
+
+  // #7/8 — meeting_invitation, dynamic URL button = meeting_redirect_token
+  meeting_invitation: (lang, p) => {
+    let suffix = String(p.meeting_redirect_token || "").trim();
+    if (!suffix && p.meeting_link) {
+      try {
+        const u = new URL(p.meeting_link);
+        const m = u.pathname.match(/\/(?:m|meet)\/([^/?#]+)/);
+        if (m) suffix = m[1];
+      } catch { /* ignore */ }
+    }
+    return {
+      name: `nuru_meeting_invitation_${lang}`,
+      lang,
+      components: [
+        ...bodyParams([
+          p.meeting_title || "Meeting",
+          p.event_name || "an event",
+          p.scheduled_time || p.scheduled_date_and_time || "TBA",
+        ]),
+        urlButton(suffix || "invalid"),
+      ],
+    };
+  },
+
+  // #9/10 — contribution_recorded_with_balance (7 params)
+  contribution_recorded_with_balance: (lang, p) => ({
+    name: `nuru_contribution_recorded_with_balance_${lang}`,
+    lang,
+    components: bodyParams([
+      p.contributor_name || "Contributor",
+      p.amount_text || p.amount || "TZS 0",
+      p.recorder_name || "The organizer",
+      p.event_name || "an event",
+      p.total_paid_text || p.total_paid || "TZS 0",
+      p.balance_text || p.balance || "TZS 0",
+      p.organizer_phone || "Nuru",
+    ]),
+  }),
+
+  // #11/12 — contribution_recorded_pledge_complete (6 params)
+  contribution_recorded_pledge_complete: (lang, p) => ({
+    name: `nuru_contribution_recorded_pledge_complete_${lang}`,
+    lang,
+    components: bodyParams([
+      p.contributor_name || "Contributor",
+      p.amount_text || p.amount || "TZS 0",
+      p.recorder_name || "The organizer",
+      p.event_name || "an event",
+      p.target_text || p.target || "TZS 0",
+      p.organizer_phone || "Nuru",
+    ]),
+  }),
+
+  // #13/14 — contribution_target_set (4 params)
+  contribution_target_set: (lang, p) => ({
+    name: `nuru_contribution_target_set_${lang}`,
+    lang,
+    components: bodyParams([
+      p.contributor_name || "Contributor",
+      p.event_name || "an event",
+      p.target_text || p.target || "TZS 0",
+      p.organizer_phone || "Nuru",
+    ]),
+  }),
+
+  // #14a/14b — contribution_target_updated (5 params)
+  contribution_target_updated: (lang, p) => ({
+    name: `nuru_contribution_target_updated_${lang}`,
+    lang,
+    components: bodyParams([
+      p.contributor_name || "Contributor",
+      p.event_name || "an event",
+      p.increase_text || p.increase || "TZS 0",
+      p.total_target_text || p.total_target || "TZS 0",
+      p.organizer_phone || "Nuru",
+    ]),
+  }),
+
+  // #15/16 — contribution_thank_you (5 params)
+  contribution_thank_you: (lang, p) => ({
+    name: `nuru_contribution_thank_you_${lang}`,
+    lang,
+    components: bodyParams([
+      p.contributor_name || "Contributor",
+      p.amount_text || p.amount || "TZS 0",
+      p.event_name || "an event",
+      p.custom_message ||
+        (lang === "sw" ? "Tunakushukuru kwa ukarimu wako." : "We deeply appreciate your generosity."),
+      p.organizer_phone || "Nuru",
+    ]),
+  }),
+
+  // #17/18 — guest_contribution_invite, dynamic URL button = share_token
+  guest_contribution_invite: (lang, p) => ({
+    name: `nuru_guest_contribution_invite_${lang}`,
+    lang,
+    components: [
+      ...bodyParams([
+        p.contributor_name || "Friend",
+        p.organiser_name || p.organizer_name || "The organiser",
+        p.event_name || "an event",
+        p.pledge_amount_text || p.pledge_amount || "TZS 0",
+      ]),
+      urlButton(p.share_token || ""),
+    ],
+  }),
+
+  // #19/20 — guest_contribution_receipt, dynamic URL button = receipt_path
+  guest_contribution_receipt: (lang, p) => ({
+    name: `nuru_guest_contribution_receipt_${lang}`,
+    lang,
+    components: [
+      ...bodyParams([
+        p.contributor_name || "Friend",
+        p.amount_text || p.amount || "TZS 0",
+        p.event_name || "an event",
+        p.total_paid_text || p.total_paid || "TZS 0",
+        p.balance_text || p.balance || "TZS 0",
+        p.transaction_code || "—",
+      ]),
+      urlButton(p.receipt_path || ""),
+    ],
+  }),
+
+  // #21/22 — payment_received_generic (4 params)
+  payment_received_generic: (lang, p) => ({
+    name: `nuru_payment_received_generic_${lang}`,
+    lang,
+    components: bodyParams([
+      p.amount_text || p.amount || "TZS 0",
+      p.payer_name || "a payer",
+      p.purpose || "your account",
+      p.transaction_code || "—",
+    ]),
+  }),
+
+  // #23/24 — payment_confirmation_payer (4 params)
+  payment_confirmation_payer: (lang, p) => ({
+    name: `nuru_payment_confirmation_payer_${lang}`,
+    lang,
+    components: bodyParams([
+      p.payer_name || "Friend",
+      p.amount_text || p.amount || "TZS 0",
+      p.purpose || "your payment",
+      p.transaction_code || "—",
+    ]),
+  }),
+
+  // #25/26 — organiser_contribution_received (5 params)
+  organiser_contribution_received: (lang, p) => ({
+    name: `nuru_organiser_contribution_received_${lang}`,
+    lang,
+    components: bodyParams([
+      p.organizer_name || "Organiser",
+      p.amount_text || p.amount || "TZS 0",
+      p.contributor_name || "a contributor",
+      p.event_name || "an event",
+      p.transaction_code || "—",
+    ]),
+  }),
+
+  // #27/28 — vendor_booking_paid (8 params)
+  vendor_booking_paid: (lang, p) => ({
+    name: `nuru_vendor_booking_paid_${lang}`,
+    lang,
+    components: bodyParams([
+      p.vendor_name || "Vendor",
+      p.amount_text || p.amount || "TZS 0",
+      p.client_name || "a client",
+      p.service_title || p.service_name || "your service",
+      p.service_amount_text || p.service_amount || "TZS 0",
+      p.total_paid_text || p.total_paid || "TZS 0",
+      p.balance_text || p.balance || "TZS 0",
+      p.transaction_code || "—",
+    ]),
+  }),
+
+  // #29/30 — admin_payment_alert (7 params)
+  admin_payment_alert: (lang, p) => ({
+    name: `nuru_admin_payment_alert_${lang}`,
+    lang,
+    components: bodyParams([
+      p.amount_text || p.amount || "TZS 0",
+      p.method || "—",
+      p.purpose || "—",
+      p.target_label || "",
+      p.payer_name || "a payer",
+      p.payer_phone || "—",
+      p.transaction_code || "—",
+    ]),
+  }),
+
+  // #35/36 — vendor_confirmation_receipt (5 params)
+  vendor_confirmation_receipt: (lang, p) => ({
+    name: `nuru_vendor_confirmation_receipt_${lang}`,
+    lang,
+    components: bodyParams([
+      p.vendor_first_name || p.vendor_name || "Vendor",
+      p.amount_text || p.amount || "TZS 0",
+      p.organiser_name || "the organiser",
+      p.event_name || "the event",
+      p.balance_text || p.balance || "TZS 0",
+    ]),
+  }),
+
+  // #37/38 — vendor_confirmation_receipt_full (4 params)
+  vendor_confirmation_receipt_full: (lang, p) => ({
+    name: `nuru_vendor_confirmation_receipt_full_${lang}`,
+    lang,
+    components: bodyParams([
+      p.vendor_first_name || p.vendor_name || "Vendor",
+      p.amount_text || p.amount || "TZS 0",
+      p.organiser_name || "the organiser",
+      p.event_name || "the event",
+    ]),
+  }),
+
+  // #39/40 — organiser_committee_vendor_confirmed (6 params)
+  organiser_committee_vendor_confirmed: (lang, p) => ({
+    name: `nuru_organiser_committee_vendor_confirmed_${lang}`,
+    lang,
+    components: bodyParams([
+      p.recipient_first_name || "Member",
+      p.vendor_name || "the vendor",
+      p.amount_text || p.amount || "TZS 0",
+      p.organiser_name || "the organiser",
+      p.event_name || "the event",
+      p.balance_text || p.balance || "TZS 0",
+    ]),
+  }),
+
+  // #41/42 — expense_recorded (5 params)
+  expense_recorded: (lang, p) => ({
+    name: `nuru_expense_recorded_${lang}`,
+    lang,
+    components: bodyParams([
+      p.recipient_first_name || p.recipient_name || "Member",
+      p.recorder_name || "A member",
+      p.amount_text || p.amount || "TZS 0",
+      p.category || "General",
+      p.event_name || "an event",
+    ]),
+  }),
+
+  // #42a/42b — owner_expense_summary (7 params)
+  owner_expense_summary: (lang, p) => ({
+    name: `nuru_owner_expense_summary_${lang}`,
+    lang,
+    components: bodyParams([
+      p.organizer_name || p.owner_name || "Friend",
+      p.event_name || "an event",
+      p.expense_name || p.category || "Expense",
+      p.expense_amount || p.expense_amount_text || p.amount_text || p.amount || "TZS 0",
+      p.total_budget || p.total_budget_text || "TZS 0",
+      p.total_expenses || p.total_expenses_text || "TZS 0",
+      p.remaining_balance || p.remaining_balance_text || "TZS 0",
+    ]),
+  }),
+
+  // #43/44 — service_booking_notification (4 params)
+  service_booking_notification: (lang, p) => ({
+    name: `nuru_service_booking_notification_${lang}`,
+    lang,
+    components: bodyParams([
+      p.provider_name || "Provider",
+      p.client_name || "a client",
+      p.service_name || "your service",
+      p.event_name || "an event",
+    ]),
+  }),
+
+  // #45/46 — booking_accepted (4 params)
+  booking_accepted: (lang, p) => ({
+    name: `nuru_booking_accepted_${lang}`,
+    lang,
+    components: bodyParams([
+      p.requester_first_name || p.client_name || "Friend",
+      p.vendor_name || "The vendor",
+      p.service_name || "your service",
+      p.event_name || "the event",
+    ]),
+  }),
+};
+
+// Legacy aliases kept ONLY so backend callers that still pass an older
+// action name route to the new template. No old templates are referenced
+// here — every alias resolves to a builder above.
+const ALIASES: Record<string, string> = {
+  // legacy → catalogue
+  invite: "guest_invitation",
+  contribution_recorded: "contribution_recorded_with_balance",
+  contribution_target: "contribution_target_set",
+  thank_you_contribution: "contribution_thank_you",
+  booking_notification: "service_booking_notification",
+  vendor_payment_confirmed: "vendor_confirmation_receipt",
+};
+
+// ── Reminder-automation templates (kept as-is per catalogue "Skipped") ──
+function buildFundraiseAttend(lang: Lang, p: any) {
+  return {
+    name: `nuru_fundraise_notice_${lang}`,
+    lang,
+    components: bodyParams([p.recipient_name || "Friend", p.body || ""]),
+  };
+}
+function buildPledgeRemind(lang: Lang, p: any) {
+  return {
+    name: `nuru_pledge_remind_${lang}`,
+    lang,
+    components: [
+      ...bodyParams([
+        p.recipient_name || "Friend",
+        p.event_name || "the event",
+        p.event_datetime || "TBA",
+        p.pledge_amount || "—",
+        p.balance || "—",
+      ]),
+      urlButton(p.pay_token || ""),
+    ],
+  };
+}
+function buildGuestRemind(lang: Lang, p: any) {
+  return {
+    name: `nuru_guest_remind_${lang}`,
+    lang,
+    components: bodyParams([
+      p.recipient_name || "Friend",
+      p.event_name || "the event",
+      p.event_datetime || "TBA",
+      p.event_venue || "TBA",
+    ]),
+  };
+}
+
+// ── HTTP entrypoint ────────────────────────────────────
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const WHATSAPP_ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
   const WHATSAPP_PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
-
   if (!WHATSAPP_ACCESS_TOKEN || !WHATSAPP_PHONE_NUMBER_ID) {
-    return new Response(
-      JSON.stringify({ error: "WhatsApp not configured" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return json({ error: "WhatsApp not configured" }, 500);
   }
 
   try {
     const body = await req.json();
-    const { action, phone, params } = body;
+    const { action: rawAction, phone, params = {} } = body || {};
+    if (!rawAction || !phone) return json({ error: "Missing action or phone" }, 400);
 
-    if (!action || !phone) {
-      return new Response(
-        JSON.stringify({ error: "Missing action or phone" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    // Resolve legacy aliases
+    const action = ALIASES[rawAction] || rawAction;
+    const lang = pickLang(params?.lang);
 
-    let result;
+    let result: any;
 
-    switch (action) {
-      case "invite":
-        result = await sendTemplate(phone, "event_invitation_v2", buildInviteTemplateWithButtons(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
-        break;
-      case "event_update":
-        result = await sendTemplate(phone, "event_update", buildEventUpdateComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
-        break;
-      case "reminder":
-        result = await sendTemplate(phone, "event_reminder", buildReminderComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
-        break;
-      case "expense_recorded":
-        result = await sendTemplate(phone, "expense_recorded", buildExpenseComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
-        break;
-      case "contribution_recorded":
-        result = await sendTemplate(phone, "contribution_recorded", buildContributionRecordedComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
-        break;
-      case "contribution_target":
-        result = await sendTemplate(phone, "contribution_target", buildContributionTargetComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
-        break;
-      case "thank_you_contribution":
-        result = await sendTemplate(phone, "thank_you_contribution", buildThankYouComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
-        break;
-      case "booking_notification":
-        result = await sendTemplate(phone, "booking_notification", buildBookingNotificationComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
-        break;
-      case "booking_accepted":
-        result = await sendTemplate(phone, "booking_accepted", buildBookingAcceptedComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
-        break;
-      case "otp_verification":
-        result = await sendOtpTemplate(phone, params, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
-        if (result?.not_on_whatsapp) {
-          return new Response(
-            JSON.stringify({ success: false, not_on_whatsapp: true, error_code: result.error_code }),
-            { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-          );
+    // 1) Catalogue UTILITY templates
+    if (BUILDERS[action]) {
+      const built = BUILDERS[action](lang, params);
+      result = await sendTemplate(phone, built.name, built.components, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, built.lang);
+    } else {
+      // 2) Non-catalogue actions (OTP, reminder-automation, rich media, freeform)
+      switch (action) {
+        // AUTHENTICATION-category OTPs — code-only payload
+        case "vendor_otp_claim":
+        case "vendor_otp_resend": {
+          const name = action === "vendor_otp_claim"
+            ? `nuru_vendor_otp_claim_${lang}`
+            : `nuru_vendor_otp_resend_${lang}`;
+          result = await sendAuthOtpTemplate(phone, name, lang, String(params?.otp || params?.otp_code || "------"), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+          break;
         }
-        break;
-      case "check_whatsapp":
-        result = await checkWhatsAppBySending(phone, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
-        break;
-      case "meeting_invitation":
-        console.log(`[WhatsApp] Meeting invitation params:`, JSON.stringify(params));
-        result = await sendTemplate(phone, "meeting_invitation", buildMeetingInvitationComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, "en_US");
-        console.log(`[WhatsApp] Meeting invitation result:`, JSON.stringify(result));
-        break;
-      case "text":
-        result = await sendTextMessage(phone, params?.message || "", WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
-        break;
-      case "fundraise_attend": {
-        const lang = (params?.lang || "en").toLowerCase() === "sw" ? "sw" : "en";
-        const tplName = lang === "sw" ? "nuru_fundraise_notice_sw" : "nuru_fundraise_notice_en";
-        result = await sendTemplate(phone, tplName, buildFundraiseAttendComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, lang);
-        break;
+        case "otp_verification":
+          result = await sendOtpTemplate(phone, params, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+          if (result?.not_on_whatsapp) {
+            return json({ success: false, not_on_whatsapp: true, error_code: result.error_code }, 200);
+          }
+          break;
+
+        // Reminder-automation templates (separate doc, kept as-is)
+        case "fundraise_attend": {
+          const built = buildFundraiseAttend(lang, params);
+          result = await sendTemplate(phone, built.name, built.components, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, built.lang);
+          break;
+        }
+        case "pledge_remind": {
+          const built = buildPledgeRemind(lang, params);
+          result = await sendTemplate(phone, built.name, built.components, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, built.lang);
+          break;
+        }
+        case "guest_remind": {
+          const built = buildGuestRemind(lang, params);
+          result = await sendTemplate(phone, built.name, built.components, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, built.lang);
+          break;
+        }
+        case "reminder":
+          result = await sendTemplate(phone, "event_reminder", buildLegacyReminder(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+          break;
+
+        // Rich-media invitation/ticket templates (driven by whatsapp_cards.py)
+        case "send_invitation_text":
+          result = await sendTemplate(phone, "event_invitation_text", buildInvitationTextComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+          break;
+        case "send_invitation_card":
+          result = await sendTemplate(phone, "event_invitation_card", buildInvitationCardComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+          break;
+        case "send_ticket":
+          result = await sendTemplate(phone, "event_ticket_delivery", buildTicketDeliveryComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+          break;
+
+        // Freeform fallbacks
+        case "text":
+          result = await sendTextMessage(phone, params?.message || "", WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+          break;
+        case "image":
+          result = await sendImageMessage(phone, params?.image_url || "", params?.caption || "", WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+          break;
+        case "check_whatsapp":
+          result = await checkWhatsAppBySending(phone, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+          break;
+
+        default:
+          return json({ error: `Unknown action: ${rawAction}` }, 400);
       }
-      case "pledge_remind": {
-        const lang = (params?.lang || "en").toLowerCase() === "sw" ? "sw" : "en";
-        const tplName = lang === "sw" ? "nuru_pledge_remind_sw" : "nuru_pledge_remind_en";
-        result = await sendTemplate(phone, tplName, buildPledgeRemindComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, lang);
-        break;
-      }
-      case "guest_remind": {
-        const lang = (params?.lang || "en").toLowerCase() === "sw" ? "sw" : "en";
-        const tplName = lang === "sw" ? "nuru_guest_remind_sw" : "nuru_guest_remind_en";
-        result = await sendTemplate(phone, tplName, buildGuestRemindComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, lang);
-        break;
-      }
-      case "send_invitation_text":
-        result = await sendTemplate(
-          phone,
-          "event_invitation_text",
-          buildInvitationTextComponents(params),
-          WHATSAPP_ACCESS_TOKEN,
-          WHATSAPP_PHONE_NUMBER_ID,
-        );
-        break;
-      case "send_invitation_card":
-        console.log(`[WhatsApp] Invitation card params:`, JSON.stringify({
-          guest_name: params?.guest_name,
-          event_name: params?.event_name,
-          event_date: params?.event_date,
-          organizer_name: params?.organizer_name,
-          rsvp_code: params?.rsvp_code,
-          has_image_url: Boolean(params?.image_url),
-          image_url: params?.image_url,
-        }));
-        result = await sendTemplate(
-          phone,
-          "event_invitation_card",
-          buildInvitationCardComponents(params),
-          WHATSAPP_ACCESS_TOKEN,
-          WHATSAPP_PHONE_NUMBER_ID,
-        );
-        break;
-      case "send_ticket":
-        result = await sendTemplate(
-          phone,
-          "event_ticket_delivery",
-          buildTicketDeliveryComponents(params),
-          WHATSAPP_ACCESS_TOKEN,
-          WHATSAPP_PHONE_NUMBER_ID,
-        );
-        break;
-      case "vendor_payment_otp":
-        result = await sendTemplate(
-          phone,
-          "vendor_payment_otp",
-          buildVendorPaymentOtpComponents(params),
-          WHATSAPP_ACCESS_TOKEN,
-          WHATSAPP_PHONE_NUMBER_ID,
-        );
-        break;
-      case "vendor_payment_confirmed":
-        result = await sendTemplate(
-          phone,
-          "vendor_payment_confirmed",
-          buildVendorPaymentConfirmedComponents(params),
-          WHATSAPP_ACCESS_TOKEN,
-          WHATSAPP_PHONE_NUMBER_ID,
-        );
-        break;
-      case "image":
-        // Freeform image (only delivers within the 24h customer service window;
-        // safe fallback for organisers chatting with confirmed contacts)
-        result = await sendImageMessage(phone, params?.image_url || "", params?.caption || "", WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
-        break;
-      default:
-        return new Response(
-          JSON.stringify({ error: `Unknown action: ${action}` }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
     }
 
-    return new Response(
-      JSON.stringify({ success: true, ...result }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return json({ success: true, ...result }, 200);
   } catch (error) {
     console.error("WhatsApp send error:", error);
     const msg = error instanceof Error ? error.message : "Unknown error";
-    return new Response(
-      JSON.stringify({ success: false, error: msg }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return json({ success: false, error: msg }, 500);
   }
 });
 
-// ── Template component builders ───────────────────────
+const json = (b: unknown, status = 200) =>
+  new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-// Template with quick-reply buttons for invitations (used outside 24h window)
-function buildInviteTemplateWithButtons(params: {
-  guest_name?: string; event_name?: string; event_date?: string;
-  organizer_name?: string; rsvp_code?: string;
-}) {
-  const rsvpCode = params.rsvp_code || "";
-  return [
-    {
-      type: "body",
-      parameters: [
-        { type: "text", text: params.guest_name || "Guest" },
-        { type: "text", text: params.event_name || "an event" },
-        { type: "text", text: params.event_date || "TBA" },
-        { type: "text", text: params.organizer_name || "the organizer" },
-      ],
-    },
-    {
-      type: "button",
-      sub_type: "quick_reply",
-      index: "0",
-      parameters: [{ type: "payload", payload: `rsvp_confirm_${rsvpCode}` }],
-    },
-    {
-      type: "button",
-      sub_type: "quick_reply",
-      index: "1",
-      parameters: [{ type: "payload", payload: `rsvp_decline_${rsvpCode}` }],
-    },
-  ];
-}
-
-function buildEventUpdateComponents(params: {
-  guest_name?: string; event_name?: string; changes?: string;
-}) {
-  return [{
-    type: "body",
-    parameters: [
-      { type: "text", text: params.guest_name || "Guest" },
-      { type: "text", text: params.event_name || "an event" },
-      { type: "text", text: params.changes || "Details updated" },
-    ],
-  }];
-}
-
-function buildReminderComponents(params: {
-  guest_name?: string; event_name?: string; event_date?: string;
-  event_time?: string; location?: string;
-}) {
-  return [{
-    type: "body",
-    parameters: [
-      { type: "text", text: params.guest_name || "Guest" },
-      { type: "text", text: params.event_name || "an event" },
-      { type: "text", text: params.event_date || "TBA" },
-      { type: "text", text: params.event_time || "TBA" },
-      { type: "text", text: params.location || "TBA" },
-    ],
-  }];
-}
-
-function buildExpenseComponents(params: {
-  recipient_name?: string; recorder_name?: string; amount?: string;
-  category?: string; event_name?: string;
-}) {
-  return [{
-    type: "body",
-    parameters: [
-      { type: "text", text: params.recipient_name || "Member" },
-      { type: "text", text: params.recorder_name || "A member" },
-      { type: "text", text: params.amount || "an amount" },
-      { type: "text", text: params.category || "General" },
-      { type: "text", text: params.event_name || "an event" },
-    ],
-  }];
-}
-
-// ── NEW: Contribution recorded template ──
-// Template body: "Hello {{1}}, {{2}} has recorded your contribution of {{3}} for {{4}}. Target: {{5}} | Paid: {{6}} | Balance: {{7}}"
-function buildContributionRecordedComponents(params: {
-  contributor_name?: string; recorder_name?: string; amount?: string;
-  event_name?: string; target?: string; total_paid?: string; balance?: string;
-}) {
-  return [{
-    type: "body",
-    parameters: [
-      { type: "text", text: params.contributor_name || "Contributor" },
-      { type: "text", text: params.recorder_name || "The organizer" },
-      { type: "text", text: params.amount || "0" },
-      { type: "text", text: params.event_name || "an event" },
-      { type: "text", text: params.target || "N/A" },
-      { type: "text", text: params.total_paid || "0" },
-      { type: "text", text: params.balance || "0" },
-    ],
-  }];
-}
-
-// ── NEW: Contribution target set template ──
-// Template body: "Hello {{1}}, your expected contribution for {{2}} is {{3}}. Paid so far: {{4}} | Still pending: {{5}}"
-function buildContributionTargetComponents(params: {
-  contributor_name?: string; event_name?: string; target?: string;
-  total_paid?: string; balance?: string;
-}) {
-  return [{
-    type: "body",
-    parameters: [
-      { type: "text", text: params.contributor_name || "Contributor" },
-      { type: "text", text: params.event_name || "an event" },
-      { type: "text", text: params.target || "0" },
-      { type: "text", text: params.total_paid || "0" },
-      { type: "text", text: params.balance || "0" },
-    ],
-  }];
-}
-
-// ── NEW: Thank you contribution template ──
-// Template body: "Hello {{1}}, thank you for your contribution to {{2}}. {{3}}"
-function buildThankYouComponents(params: {
-  contributor_name?: string; event_name?: string; custom_message?: string;
-}) {
-  return [{
-    type: "body",
-    parameters: [
-      { type: "text", text: params.contributor_name || "Contributor" },
-      { type: "text", text: params.event_name || "an event" },
-      { type: "text", text: params.custom_message || "We appreciate your support!" },
-    ],
-  }];
-}
-
-// ── NEW: Booking notification template ──
-// Template body: "Hello {{1}}, {{2}} has booked your service for {{3}}. Open Nuru to see the details."
-function buildBookingNotificationComponents(params: {
-  provider_name?: string; client_name?: string; event_name?: string;
-}) {
-  return [{
-    type: "body",
-    parameters: [
-      { type: "text", text: params.provider_name || "Provider" },
-      { type: "text", text: params.client_name || "A client" },
-      { type: "text", text: params.event_name || "an event" },
-    ],
-  }];
-}
-
-// ── NEW: Booking accepted template ──
-// Template body: "Hello {{1}}, {{2}} has confirmed your booking for {{3}} at {{4}}. Open Nuru to see the details."
-function buildBookingAcceptedComponents(params: {
-  client_name?: string; vendor_name?: string; service_name?: string; event_name?: string;
-}) {
-  return [{
-    type: "body",
-    parameters: [
-      { type: "text", text: params.client_name || "Client" },
-      { type: "text", text: params.vendor_name || "The vendor" },
-      { type: "text", text: params.service_name || "a service" },
-      { type: "text", text: params.event_name || "an event" },
-    ],
-  }];
-}
-
-// ── Meeting invitation template ──
-// Template body: "You've been invited to a meeting for *{{1}}*.\n\n📋 *Meeting:* {{2}}\n🕐 *When:* {{3}}\n\nJoin using the link below:\n🔗 {{4}}"
-// Button [0]: URL button "Join Meeting" → {{5}}
-function buildMeetingInvitationComponents(params: {
-  event_name?: string; meeting_title?: string; scheduled_time?: string; meeting_link?: string;
-}) {
-  const link = params.meeting_link || "https://nuru.tz";
-  // Extract the path suffix for the dynamic URL button
-  // Meta template base URL is configured as https://nuru.tz/meet/
-  // so we only need the room_id part for {{1}} in the button
-  let buttonSuffix = link;
-  try {
-    const urlObj = new URL(link);
-    // Get just the path after /meet/ e.g. "nuru-abc12345-def67890"
-    const meetPath = urlObj.pathname.replace(/^\/meet\//, "");
-    if (meetPath && meetPath !== urlObj.pathname) {
-      buttonSuffix = meetPath;
-    }
-  } catch {
-    // If URL parsing fails, use the full link
-  }
-
-  return [
-    {
-      type: "body",
-      parameters: [
-        { type: "text", text: params.event_name || "an event" },
-        { type: "text", text: params.meeting_title || "Meeting" },
-        { type: "text", text: params.scheduled_time || "TBA" },
-        { type: "text", text: link },
-      ],
-    },
-    {
-      type: "button",
-      sub_type: "url",
-      index: "0",
-      parameters: [
-        { type: "text", text: buttonSuffix },
-      ],
-    },
-  ];
-}
-
-// ── OTP verification template (authentication with Copy Code button) ──
-function buildOtpComponents(params: { otp_code?: string }) {
-  const code = params.otp_code || "000000";
-  return [
-    {
-      type: "body",
-      parameters: [
-        { type: "text", text: code },
-      ],
-    },
-    {
-      type: "button",
-      sub_type: "url",
-      index: "0",
-      parameters: [
-        { type: "text", text: code },
-      ],
-    },
-  ];
-}
-
-// ── Send OTP template ─────────────────────────────────
-async function sendOtpTemplate(
-  phone: string,
-  params: { otp_code?: string },
-  accessToken: string,
-  phoneNumberId: string,
-) {
-  const url = `${GRAPH_API}/${phoneNumberId}/messages`;
-  const code = params.otp_code || "000000";
-
-  const components = [
-    {
-      type: "body",
-      parameters: [{ type: "text", text: code }],
-    },
-    {
-      type: "button",
-      sub_type: "url",
-      index: "0",
-      parameters: [{ type: "text", text: code }],
-    },
-  ];
-
-  console.log(`[WhatsApp OTP] Sending to ${phone}`);
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "template",
-      template: {
-        name: "otp_verification",
-        language: { code: "en" },
-        components,
-      },
-    }),
-  });
-
-  const data = await res.json();
-
-  if (res.ok) {
-    console.log(`[WhatsApp OTP] Sent! Message ID: ${data.messages?.[0]?.id}`);
-    return { sent: true, message_id: data.messages?.[0]?.id };
-  }
-
-  const errorCode = data?.error?.code;
-
-  if (errorCode === 131026 || errorCode === 131047) {
-    console.log(`[WhatsApp OTP] Number ${phone} not on WhatsApp (error ${errorCode})`);
-    return { sent: false, not_on_whatsapp: true, error_code: errorCode };
-  }
-
-  console.error(`[WhatsApp OTP] Error [${res.status}]:`, JSON.stringify(data));
-  throw new Error(`WhatsApp OTP API failed [${res.status}]: ${JSON.stringify(data)}`);
-}
-
-// ── Send approved template ────────────────────────────
+// ── Senders ────────────────────────────────────────────
 async function sendTemplate(
   phone: string,
   templateName: string,
   components: Array<Record<string, unknown>>,
   accessToken: string,
   phoneNumberId: string,
-  langOverride?: string
+  langOverride?: string,
 ) {
   const url = `${GRAPH_API}/${phoneNumberId}/messages`;
   const languageCode = langOverride || "en";
-
-  console.log(`[WhatsApp] Sending template "${templateName}" to ${phone} with language "${languageCode}"`);
-
+  console.log(`[WhatsApp] Sending template "${templateName}" lang="${languageCode}" to ${phone}`);
   const res = await fetch(url, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       messaging_product: "whatsapp",
       to: phone,
       type: "template",
-      template: {
-        name: templateName,
-        language: { code: languageCode },
-        components,
-      },
+      template: { name: templateName, language: { code: languageCode }, components },
     }),
   });
-
   const data = await res.json();
-
   if (!res.ok) {
     const errorCode = data?.error?.code;
     const errorSubCode = data?.error?.error_subcode;
-    console.error(`WhatsApp template API error [${res.status}]:`, JSON.stringify(data));
-    
+    console.error(`WhatsApp template API error [${res.status}] tpl="${templateName}":`, JSON.stringify(data));
     if (errorCode === 131026 || errorSubCode === 131026 || errorCode === 131047) {
       return { sent: false, not_on_whatsapp: true, error_code: errorCode };
     }
-    
     throw new Error(`WhatsApp template API failed [${res.status}]: ${JSON.stringify(data)}`);
   }
-
   return { sent: true, message_id: data.messages?.[0]?.id };
 }
 
-// ── Send plain text (fallback) ────────────────────────
-async function sendTextMessage(phone: string, text: string, token: string, phoneId: string) {
-  const url = `${GRAPH_API}/${phoneId}/messages`;
-
-  const res = await fetch(url, {
+async function sendOtpTemplate(phone: string, params: { otp_code?: string }, accessToken: string, phoneNumberId: string) {
+  const code = params.otp_code || "000000";
+  const components = [
+    { type: "body", parameters: [{ type: "text", text: code }] },
+    { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: code }] },
+  ];
+  const res = await fetch(`${GRAPH_API}/${phoneNumberId}/messages`, {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "text",
-      text: { body: text },
-    }),
-  });
-
-  const data = await res.json();
-
-  if (!res.ok) {
-    console.error(`WhatsApp API error [${res.status}]:`, JSON.stringify(data));
-    throw new Error(`WhatsApp API failed [${res.status}]: ${JSON.stringify(data)}`);
-  }
-
-  return { message_id: data.messages?.[0]?.id };
-}
-
-// ── Check WhatsApp by attempting a send ───────────────
-async function checkWhatsAppBySending(
-  phone: string,
-  accessToken: string,
-  phoneNumberId: string
-) {
-  const url = `${GRAPH_API}/${phoneNumberId}/messages`;
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       messaging_product: "whatsapp",
       to: phone,
       type: "template",
-      template: {
-        name: "hello_world",
-        language: { code: "en_US" },
-      },
+      template: { name: "otp_verification", language: { code: "en" }, components },
     }),
   });
-
   const data = await res.json();
-
-  if (res.ok) {
-    return { is_whatsapp: true, wa_id: data.contacts?.[0]?.wa_id || phone };
-  }
-
+  if (res.ok) return { sent: true, message_id: data.messages?.[0]?.id };
   const errorCode = data?.error?.code;
-  if (errorCode === 131026 || errorCode === 131047) {
-    return { is_whatsapp: false, wa_id: null };
-  }
-
-  console.log(`[WhatsApp Check] Send-check returned error ${errorCode}: ${data?.error?.message}`);
-  return { is_whatsapp: "unknown", wa_id: null, error: data?.error?.message };
+  if (errorCode === 131026 || errorCode === 131047) return { sent: false, not_on_whatsapp: true, error_code: errorCode };
+  throw new Error(`WhatsApp OTP API failed [${res.status}]: ${JSON.stringify(data)}`);
 }
 
-// ── Invitation text template (no image) ──
-// Body params (7): {{1}} guest_name, {{2}} event_name, {{3}} organizer_name,
-// {{4}} event_date, {{5}} event_time, {{6}} venue, {{7}} rsvp_code
-// Two URL buttons, each with a single dynamic suffix variable. The Meta
-// template's button URLs are configured as https://nuru.tz/i/{{1}} and
-// https://nuru.tz/rsvp/{{1}}, where the {{1}} is the per-button suffix —
-// we pass the rsvp_code so the link resolves to the correct invitation.
-function buildInvitationTextComponents(params: {
-  guest_name?: string; event_name?: string; organizer_name?: string;
-  event_date?: string; event_time?: string; venue?: string; rsvp_code?: string;
-}) {
-  const code = (params.rsvp_code || "").trim() || "—";
-  return [
-    {
-      type: "body",
-      parameters: [
-        { type: "text", text: params.guest_name || "Guest" },
-        { type: "text", text: params.event_name || "the event" },
-        { type: "text", text: params.organizer_name || "the organizer" },
-        { type: "text", text: params.event_date || "TBA" },
-        { type: "text", text: params.event_time || "TBA" },
-        { type: "text", text: params.venue || "TBA" },
-        { type: "text", text: code },
-      ],
-    },
-    {
-      type: "button",
-      sub_type: "url",
-      index: "0",
-      parameters: [{ type: "text", text: code }],
-    },
-    {
-      type: "button",
-      sub_type: "url",
-      index: "1",
-      parameters: [{ type: "text", text: code }],
-    },
+async function sendAuthOtpTemplate(phone: string, templateName: string, langCode: string, code: string, accessToken: string, phoneNumberId: string) {
+  const components = [
+    { type: "body", parameters: [{ type: "text", text: code }] },
+    { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: code }] },
   ];
+  const res = await fetch(`${GRAPH_API}/${phoneNumberId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "template",
+      template: { name: templateName, language: { code: langCode }, components },
+    }),
+  });
+  const data = await res.json();
+  if (res.ok) return { sent: true, message_id: data.messages?.[0]?.id };
+  const errorCode = data?.error?.code;
+  if (errorCode === 131026 || errorCode === 131047) return { sent: false, not_on_whatsapp: true, error_code: errorCode };
+  throw new Error(`WhatsApp Auth OTP API failed [${res.status}]: ${JSON.stringify(data)}`);
 }
 
-// ── Invitation card / ticket media-template builders ──
-//
-// WhatsApp template image headers occasionally fail to render PNG images
-// (especially PNGs with an alpha channel) — the message delivers but the
-// image slot stays empty. We always proxy the image URL through wsrv.nl
-// to force a JPEG (flat, no alpha, ≤2MB) so Meta consistently displays it.
-function toWaImageLink(rawUrl: string): string {
-  if (!rawUrl) return "";
-  // Already converted, leave as-is.
-  if (rawUrl.includes("wsrv.nl")) return rawUrl;
-  const stripped = rawUrl.replace(/^https?:\/\//, "");
-  return `https://wsrv.nl/?url=${encodeURIComponent(stripped)}&output=jpg&q=95&we`;
+async function sendTextMessage(phone: string, text: string, token: string, phoneId: string) {
+  const res = await fetch(`${GRAPH_API}/${phoneId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ messaging_product: "whatsapp", to: phone, type: "text", text: { body: text } }),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(`WhatsApp text API failed [${res.status}]: ${JSON.stringify(data)}`);
+  return { message_id: data.messages?.[0]?.id };
 }
 
-function buildInvitationCardComponents(params: {
-  image_url?: string; guest_name?: string; event_name?: string;
-  event_date?: string; organizer_name?: string; rsvp_code?: string;
-}) {
-  return [
-    {
-      type: "header",
-      parameters: [{ type: "image", image: { link: toWaImageLink(params.image_url || "") } }],
-    },
-    {
-      type: "body",
-      parameters: [
-        { type: "text", text: params.guest_name || "Guest" },
-        { type: "text", text: params.event_name || "the event" },
-        { type: "text", text: params.event_date || "TBD" },
-        { type: "text", text: params.organizer_name || "Your host" },
-        { type: "text", text: params.rsvp_code || "—" },
-      ],
-    },
-  ];
-}
-
-function buildTicketDeliveryComponents(params: {
-  image_url?: string; guest_name?: string; event_name?: string;
-  event_date?: string; ticket_class?: string; ticket_code?: string;
-}) {
-  return [
-    {
-      type: "header",
-      parameters: [{ type: "image", image: { link: toWaImageLink(params.image_url || "") } }],
-    },
-    {
-      type: "body",
-      parameters: [
-        { type: "text", text: params.guest_name || "Friend" },
-        { type: "text", text: params.event_name || "the event" },
-        { type: "text", text: params.event_date || "TBD" },
-        { type: "text", text: params.ticket_class || "General" },
-        { type: "text", text: params.ticket_code || "—" },
-      ],
-    },
-  ];
-}
-
-// ── Send freeform image (24h window only) ─────────────
 async function sendImageMessage(phone: string, imageUrl: string, caption: string, token: string, phoneId: string) {
-  const url = `${GRAPH_API}/${phoneId}/messages`;
-  const res = await fetch(url, {
+  const res = await fetch(`${GRAPH_API}/${phoneId}/messages`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -698,108 +620,97 @@ async function sendImageMessage(phone: string, imageUrl: string, caption: string
     }),
   });
   const data = await res.json();
-  if (!res.ok) {
-    console.error(`WhatsApp image send error [${res.status}]:`, JSON.stringify(data));
-    throw new Error(`WhatsApp image send failed [${res.status}]: ${JSON.stringify(data)}`);
-  }
+  if (!res.ok) throw new Error(`WhatsApp image API failed [${res.status}]: ${JSON.stringify(data)}`);
   return { sent: true, message_id: data.messages?.[0]?.id };
 }
 
-// ── Vendor offline-payment OTP ──
-// Body: "NURU PAYMENT\n\nHello {{1}}, {{2}} has made a payment claim of {{3}} for your service \"{{4}}\" at {{5}}.\n\nUse this code to confirm the payment: {{6}}\n\nCode expires in 10 minutes."
-function buildVendorPaymentOtpComponents(params: {
-  vendor_name?: string; organiser_name?: string; amount?: string;
-  service_title?: string; event_name?: string; otp?: string;
-}) {
+async function checkWhatsAppBySending(phone: string, accessToken: string, phoneNumberId: string) {
+  const res = await fetch(`${GRAPH_API}/${phoneNumberId}/messages`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "template",
+      template: { name: "hello_world", language: { code: "en_US" } },
+    }),
+  });
+  const data = await res.json();
+  if (res.ok) return { is_whatsapp: true, wa_id: data.contacts?.[0]?.wa_id || phone };
+  const errorCode = data?.error?.code;
+  if (errorCode === 131026 || errorCode === 131047) return { is_whatsapp: false, wa_id: null };
+  return { is_whatsapp: "unknown", wa_id: null, error: data?.error?.message };
+}
+
+// ── Legacy/Rich-media builders (kept verbatim — out of catalogue scope) ──
+function buildLegacyReminder(p: any) {
   return [{
     type: "body",
     parameters: [
-      { type: "text", text: params.vendor_name || "there" },
-      { type: "text", text: params.organiser_name || "An organiser" },
-      { type: "text", text: params.amount || "an amount" },
-      { type: "text", text: params.service_title || "your service" },
-      { type: "text", text: params.event_name || "the event" },
-      { type: "text", text: params.otp || "------" },
+      T(p.guest_name || "Guest"),
+      T(p.event_name || "an event"),
+      T(p.event_date || "TBA"),
+      T(p.event_time || "TBA"),
+      T(p.location || "TBA"),
     ],
   }];
 }
 
-// ── Vendor payment confirmed ──
-// Body: "NURU PAYMENT\n\nHello {{1}}, you have received a payment of {{2}} from {{3}} for {{4}}.\n\n{{5}}"
-function buildVendorPaymentConfirmedComponents(params: {
-  vendor_name?: string; amount?: string; organiser_name?: string;
-  event_name?: string; remaining_msg?: string;
-}) {
-  return [{
-    type: "body",
-    parameters: [
-      { type: "text", text: params.vendor_name || "there" },
-      { type: "text", text: params.amount || "an amount" },
-      { type: "text", text: params.organiser_name || "the organiser" },
-      { type: "text", text: params.event_name || "the event" },
-      { type: "text", text: params.remaining_msg || "Payment is fully settled." },
-    ],
-  }];
+function toWaImageLink(rawUrl: string): string {
+  if (!rawUrl) return "";
+  if (rawUrl.includes("wsrv.nl")) return rawUrl;
+  const stripped = rawUrl.replace(/^https?:\/\//, "");
+  return `https://wsrv.nl/?url=${encodeURIComponent(stripped)}&output=jpg&q=95&we`;
 }
 
-// ── Reminder automation templates ─────────────────────
-// nuru_fundraise_notice_{en|sw}
-//   Body: {{1}} recipient_name, {{2}} body
-function buildFundraiseAttendComponents(params: {
-  recipient_name?: string; body?: string;
-}) {
-  return [{
-    type: "body",
-    parameters: [
-      { type: "text", text: params.recipient_name || "Friend" },
-      { type: "text", text: params.body || "" },
-    ],
-  }];
-}
-
-// nuru_pledge_remind_{en|sw}
-//   Body: {{1}} recipient_name, {{2}} event_name, {{3}} event_datetime,
-//         {{4}} pledge_amount, {{5}} balance
-//   URL button [0]: dynamic suffix = pay_token (the share token)
-function buildPledgeRemindComponents(params: {
-  recipient_name?: string; event_name?: string; event_datetime?: string;
-  pledge_amount?: string; balance?: string; pay_token?: string;
-}) {
-  const token = (params.pay_token || "").trim() || "—";
+function buildInvitationTextComponents(p: any) {
+  const code = (p.rsvp_code || "").trim() || "—";
   return [
     {
       type: "body",
       parameters: [
-        { type: "text", text: params.recipient_name || "Friend" },
-        { type: "text", text: params.event_name || "the event" },
-        { type: "text", text: params.event_datetime || "TBA" },
-        { type: "text", text: params.pledge_amount || "—" },
-        { type: "text", text: params.balance || "—" },
+        T(p.guest_name || "Guest"),
+        T(p.event_name || "the event"),
+        T(p.organizer_name || "the organizer"),
+        T(p.event_date || "TBA"),
+        T(p.event_time || "TBA"),
+        T(p.venue || "TBA"),
+        T(code),
       ],
     },
+    { type: "button", sub_type: "url", index: "0", parameters: [T(code)] },
+    { type: "button", sub_type: "url", index: "1", parameters: [T(code)] },
+  ];
+}
+
+function buildInvitationCardComponents(p: any) {
+  return [
+    { type: "header", parameters: [{ type: "image", image: { link: toWaImageLink(p.image_url || "") } }] },
     {
-      type: "button",
-      sub_type: "url",
-      index: "0",
-      parameters: [{ type: "text", text: token }],
+      type: "body",
+      parameters: [
+        T(p.guest_name || "Guest"),
+        T(p.event_name || "the event"),
+        T(p.event_date || "TBD"),
+        T(p.organizer_name || "Your host"),
+        T(p.rsvp_code || "—"),
+      ],
     },
   ];
 }
 
-// nuru_guest_remind_{en|sw}
-//   Body: {{1}} recipient_name, {{2}} event_name, {{3}} event_datetime,
-//         {{4}} event_venue
-function buildGuestRemindComponents(params: {
-  recipient_name?: string; event_name?: string;
-  event_datetime?: string; event_venue?: string;
-}) {
-  return [{
-    type: "body",
-    parameters: [
-      { type: "text", text: params.recipient_name || "Friend" },
-      { type: "text", text: params.event_name || "the event" },
-      { type: "text", text: params.event_datetime || "TBA" },
-      { type: "text", text: params.event_venue || "TBA" },
-    ],
-  }];
+function buildTicketDeliveryComponents(p: any) {
+  return [
+    { type: "header", parameters: [{ type: "image", image: { link: toWaImageLink(p.image_url || "") } }] },
+    {
+      type: "body",
+      parameters: [
+        T(p.guest_name || "Friend"),
+        T(p.event_name || "the event"),
+        T(p.event_date || "TBD"),
+        T(p.ticket_class || "General"),
+        T(p.ticket_code || "—"),
+      ],
+    },
+  ];
 }

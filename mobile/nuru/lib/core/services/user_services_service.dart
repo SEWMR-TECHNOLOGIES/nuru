@@ -6,6 +6,7 @@ import 'api_config.dart';
 
 class UserServicesService {
   static String get _baseUrl => ApiConfig.baseUrl;
+  static final Map<String, Map<String, dynamic>> _myServicesCache = {};
 
   static Map<String, dynamic> _normalizeResponse(http.Response res, {String fallbackError = 'Request failed'}) {
     try {
@@ -45,13 +46,22 @@ class UserServicesService {
     };
   }
 
-  static Future<Map<String, dynamic>> getMyServices({String? search}) async {
+  static Map<String, dynamic>? cachedMyServices({String? search}) =>
+      _myServicesCache[(search ?? '').trim().toLowerCase()];
+
+  static Future<Map<String, dynamic>> getMyServices({String? search, bool forceRefresh = false}) async {
+    final cacheKey = (search ?? '').trim().toLowerCase();
+    if (!forceRefresh && _myServicesCache.containsKey(cacheKey)) {
+      return _myServicesCache[cacheKey]!;
+    }
     try {
       final qp = <String, String>{};
       if (search != null && search.trim().isNotEmpty) qp['search'] = search.trim();
       final uri = Uri.parse('$_baseUrl/user-services/').replace(queryParameters: qp.isEmpty ? null : qp);
       final res = await http.get(uri, headers: await _headers());
-      return _normalizeResponse(res, fallbackError: 'Unable to fetch services');
+      final normalized = _normalizeResponse(res, fallbackError: 'Unable to fetch services');
+      if (normalized['success'] == true) _myServicesCache[cacheKey] = normalized;
+      return normalized;
     } catch (e) {
       return {'success': false, 'message': 'Unable to fetch services'};
     }
@@ -91,6 +101,15 @@ class UserServicesService {
       return jsonDecode(res.body);
     } catch (e) {
       return {'success': false, 'message': 'Unable to fetch service types'};
+    }
+  }
+
+  static Future<Map<String, dynamic>> getServiceTypeKyc(String serviceTypeId) async {
+    try {
+      final res = await http.get(Uri.parse('$_baseUrl/references/service-types/$serviceTypeId/kyc'), headers: await _headers());
+      return _normalizeResponse(res, fallbackError: 'Unable to fetch document requirements');
+    } catch (e) {
+      return {'success': false, 'message': 'Unable to fetch document requirements'};
     }
   }
 

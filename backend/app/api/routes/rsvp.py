@@ -157,12 +157,9 @@ def get_rsvp_details(code: str):
         if not event:
             return standard_response(False, "Event not found", errors=["EVENT_NOT_FOUND"])
 
-        # Get organizer name
-        organizer = db.query(User).filter(User.id == event.organizer_id).first()
-        organizer_name = ""
-        if organizer:
-            parts = [organizer.first_name, organizer.last_name]
-            organizer_name = " ".join(p for p in parts if p)
+        # Get the event-owner display name (recognizable name > owner > creator)
+        from utils.event_owner import get_event_owner_display_name
+        organizer_name = get_event_owner_display_name(event, db=db)
 
         settings = db.query(EventSetting).filter(EventSetting.event_id == event.id).first()
         vc = db.query(EventVenueCoordinate).filter(EventVenueCoordinate.event_id == event.id).first()
@@ -361,14 +358,10 @@ def respond_to_rsvp(code: str, body: RSVPResponseInput):
                         )
                 if not guest_phone:
                     guest_phone = getattr(inv, "guest_phone", None)
-                organizer_name = "Your host"
-                if event.organizer_id:
-                    org = db.query(_U).filter(_U.id == event.organizer_id).first()
-                    if org:
-                        organizer_name = (
-                            f"{org.first_name or ''} {org.last_name or ''}".strip()
-                            or organizer_name
-                        )
+                from utils.event_owner import get_event_owner_display_name
+                organizer_name = get_event_owner_display_name(
+                    event, db=db, fallback="Your host"
+                )
                 event_date = ""
                 try:
                     if getattr(event, "start_date", None):

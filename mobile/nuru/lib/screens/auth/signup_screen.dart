@@ -435,13 +435,7 @@ class _SignupScreenState extends State<SignupScreen> {
       key: const ValueKey('s1'),
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        const SizedBox(height: 8),
-        // Wordmark with sun
-        FadeInDown(
-          duration: const Duration(milliseconds: 400),
-          child: const _NuruWordmark(size: 130),
-        ),
-        const SizedBox(height: 22),
+        const SizedBox(height: 24),
         Text("Let's get to know you",
             style: _f(size: 24, weight: FontWeight.w800, letterSpacing: -0.5),
             textAlign: TextAlign.center),

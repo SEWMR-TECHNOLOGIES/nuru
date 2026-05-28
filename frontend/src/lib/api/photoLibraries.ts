@@ -40,6 +40,8 @@ export interface PhotoLibraryImage {
   file_size_bytes: number;
   caption?: string;
   display_order: number;
+  media_type?: "photo" | "video";
+  duration_seconds?: number | null;
   created_at?: string;
 }
 

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Text, Enum, String
+from sqlalchemy import Column, Boolean, ForeignKey, DateTime, Text, Enum, String, Integer
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -68,3 +68,26 @@ class EventMeetingJoinRequest(Base):
     meeting = relationship("EventMeeting", backref="join_requests")
     user = relationship("User", foreign_keys=[user_id])
     reviewer = relationship("User", foreign_keys=[reviewed_by])
+
+
+class MeetingRedirectToken(Base):
+    """Short-lived opaque token that maps a WhatsApp/SMS dynamic-URL button
+    (https://nuru.tz/m/{token}) to the real meeting URL. Lets us keep a
+    static Meta-approved button prefix while supporting Nuru rooms today
+    and arbitrary external URLs (Zoom / Meet / Jitsi) in the future
+    without exposing the raw URL in the WhatsApp message body.
+    """
+    __tablename__ = 'meeting_redirect_tokens'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    token = Column(Text, nullable=False, unique=True)
+    meeting_id = Column(UUID(as_uuid=True), ForeignKey('event_meetings.id', ondelete='CASCADE'))
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'))
+    target_url = Column(Text, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    revoked_at = Column(DateTime)
+    last_used_at = Column(DateTime)
+    use_count = Column(Integer, nullable=False, server_default='0')
+    created_at = Column(DateTime, server_default=func.now())
+
+    meeting = relationship("EventMeeting")

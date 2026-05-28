@@ -115,4 +115,37 @@ export const authApi = {
    */
   updateEmail: (email: string) =>
     post("/users/update-email", { email }),
+
+  /**
+   * Validate an account-setup token (from WhatsApp set-password link)
+   */
+  validateSetupToken: async (token: string) => {
+    const BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+    try {
+      const res = await fetch(`${BASE_URL}/auth/account-setup/validate?token=${encodeURIComponent(token)}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        credentials: "omit",
+      });
+      const json = await res.json();
+      return { success: json.success ?? res.ok, message: json.message ?? "", data: json.data ?? null };
+    } catch {
+      return { success: false, message: "Unable to validate setup link", data: null };
+    }
+  },
+
+  /**
+   * Set password using a one-time account-setup token
+   */
+  setPasswordWithToken: (token: string, password: string, password_confirmation: string) =>
+    post<{ access_token: string; refresh_token: string; user: User; expires_in: number }>(
+      "/auth/account-setup/set-password",
+      { token, password, password_confirmation }
+    ),
+
+  /**
+   * Change a temporary password (mobile/SMS first-login flow)
+   */
+  changeTemporaryPassword: (new_password: string, confirm_password: string) =>
+    post("/auth/change-temporary-password", { new_password, confirm_password }),
 };

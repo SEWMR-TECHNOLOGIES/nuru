@@ -30,6 +30,9 @@ class User(Base):
     is_identity_verified = Column(Boolean, default=False)
     is_phone_verified = Column(Boolean, default=False)
     is_email_verified = Column(Boolean, default=False)
+    must_change_password = Column(Boolean, default=False, nullable=False)
+    temporary_password_expires_at = Column(DateTime, nullable=True)
+    account_setup_completed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
@@ -64,7 +67,7 @@ class User(Base):
     moment_highlights = relationship("UserMomentHighlight", back_populates="user")
     user_services = relationship("UserService", back_populates="user")
     service_ratings = relationship("UserServiceRating", back_populates="user")
-    organized_events = relationship("Event", back_populates="organizer")
+    organized_events = relationship("Event", back_populates="organizer", foreign_keys="Event.organizer_id")
     contributors = relationship("UserContributor", foreign_keys="UserContributor.user_id", back_populates="user")
     support_tickets = relationship("SupportTicket", back_populates="user")
     notifications = relationship("Notification", back_populates="recipient")
@@ -321,6 +324,9 @@ class UserSetting(Base):
     date_format = Column(Text, default='DD/MM/YYYY')
     time_format = Column(Text, default='24h')
     language = Column(Text, default='en')
+    # Language used for outgoing SMS / WhatsApp / push / in-app notifications.
+    # Independent of the in-app UI language. Default: Swahili.
+    notification_language = Column(Text, default='sw', server_default='sw', nullable=False)
     timezone = Column(Text, default='UTC')
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
@@ -429,3 +435,21 @@ class NameValidationFlag(Base):
 
     # Relationships
     user = relationship("User", back_populates="name_validation_flags")
+
+
+class AccountSetupToken(Base):
+    """Single-use, hashed token for the secure WhatsApp account-setup link
+    flow. The raw token is only ever returned at creation time; we never
+    persist or log it."""
+    __tablename__ = 'account_setup_tokens'
+
+    id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
+    user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='CASCADE'), nullable=False)
+    token_hash = Column(Text, nullable=False, unique=True)
+    purpose = Column(Text, nullable=False, server_default='account_setup')
+    delivery_channel = Column(Text)  # whatsapp | sms | mobile
+    created_by = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'))
+    expires_at = Column(DateTime, nullable=False)
+    used_at = Column(DateTime)
+    extra = Column(JSONB)
+    created_at = Column(DateTime, server_default=func.now())

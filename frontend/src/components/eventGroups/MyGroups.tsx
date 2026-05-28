@@ -35,6 +35,20 @@ const timeAgo = (iso?: string) => {
 // instantly while a silent background refresh runs (no skeleton flash).
 let cachedGroups: any[] | null = null;
 
+/** Called after login/signup so the cache is fresh by the time the user
+ *  opens "My Groups" — picks up any event groups the contributor-claim
+ *  service just attached on the backend. */
+export const prefetchMyGroupsAfterLogin = async () => {
+  cachedGroups = null;
+  try {
+    const res = await eventGroupsApi.listMyGroups();
+    if (res.success && res.data) cachedGroups = res.data.groups || [];
+  } catch { /* silent — MyGroups will re-fetch on mount */ }
+};
+
+/** Clear cached groups on logout so the next user doesn't see stale data. */
+export const clearMyGroupsCache = () => { cachedGroups = null; };
+
 const MyGroups = () => {
   const navigate = useNavigate();
   const [groups, setGroups] = useState<any[]>(cachedGroups || []);

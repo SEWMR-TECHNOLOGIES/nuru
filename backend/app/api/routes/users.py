@@ -12,11 +12,13 @@ from models import (
     User, UserVerificationOTP, UserProfile, UserSetting, UserFollower, UserCircle,
     OTPVerificationTypeEnum, UserService, Event, UserFeed, UserFeedImage, UserFeedGlow,
     UserFeedComment, EventInvitation, CommunityMember, EventStatusEnum,
+    UserSocialAccount,
 )
 from utils.auth import get_current_user
 from utils.helpers import standard_response, generate_otp, get_expiry, mask_email, mask_phone
 from utils.notification_service import send_verification_email, send_verification_sms, send_otp_with_routing
 from utils.sms import sms_welcome_registered
+from utils.message_templates import resolve_user_language
 from utils.validation_functions import validate_email, validate_phone_number, validate_password_strength, validate_username
 from utils.name_validation import validate_name
 from utils.user_payload import build_user_payload
@@ -145,22 +147,18 @@ async def signup(request: Request, db: Session = Depends(get_db)):
         db.add(settings)
         db.commit()
 
-        # Backfill: link any existing UserContributor rows whose phone matches
-        # this new user, so they immediately see "My Contributions" populated.
+        # Backfill: link any existing UserContributor rows whose phone/email
+        # matches this new user AND ensure they appear in every event group
+        # workspace where they were already a contributor. Idempotent.
         try:
-            from models import UserContributor
-            from sqlalchemy import func as _f
-            digits = "".join(ch for ch in (formatted_phone or "") if ch.isdigit())[-9:]
-            if digits:
-                db.query(UserContributor).filter(
-                    UserContributor.contributor_user_id.is_(None),
-                    UserContributor.phone.isnot(None),
-                    _f.right(_f.regexp_replace(UserContributor.phone, r'[^0-9]', '', 'g'), 9) == digits,
-                ).update({UserContributor.contributor_user_id: user.id}, synchronize_session=False)
-                db.commit()
+            from services.contributor_claim import claim_existing_contributor_records_for_user
+            claim_existing_contributor_records_for_user(db, user)
         except Exception as e:
-            print(f"[register] Failed to backfill contributor links: {e}")
-            db.rollback()
+            print(f"[register] contributor_claim failed: {e}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
         
     except Exception:
         db.rollback()
@@ -176,15 +174,32 @@ async def signup(request: Request, db: Session = Depends(get_db)):
         "phone": user.phone
     }
 
-    # If registered by another user (inline registration), send welcome SMS
+    # If registered by another user (inline registration), send the
+    # secure WhatsApp setup-link template (no password in body). The SMS
+    # fallback path is intentionally NOT triggered here — that is reserved
+    # for mobile-app registrations where WhatsApp is unavailable.
     registered_by = payload.get("registered_by", "").strip()
     if registered_by:
-        sms_welcome_registered(
-            phone=formatted_phone,
-            new_user_name=first_name,
-            registered_by_name=registered_by,
-            password=password
-        )
+        try:
+            from utils.account_setup import create_setup_token
+            from utils.whatsapp import wa_welcome_registered_by
+            lang = resolve_user_language(db, user.id)
+            setup_token = create_setup_token(
+                db,
+                user_id=user.id,
+                delivery_channel="whatsapp",
+                created_by=None,
+                ttl_minutes=24 * 60,
+            )
+            wa_welcome_registered_by(
+                phone=formatted_phone,
+                new_user_name=first_name,
+                registered_by_name=registered_by,
+                setup_token=setup_token,
+                lang=lang,
+            )
+        except Exception as e:
+            print(f"[register] welcome_registered_by send failed: {e}")
 
     return standard_response(True, f"Hello, {first_name}! Your account has been successfully created. Please use the OTP sent to your email and phone to activate your account.", user_data)
 
@@ -470,12 +485,15 @@ async def search_users(
         for u in sorted_users:
             profile = profile_map.get(u.id)
             score = scores.get(u.id, 0)
+            avatar = (profile.profile_picture_url if profile else None) or None
             results.append({
                 "id": str(u.id),
                 "first_name": u.first_name,
                 "last_name": u.last_name,
                 "username": u.username,
-                "avatar": profile.profile_picture_url if profile else None,
+                "avatar": avatar,
+                "profile_picture_url": avatar,
+                "avatar_url": avatar,
                 "is_verified": u.is_identity_verified,
                 "mutual_count": mutual_map.get(u.id, 0),
                 "score": round(score, 2),
@@ -510,14 +528,36 @@ async def search_users(
     total = query.count()
     users = query.limit(limit).offset(offset).all()
 
+    # Batch-load profiles + social avatars to avoid N+1
+    user_ids = [u.id for u in users]
+    profiles_map = {p.user_id: p for p in db.query(UserProfile).filter(UserProfile.user_id.in_(user_ids)).all()} if user_ids else {}
+    socials_map: dict = {}
+    if user_ids:
+        for s in db.query(UserSocialAccount).filter(
+            UserSocialAccount.user_id.in_(user_ids),
+            UserSocialAccount.is_active == True,
+        ).all():
+            socials_map.setdefault(s.user_id, s)
+
     results = []
     for u in users:
-        profile = db.query(UserProfile).filter(UserProfile.user_id == u.id).first()
+        profile = profiles_map.get(u.id)
+        social = socials_map.get(u.id)
+        avatar = (profile.profile_picture_url if profile else None) or (
+            social.provider_avatar_url if social else None
+        )
         results.append({
             "id": str(u.id),
             "username": u.username,
+            "first_name": u.first_name,
+            "last_name": u.last_name,
             "full_name": f"{u.first_name} {u.last_name}",
-            "avatar": profile.profile_picture_url if profile else None,
+            "email": u.email,
+            "phone": u.phone,
+            "avatar": avatar,
+            "profile_picture_url": avatar,
+            "avatar_url": avatar,
+            "provider_avatar_url": social.provider_avatar_url if social else None,
             "is_verified": u.is_identity_verified
         })
 

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'secure_token_storage.dart';
 import 'api_config.dart';
 import 'rate_limit_notifier.dart';
@@ -311,52 +312,77 @@ class ApiBase {
     void Function(double progress)? onProgress,
   }) async {
     try {
-      final req = http.MultipartRequest('POST', Uri.parse('$baseUrl$endpoint'));
-      req.headers.addAll(await authOnlyHeaders());
-      req.fields.addAll(fields);
+      print('[Multipart] preparing POST $endpoint -> $baseUrl$endpoint');
+      print('[Multipart] fields=${fields.keys.toList()} files=${files.length} timeout=${timeout.inSeconds}s');
+      Future<http.Response> sendOnce({bool trackProgress = true}) async {
+        final uri = Uri.parse('$baseUrl$endpoint');
+        final req = http.MultipartRequest('POST', uri);
+        final authHeaders = await authOnlyHeaders();
+        req.headers.addAll(authHeaders);
+        req.fields.addAll(fields);
+        print("[Multipart] request created uri=$uri auth=${authHeaders.containsKey('Authorization')} trackProgress=$trackProgress");
 
-      // Compute total bytes so we can emit a real 0..1 progress signal.
-      int totalBytes = 0;
-      final fileEntries = <_PendingFile>[];
-      for (final f in files) {
-        final file = File(f.value);
-        final length = await file.length();
-        totalBytes += length;
-        fileEntries.add(_PendingFile(field: f.key, file: file, length: length));
+        int totalBytes = 0;
+        final fileEntries = <_PendingFile>[];
+        for (final f in files) {
+          final file = File(f.value);
+          final exists = await file.exists();
+          print('[Multipart] file field=${f.key} path=${f.value} exists=$exists');
+          if (!exists) {
+            throw FileSystemException('Upload file does not exist', f.value);
+          }
+          final length = await file.length();
+          totalBytes += length;
+          print('[Multipart] file name=${file.path.split(Platform.pathSeparator).last} size=$length contentType=${_contentTypeForPath(file.path)}');
+          fileEntries.add(_PendingFile(field: f.key, file: file, length: length));
+        }
+        print('[Multipart] total payload file bytes=$totalBytes');
+
+        int sent = 0;
+        void bump(int n) {
+          if (!trackProgress || onProgress == null || totalBytes <= 0) return;
+          sent += n;
+          final pct = (sent / totalBytes).clamp(0.0, 1.0);
+          onProgress(pct);
+        }
+
+        for (final pf in fileEntries) {
+          final stream = pf.file.openRead().transform<List<int>>(
+            StreamTransformer.fromHandlers(
+              handleData: (data, sink) {
+                bump(data.length);
+                sink.add(data);
+              },
+            ),
+          );
+          req.files.add(http.MultipartFile(
+            pf.field,
+            stream,
+            pf.length,
+            filename: pf.file.path.split(Platform.pathSeparator).last,
+            contentType: _contentTypeForPath(pf.file.path),
+          ));
+        }
+
+        if (trackProgress) onProgress?.call(0.0);
+        print('[Multipart] sending POST $endpoint');
+        final streamed = await req.send().timeout(timeout);
+        print('[Multipart] server responded status=${streamed.statusCode} for $endpoint');
+        final response = await http.Response.fromStream(streamed);
+        print('[Multipart] response body for $endpoint: ${response.body}');
+        return response;
       }
 
-      int sent = 0;
-      void bump(int n) {
-        if (onProgress == null || totalBytes <= 0) return;
-        sent += n;
-        final pct = (sent / totalBytes).clamp(0.0, 1.0);
-        onProgress(pct);
+      var res = await sendOnce();
+      if (_isAuthExpired(res) && await _attemptRefresh()) {
+        print('[Multipart] auth expired for $endpoint, token refreshed; retrying once');
+        res = await sendOnce(trackProgress: false);
       }
-
-      for (final pf in fileEntries) {
-        final stream = pf.file.openRead().transform<List<int>>(
-          StreamTransformer.fromHandlers(
-            handleData: (data, sink) {
-              bump(data.length);
-              sink.add(data);
-            },
-          ),
-        );
-        req.files.add(http.MultipartFile(
-          pf.field,
-          stream,
-          pf.length,
-          filename: pf.file.path.split(Platform.pathSeparator).last,
-        ));
-      }
-
-      onProgress?.call(0.0);
-      final streamed = await req.send().timeout(timeout);
-      final res = await http.Response.fromStream(streamed);
       onProgress?.call(1.0);
       _checkRateLimit(res, endpoint);
       return normalizeResponse(res);
     } catch (e) {
+      print('[Multipart] failed before/while calling $endpoint: ${e.runtimeType}: $e');
       return {
         'success': false,
         'message': 'Upload failed: ${e.toString()}',
@@ -403,6 +429,25 @@ class ApiBase {
       return {'success': false, 'message': fallbackError, 'data': null};
     }
   }
+}
+
+MediaType _contentTypeForPath(String path) {
+  final lower = path.toLowerCase();
+  if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return MediaType('image', 'jpeg');
+  if (lower.endsWith('.png')) return MediaType('image', 'png');
+  if (lower.endsWith('.webp')) return MediaType('image', 'webp');
+  if (lower.endsWith('.gif')) return MediaType('image', 'gif');
+  if (lower.endsWith('.avif')) return MediaType('image', 'avif');
+  if (lower.endsWith('.heic')) return MediaType('image', 'heic');
+  if (lower.endsWith('.heif')) return MediaType('image', 'heif');
+  if (lower.endsWith('.mp4')) return MediaType('video', 'mp4');
+  if (lower.endsWith('.mov')) return MediaType('video', 'quicktime');
+  if (lower.endsWith('.m4v')) return MediaType('video', 'x-m4v');
+  if (lower.endsWith('.3gp')) return MediaType('video', '3gpp');
+  if (lower.endsWith('.avi')) return MediaType('video', 'x-msvideo');
+  if (lower.endsWith('.mkv')) return MediaType('video', 'x-matroska');
+  if (lower.endsWith('.webm')) return MediaType('video', 'webm');
+  return MediaType('application', 'octet-stream');
 }
 
 class _PendingFile {

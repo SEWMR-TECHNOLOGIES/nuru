@@ -197,6 +197,7 @@ def _service_dict(db, service):
         ).scalar() or 0,
         "availability": service.availability.value if hasattr(service.availability, "value") else (service.availability or "available"),
         "is_verified": service.is_verified,
+        "years_in_business": getattr(service, "years_in_business", None),
         "identity_verified": service.user.is_identity_verified if service.user else False,
         "kyc_all_approved": total_kyc > 0 and verified_count == total_kyc,
         "kyc_list": kyc_list,
@@ -383,6 +384,7 @@ async def create_service(
     longitude: Optional[float] = Form(None),
     formatted_address: Optional[str] = Form(None),
     business_phone_id: Optional[str] = Form(None),
+    years_in_business: Optional[int] = Form(None),
     images: Optional[List[UploadFile]] = File(None),
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
@@ -406,6 +408,7 @@ async def create_service(
         latitude=latitude, longitude=longitude,
         formatted_address=formatted_address.strip() if formatted_address else None,
         business_phone_id=uuid.UUID(business_phone_id) if business_phone_id else None,
+        years_in_business=years_in_business,
         is_active=True, is_verified=False, verification_status=VerificationStatusEnum.pending,
         created_at=now, updated_at=now,
     )
@@ -479,6 +482,19 @@ async def update_service(
     service = db.query(UserService).filter(UserService.id == sid, UserService.user_id == current_user.id).first()
     if not service:
         return standard_response(False, "Service not found")
+
+    # Block edits while the service is awaiting admin verification.
+    # A pending service that has at least one submitted KYC document is
+    # considered "under review" and must not be modified by the vendor.
+    if service.verification_status == VerificationStatusEnum.pending:
+        has_submission = db.query(UserServiceKYCStatus).filter(
+            UserServiceKYCStatus.user_service_id == service.id
+        ).first() is not None
+        if has_submission:
+            return standard_response(
+                False,
+                "This service is currently under review. You cannot edit it until the review is complete.",
+            )
 
     # Snapshot original key fields for change detection
     original_category = service.category_id

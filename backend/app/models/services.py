@@ -37,6 +37,7 @@ class UserService(Base):
     formatted_address = Column(Text)
     business_phone_id = Column(UUID(as_uuid=True), ForeignKey('service_business_phones.id', ondelete='SET NULL'))
     is_active = Column(Boolean, default=True)
+    years_in_business = Column(Integer)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

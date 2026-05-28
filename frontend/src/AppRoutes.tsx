@@ -54,6 +54,7 @@ import ServicePhotoLibraries from "@/components/ServicePhotoLibraries";
 import PhotoLibraryDetail from "@/components/PhotoLibraryDetail";
 import SharedPhotoLibrary from "@/components/SharedPhotoLibrary";
 import SharedReceiptPage from "@/pages/SharedReceiptPage";
+import MomentDetail from "@/components/MomentDetail";
 
 
 import Index from "@/pages/Index";
@@ -86,6 +87,7 @@ import Trust from "@/pages/features/Trust";
 import VerifyEmail from "@/pages/VerifyEmail";
 import VerifyPhone from "@/pages/VerifyPhone";
 import ResetPassword from "@/pages/ResetPassword";
+import SetPassword from "@/pages/SetPassword";
 import GuestPost from "@/pages/GuestPost";
 import ShortLinkRedirect from "@/pages/ShortLinkRedirect";
 import RSVPConfirmation from "@/pages/RSVPConfirmation";
@@ -130,6 +132,7 @@ import AdminServiceDetail from "@/pages/admin/AdminServiceDetail";
 import AdminAppeals from "@/pages/admin/AdminAppeals";
 import AdminAnalytics from "@/pages/admin/AdminAnalytics";
 import AdminWhatsApp from "@/pages/admin/AdminWhatsApp";
+import AdminWhatsAppTemplates from "@/pages/admin/AdminWhatsAppTemplates";
 import AdminIssues from "@/pages/admin/AdminIssues";
 import AdminIssueDetail from "@/pages/admin/AdminIssueDetail";
 import AdminIssueCategories from "@/pages/admin/AdminIssueCategories";
@@ -143,6 +146,7 @@ import AdminDeletionRequests from "@/pages/admin/AdminDeletionRequests";
 import DataDeletion from "@/pages/DataDeletion";
 import MyIssues from "@/components/MyIssues";
 import MeetingRoom from "@/pages/MeetingRoom";
+import MeetingRedirect from "@/pages/MeetingRedirect";
 
 // Inner component that uses router hooks (must be inside BrowserRouter)
 
@@ -197,7 +201,7 @@ function InnerRoutes() {
           <Route path="/settings/payments" element={<SettingsPayments />} />
           <Route path="/wallet" element={<Wallet />} />
           <Route path="/wallet/receipt/:transaction_code" element={<ReceiptPage />} />
-          <Route path="/post/:id" element={<PostDetail />} />
+          {/* /post/:id moved to public routes below */}
           <Route path="/create-event" element={<CreateEvent />} />
           <Route path="/tickets" element={<BrowseTickets />} />
           <Route path="/my-tickets" element={<MyTickets />} />
@@ -215,7 +219,7 @@ function InnerRoutes() {
           <Route path="/services/edit/:id" element={<EditService />} />
           <Route path="/services/verify/:serviceId/:serviceType" element={<ServiceVerification />} />
           <Route path="/service/:id" element={<ServiceDetail />} />
-          <Route path="/services/view/:id" element={<PublicServiceDetail />} />
+          {/* /services/view/:id moved to public routes below */}
           <Route path="/profile" element={<UserProfile />} />
           <Route path="/circle" element={<Circle />} />
           <Route path="/communities" element={<Communities />} />
@@ -227,18 +231,25 @@ function InnerRoutes() {
           <Route path="/nuru-cards" element={<NuruCards />} />
           <Route path="/bookings" element={<BookingList />} />
           <Route path="/bookings/:id" element={<BookingDetail />} />
-          <Route path="/event/:id" element={<EventView />} />
+          {/* /event/:id moved to public routes below */}
           <Route path="/event/:id/automations" element={<EventAutomationsRedirect />} />
           <Route path="/my-contributors" element={<MyContributors />} />
           <Route path="/change-password" element={<ChangePassword />} />
           <Route path="/removed-content" element={<RemovedContent />} />
           <Route path="/my-issues" element={<MyIssues />} />
-          <Route path="/u/:username" element={<PublicProfile />} />
+          {/* /u/:username moved to public routes below */}
           <Route path="/services/events/:serviceId" element={<ServiceEventsPage />} />
           <Route path="/services/photo-libraries/:serviceId" element={<ServicePhotoLibraries />} />
           <Route path="/photo-library/:libraryId" element={<PhotoLibraryDetail />} />
           
         </Route>
+
+        {/* Public deep-link routes — viewable without login, with auth-aware actions */}
+        <Route path="/u/:username" element={<Layout><PublicProfile /></Layout>} />
+        <Route path="/event/:id" element={<Layout><EventView /></Layout>} />
+        <Route path="/post/:id" element={<Layout><PostDetail /></Layout>} />
+        <Route path="/moment/:id" element={<Layout><MomentDetail /></Layout>} />
+        <Route path="/services/view/:id" element={<Layout><PublicServiceDetail /></Layout>} />
 
         {/* Public Pages */}
         <Route path="/contact" element={<Contact />} />
@@ -249,6 +260,7 @@ function InnerRoutes() {
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/verify-phone" element={<VerifyPhone />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/set-password/:token" element={<SetPassword />} />
         <Route path="/privacy-policy" element={<PrivacyPolicy />} />
         <Route path="/terms" element={<Terms />} />
         <Route path="/vendor-agreement" element={<VendorAgreement />} />
@@ -276,6 +288,7 @@ function InnerRoutes() {
         <Route path="/features/ticketing" element={<Ticketing />} />
         <Route path="/features/trust" element={<Trust />} />
         <Route path="/meet/:roomId" element={<MeetingRoom />} />
+        <Route path="/m/:token" element={<MeetingRedirect />} />
 
         {/* Admin Panel */}
         <Route path="/admin/login" element={<AdminLogin />} />
@@ -309,6 +322,7 @@ function InnerRoutes() {
           <Route path="appeals" element={<AdminAppeals />} />
           <Route path="analytics" element={<AdminAnalytics />} />
           <Route path="whatsapp" element={<AdminWhatsApp />} />
+          <Route path="whatsapp/templates" element={<AdminWhatsAppTemplates />} />
           <Route path="issues" element={<AdminIssues />} />
           <Route path="issues/:id" element={<AdminIssueDetail />} />
           <Route path="issue-categories" element={<AdminIssueCategories />} />

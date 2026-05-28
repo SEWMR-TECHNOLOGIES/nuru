@@ -137,7 +137,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
   const [bulkFileName, setBulkFileName] = useState('');
   const [bulkErrors, setBulkErrors] = useState<string[]>([]);
   const [bulkUploading, setBulkUploading] = useState(false);
-  const [bulkResult, setBulkResult] = useState<{ processed: number; errors_count: number; errors: { row: number; message: string }[] } | null>(null);
+  const [bulkResult, setBulkResult] = useState<{ processed: number; errors_count: number; errors: { row: number; message: string }[]; job_id?: string; status?: string } | null>(null);
   const bulkFileRef = useRef<HTMLInputElement>(null);
 
   // Pending contributions (creator only)
@@ -564,16 +564,46 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
         send_sms: bulkSendSms,
         mode: bulkMode,
       });
-      if (res.success) {
-        setBulkResult(res.data);
-        toast.success(`${res.data.processed} contributors processed`);
-        setBulkRows([]);
-        setBulkFileName('');
-        setBulkErrors([]);
-        if (bulkFileRef.current) bulkFileRef.current.value = '';
-        refetchEC();
-      } else {
+      if (!res.success || !res.data?.job_id) {
         toast.error(res.message || 'Bulk upload failed');
+        return;
+      }
+
+      const jobId = res.data.job_id;
+      toast.success(`Upload received. Processing ${res.data.total_rows} contributors in the background…`);
+      setBulkRows([]);
+      setBulkFileName('');
+      setBulkErrors([]);
+      if (bulkFileRef.current) bulkFileRef.current.value = '';
+
+      // Poll job status until it finishes
+      let finished = false;
+      for (let attempt = 0; attempt < 120 && !finished; attempt++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const statusRes = await contributorsApi.getImportJobStatus(eventId, jobId);
+        if (!statusRes.success || !statusRes.data) continue;
+        const s = statusRes.data;
+        if (s.status === 'completed' || s.status === 'failed') {
+          finished = true;
+          let errs: { row: number; message: string }[] = [];
+          if (s.failed_rows > 0) {
+            const errRes = await contributorsApi.getImportJobErrors(eventId, jobId);
+            if (errRes.success && errRes.data?.errors) errs = errRes.data.errors;
+          }
+          setBulkResult({
+            processed: s.successful_rows,
+            errors_count: s.failed_rows,
+            errors: errs,
+            job_id: jobId,
+            status: s.status,
+          });
+          if (s.status === 'completed') {
+            toast.success(`${s.successful_rows} contributors processed${s.failed_rows ? `, ${s.failed_rows} errors` : ''}`);
+          } else {
+            toast.error(s.error_message || 'Bulk import failed');
+          }
+          refetchEC();
+        }
       }
     } catch (err: any) {
       showCaughtError(err, 'Bulk upload failed');

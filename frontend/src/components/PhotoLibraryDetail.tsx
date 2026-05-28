@@ -21,6 +21,7 @@ import { photoLibrariesApi, PhotoLibrary } from '@/lib/api/photoLibraries';
 import { showApiErrors, showCaughtError } from '@/lib/api';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import PhotosIcon from '@/assets/icons/photos-icon.svg';
+import MediaThumb from '@/components/MediaThumb';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 const MAX_IMAGE_MB = 10;
@@ -217,11 +218,11 @@ const PhotoLibraryDetail = () => {
             {photos.length >= 3 ? (
               <div className="grid grid-cols-3 h-full gap-0.5 opacity-30">
                 {photos.slice(0, 3).map((p, i) => (
-                  <img key={i} src={p.url} alt="" className="w-full h-full object-cover" />
+                  <MediaThumb key={i} url={p.url} mediaType={p.media_type} className="w-full h-full object-cover" showPlayBadge={false} />
                 ))}
               </div>
             ) : (
-              <img src={photos[0].url} alt="" className="w-full h-full object-cover opacity-20" />
+              <MediaThumb url={photos[0].url} mediaType={photos[0].media_type} className="w-full h-full object-cover opacity-20" showPlayBadge={false} />
             )}
           </div>
         )}
@@ -360,10 +361,12 @@ const PhotoLibraryDetail = () => {
               key={photo.id}
               className="relative group break-inside-avoid rounded-xl overflow-hidden bg-muted border border-border/50 shadow-sm hover:shadow-md transition-all"
             >
-              <img
-                src={photo.url}
+              <MediaThumb
+                url={photo.url}
+                mediaType={photo.media_type}
+                durationSeconds={photo.duration_seconds}
                 alt={photo.original_name || `Photo ${idx + 1}`}
-                className="w-full object-cover cursor-zoom-in"
+                className="w-full object-cover cursor-zoom-in block"
                 onClick={() => setLightboxIdx(idx)}
                 loading="lazy"
               />
@@ -424,11 +427,21 @@ const PhotoLibraryDetail = () => {
             </button>
           </div>
           <div className="relative max-w-[95vw] max-h-[95vh]" onClick={e => e.stopPropagation()}>
-            <img
-              src={photos[lightboxIdx]?.url}
-              alt={photos[lightboxIdx]?.original_name || 'Photo'}
-              className="max-w-full max-h-[90vh] object-contain rounded-xl"
-            />
+            {photos[lightboxIdx]?.media_type === 'video' ? (
+              <video
+                src={photos[lightboxIdx]?.url}
+                controls
+                autoPlay
+                playsInline
+                className="max-w-full max-h-[90vh] rounded-xl bg-black"
+              />
+            ) : (
+              <img
+                src={photos[lightboxIdx]?.url}
+                alt={photos[lightboxIdx]?.original_name || 'Photo'}
+                className="max-w-full max-h-[90vh] object-contain rounded-xl"
+              />
+            )}
             {photos.length > 1 && (
               <>
                 <button

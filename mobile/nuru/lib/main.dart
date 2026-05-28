@@ -13,6 +13,16 @@ import 'providers/locale_provider.dart';
 import 'providers/wallet_provider.dart';
 import 'providers/migration_provider.dart';
 import 'screens/splash_screen.dart';
+import 'screens/events/event_public_view_screen.dart';
+import 'screens/public_profile/public_profile_screen.dart';
+import 'screens/services/public_service_screen.dart';
+import 'screens/contributors/public_contribute_screen.dart';
+import 'screens/common/deep_link_placeholder_screen.dart';
+import 'screens/invitation/invitation_view_screen.dart';
+import 'screens/tickets/ticket_verification_screen.dart';
+import 'screens/home/post_detail_screen.dart';
+import 'screens/moments/moment_view_screen.dart';
+import 'screens/auth/set_password_screen.dart';
 import 'widgets/rate_limit_overlay.dart';
 import 'widgets/payment_verifier.dart';
 
@@ -103,7 +113,42 @@ class _NuruAppState extends State<NuruApp> {
       navigatorKey: NuruApp.navigatorKey,
       theme: AppTheme.lightTheme,
       home: const SplashScreen(),
+      onGenerateRoute: _onGenerateRoute,
       builder: (context, child) => RateLimitOverlay(child: child ?? const SizedBox.shrink()),
     );
+  }
+
+  /// Resolves deep-linked named routes (pushed by DeepLinkService) to real
+  /// screens. Every supported path lands on its dedicated page; paths whose
+  /// native screen does not exist yet open DeepLinkPlaceholderScreen with an
+  /// "Open in browser" fallback instead of silently returning to home.
+  Route<dynamic>? _onGenerateRoute(RouteSettings settings) {
+    final args = (settings.arguments as Map?) ?? const {};
+    String s(String k) => (args[k] ?? '').toString();
+    switch (settings.name) {
+      case '/event':
+        return MaterialPageRoute(builder: (_) => EventPublicViewScreen(eventId: s('id')));
+      case '/profile':
+        return MaterialPageRoute(
+          builder: (_) => PublicProfileScreen(userId: s('userId'), username: s('username')),
+        );
+      case '/service':
+        return MaterialPageRoute(builder: (_) => PublicServiceScreen(serviceId: s('id')));
+      case '/contribute':
+        return MaterialPageRoute(builder: (_) => PublicContributeScreen(token: s('token')));
+      case '/ticket':
+        return MaterialPageRoute(builder: (_) => TicketVerificationScreen(code: s('code')));
+      case '/rsvp':
+        return MaterialPageRoute(builder: (_) => InvitationViewScreen(code: s('code'), mode: 'rsvp'));
+      case '/invitation':
+        return MaterialPageRoute(builder: (_) => InvitationViewScreen(code: s('code'), mode: 'view'));
+      case '/post':
+        return MaterialPageRoute(builder: (_) => PostDetailScreen(postId: s('id')));
+      case '/moment':
+        return MaterialPageRoute(builder: (_) => MomentViewScreen(momentId: s('id')));
+      case '/set-password':
+        return MaterialPageRoute(builder: (_) => SetPasswordScreen(token: s('token')));
+    }
+    return null;
   }
 }

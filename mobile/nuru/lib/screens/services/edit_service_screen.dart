@@ -14,7 +14,7 @@ import '../../core/services/user_services_service.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/l10n/l10n_helper.dart';
 
-/// Full-page Edit Service screen — matches web EditService.tsx
+/// Full-page Edit Service screen — matches Add Service card styling.
 class EditServiceScreen extends StatefulWidget {
   final Map<String, dynamic> service;
   const EditServiceScreen({super.key, required this.service});
@@ -37,25 +37,25 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
   List<dynamic> _categories = [];
   List<dynamic> _serviceTypes = [];
   String _selectedCategoryId = '';
-  String _selectedTypeId = '';
+  final Set<String> _selectedTypeIds = <String>{};
   bool _loadingRefs = true;
+  bool _loadingTypes = false;
 
   // Images
-  List<String> _existingImages = [];
-  List<File> _newImages = [];
+  final List<String> _existingImages = [];
+  final List<File> _newImages = [];
 
   // Intro media
   List<dynamic> _introMedia = [];
   bool _uploadingMedia = false;
 
-  // Track original values for KYC reset detection
-  late String _originalTitle;
+  // Track original values for re-verification detection
   late String _originalCategoryId;
-  late String _originalTypeId;
+  late Set<String> _originalTypeIds;
 
   static String get _baseUrl => ApiService.baseUrl;
 
-  TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary, double height = 1.3}) =>
+  TextStyle _f({double size = 14, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary, double height = 1.3}) =>
       GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color, height: height);
 
   @override
@@ -64,19 +64,40 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
     final s = widget.service;
     _titleCtrl = TextEditingController(text: (s['title'] ?? s['name'] ?? '').toString());
     _descCtrl = TextEditingController(text: (s['description'] ?? '').toString());
-    _minPriceCtrl = TextEditingController(text: (s['min_price'] ?? s['starting_price'] ?? s['price'] ?? '').toString());
-    _maxPriceCtrl = TextEditingController(text: (s['max_price'] ?? '').toString());
+    _minPriceCtrl = TextEditingController(text: _initPrice(s['min_price'] ?? s['starting_price'] ?? s['price']));
+    _maxPriceCtrl = TextEditingController(text: _initPrice(s['max_price']));
     _locationCtrl = TextEditingController(text: (s['location'] ?? '').toString());
     _status = (s['status']?.toString() ?? 'active').toLowerCase();
     _availability = (s['availability']?.toString() ?? 'available').toLowerCase();
     _selectedCategoryId = (s['service_category_id'] ?? s['service_category']?['id'] ?? '').toString();
-    _selectedTypeId = (s['service_type_id'] ?? s['service_type']?['id'] ?? '').toString();
-    _originalTitle = _titleCtrl.text;
+
+    // Initialise multi-type selection
+    final typeIds = s['service_type_ids'];
+    if (typeIds is List) {
+      for (final t in typeIds) {
+        final id = t?.toString() ?? '';
+        if (id.isNotEmpty) _selectedTypeIds.add(id);
+      }
+    }
+    if (_selectedTypeIds.isEmpty) {
+      final legacy = (s['service_type_id'] ?? s['service_type']?['id'] ?? '').toString();
+      if (legacy.isNotEmpty) _selectedTypeIds.add(legacy);
+    }
+
     _originalCategoryId = _selectedCategoryId;
-    _originalTypeId = _selectedTypeId;
-    _existingImages = _extractImages(s);
+    _originalTypeIds = Set<String>.from(_selectedTypeIds);
+    _existingImages.addAll(_extractImages(s));
     _loadReferences();
     _loadIntroMedia();
+  }
+
+  String _initPrice(dynamic v) {
+    if (v == null) return '';
+    final s = v.toString();
+    if (s.isEmpty) return '';
+    final n = num.tryParse(s);
+    if (n == null) return s;
+    return n.toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
   }
 
   @override
@@ -143,12 +164,17 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
   }
 
   Future<void> _loadTypes(String catId) async {
-    if (catId.isEmpty) return;
-    final res = await UserServicesService.getServiceTypesByCategory(catId);
-    if (res['success'] == true && mounted) {
-      final d = res['data'];
-      setState(() => _serviceTypes = d is List ? d : []);
+    if (catId.isEmpty) {
+      setState(() => _serviceTypes = []);
+      return;
     }
+    setState(() => _loadingTypes = true);
+    final res = await UserServicesService.getServiceTypesByCategory(catId);
+    if (!mounted) return;
+    setState(() {
+      _loadingTypes = false;
+      _serviceTypes = (res['success'] == true && res['data'] is List) ? res['data'] : [];
+    });
   }
 
   Future<void> _loadIntroMedia() async {
@@ -198,7 +224,7 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
       request.fields['media_type'] = 'video';
       request.files.add(await http.MultipartFile.fromPath('media', picked.path));
       final streamedRes = await request.send();
-      final body = await streamedRes.stream.bytesToString();
+      await streamedRes.stream.bytesToString();
       if (streamedRes.statusCode >= 200 && streamedRes.statusCode < 300) {
         if (mounted) {
           AppSnackbar.success(context, 'Intro clip uploaded');
@@ -225,6 +251,12 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
     } catch (_) {}
   }
 
+  String _formatPrice(String value) {
+    final numbers = value.replaceAll(RegExp(r'[^\d]'), '');
+    if (numbers.isEmpty) return '';
+    return numbers.replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+  }
+
   Future<void> _save() async {
     final serviceId = widget.service['id']?.toString() ?? '';
     if (serviceId.isEmpty) return;
@@ -237,6 +269,14 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
       AppSnackbar.error(context, 'Description is required');
       return;
     }
+    if (_selectedCategoryId.isEmpty) {
+      AppSnackbar.error(context, 'Please select a category');
+      return;
+    }
+    if (_selectedTypeIds.isEmpty) {
+      AppSnackbar.error(context, 'Please select at least one service type');
+      return;
+    }
 
     final minNum = num.tryParse(_minPriceCtrl.text.trim().replaceAll(',', ''));
     final maxNum = num.tryParse(_maxPriceCtrl.text.trim().replaceAll(',', ''));
@@ -247,9 +287,8 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
 
     setState(() => _submitting = true);
 
-    // Use FormData for update (matches web which uses putFormData)
     try {
-      final uri = Uri.parse('$_baseUrl/services/$serviceId');
+      final uri = Uri.parse('$_baseUrl/user-services/$serviceId');
       final request = http.MultipartRequest('PUT', uri);
       request.headers.addAll(await _authOnlyHeaders());
       request.fields['title'] = _titleCtrl.text.trim();
@@ -258,283 +297,381 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
       request.fields['availability'] = _availability;
       request.fields['location'] = _locationCtrl.text.trim();
 
-      final minNum = num.tryParse(_minPriceCtrl.text.trim().replaceAll(',', ''));
-      final maxNum = num.tryParse(_maxPriceCtrl.text.trim().replaceAll(',', ''));
       if (minNum != null) request.fields['min_price'] = '$minNum';
       if (maxNum != null) request.fields['max_price'] = '$maxNum';
       if (_selectedCategoryId.isNotEmpty) request.fields['service_category_id'] = _selectedCategoryId;
-      if (_selectedTypeId.isNotEmpty) request.fields['service_type_id'] = _selectedTypeId;
+      final ids = _selectedTypeIds.toList();
+      if (ids.isNotEmpty) {
+        request.fields['service_type_id'] = ids.first;
+        request.fields['service_type_ids'] = ids.join(',');
+      }
 
-      // Detect MAJOR field changes that require re-verification.
-      // Only category / type changes count — title edits etc. should not
-      // bounce a verified service back to "pending".
+      // Detect key changes that require re-verification.
       final keyChanged = _selectedCategoryId != _originalCategoryId ||
-          _selectedTypeId != _originalTypeId;
+          !_setEquals(_selectedTypeIds, _originalTypeIds);
       if (keyChanged) request.fields['reset_verification'] = 'true';
 
-      // Add new images
       for (final img in _newImages) {
         request.files.add(await http.MultipartFile.fromPath('images', img.path));
       }
 
       final streamedRes = await request.send();
       final body = await streamedRes.stream.bytesToString();
-      final resData = jsonDecode(body);
+      Map<String, dynamic> resData = const {};
+      try { resData = jsonDecode(body) as Map<String, dynamic>; } catch (_) {}
 
-      if (mounted) {
-        if (streamedRes.statusCode >= 200 && streamedRes.statusCode < 300) {
-          AppSnackbar.success(
+      if (!mounted) return;
+      final ok = streamedRes.statusCode >= 200 && streamedRes.statusCode < 300 && (resData['success'] != false);
+      if (ok) {
+        AppSnackbar.success(
+          context,
+          keyChanged ? 'Service updated — please upload KYC to re-verify' : 'Service updated',
+        );
+        if (keyChanged) {
+          Navigator.pushReplacement(
             context,
-            keyChanged
-                ? 'Service updated — please upload KYC to re-verify'
-                : 'Service updated',
+            MaterialPageRoute(builder: (_) => ServiceVerificationScreen(serviceId: serviceId)),
           );
-          if (keyChanged) {
-            // Route to KYC upload (verification) screen instead of just popping.
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ServiceVerificationScreen(serviceId: serviceId),
-              ),
-            );
-          } else {
-            Navigator.pop(context, true);
-          }
         } else {
-          AppSnackbar.error(context, resData['message']?.toString() ?? 'Unable to update service');
+          Navigator.pop(context, true);
         }
+      } else {
+        AppSnackbar.error(context, resData['message']?.toString() ?? 'Unable to update service');
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) AppSnackbar.error(context, 'Unable to update service');
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
   }
 
+  bool _setEquals(Set<String> a, Set<String> b) {
+    if (a.length != b.length) return false;
+    for (final x in a) { if (!b.contains(x)) return false; }
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F3F8),
+      backgroundColor: Colors.white,
       appBar: NuruSubPageAppBar(title: context.tr('edit_service')),
       body: _loadingRefs
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-          : SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                // Title
-                _label('Service Title'),
-                _field(_titleCtrl, 'e.g. Professional Photography'),
-                const SizedBox(height: 16),
-
-                // Category
-                _label('Service Category'),
-                _dropdown(
-                  value: _categories.any((c) => c['id']?.toString() == _selectedCategoryId) ? _selectedCategoryId : null,
-                  hint: 'Select a category',
-                  items: _categories.map<DropdownMenuItem<String>>((c) => DropdownMenuItem(
-                    value: c['id']?.toString() ?? '',
-                    child: Text(c['name']?.toString() ?? '', style: _f(size: 14)),
-                  )).toList(),
-                  onChanged: (v) async {
-                    setState(() { _selectedCategoryId = v ?? ''; _selectedTypeId = ''; });
-                    await _loadTypes(v ?? '');
-                  },
-                ),
-                const SizedBox(height: 16),
-
-                // Type
-                _label('Service Type'),
-                _dropdown(
-                  value: _serviceTypes.any((t) => t['id']?.toString() == _selectedTypeId) ? _selectedTypeId : null,
-                  hint: 'Select a type',
-                  items: _serviceTypes.map<DropdownMenuItem<String>>((t) => DropdownMenuItem(
-                    value: t['id']?.toString() ?? '',
-                    child: Text(t['name']?.toString() ?? '', style: _f(size: 14)),
-                  )).toList(),
-                  onChanged: (v) => setState(() => _selectedTypeId = v ?? ''),
-                ),
-                const SizedBox(height: 16),
-
-                // Description
-                _label('Description'),
-                _field(_descCtrl, 'Describe your service...', maxLines: 5),
-                const SizedBox(height: 16),
-
-                // Price row
-                _label('Pricing (TZS)'),
-                Row(children: [
-                  Expanded(child: _field(_minPriceCtrl, 'Min price', keyboardType: TextInputType.number)),
-                  const SizedBox(width: 12),
-                  Expanded(child: _field(_maxPriceCtrl, 'Max price', keyboardType: TextInputType.number)),
-                ]),
-                const SizedBox(height: 16),
-
-                // Location
-                _label('Location'),
-                _field(_locationCtrl, 'e.g. Dar es Salaam'),
-                const SizedBox(height: 16),
-
-                // Status
-                _label('Status'),
-                _dropdown(
-                  value: _status,
-                  hint: 'Select status',
-                  items: const [
-                    DropdownMenuItem(value: 'active', child: Text('Active')),
-                    DropdownMenuItem(value: 'inactive', child: Text('Inactive')),
-                  ],
-                  onChanged: (v) => setState(() => _status = v ?? 'active'),
-                ),
-                const SizedBox(height: 16),
-
-                // Availability
-                _label('Availability'),
-                _dropdown(
-                  value: _availability,
-                  hint: 'Select availability',
-                  items: const [
-                    DropdownMenuItem(value: 'available', child: Text('Available')),
-                    DropdownMenuItem(value: 'busy', child: Text('Busy')),
-                    DropdownMenuItem(value: 'unavailable', child: Text('Unavailable')),
-                  ],
-                  onChanged: (v) => setState(() => _availability = v ?? 'available'),
-                ),
-                const SizedBox(height: 24),
-
-                // ── Service Images ──
-                _sectionHeader('Service Images', 'assets/icons/photos-icon.svg'),
-                const SizedBox(height: 10),
-                if (_existingImages.isNotEmpty || _newImages.isNotEmpty)
-                  SizedBox(
-                    height: 100,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      children: [
-                        ..._existingImages.map((url) => _imageThumb(networkUrl: url)),
-                        ..._newImages.map((file) => _imageThumb(file: file, onRemove: () => setState(() => _newImages.remove(file)))),
-                        _addImageBtn(),
-                      ],
-                    ),
-                  )
-                else
-                  _addImageBtn(),
-                const SizedBox(height: 24),
-
-                // ── Intro Clip ──
-                _sectionHeader('Intro Clip', 'assets/icons/video-icon.svg'),
-                const SizedBox(height: 10),
-                if (_introMedia.isNotEmpty)
-                  ..._introMedia.map((m) {
-                    final mediaId = m is Map ? m['id']?.toString() ?? '' : '';
-                    final mediaType = m is Map ? (m['media_type']?.toString() ?? 'video') : 'video';
-                    final mediaUrl = m is Map ? (m['media_url']?.toString() ?? '') : '';
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.borderLight),
-                      ),
-                      child: Row(children: [
-                        Container(
-                          width: 40, height: 40,
-                          decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(10)),
-                          child: Center(child: SvgPicture.asset('assets/icons/video-icon.svg', width: 18, height: 18,
-                            colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn))),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(mediaType == 'video' ? 'Video Clip' : 'Audio Clip', style: _f(size: 13, weight: FontWeight.w600)),
-                          if (mediaUrl.isNotEmpty)
-                            Text(mediaUrl.split('/').last, style: _f(size: 11, color: AppColors.textTertiary), maxLines: 1, overflow: TextOverflow.ellipsis),
-                        ])),
-                        GestureDetector(
-                          onTap: () => _deleteIntroMedia(mediaId),
-                          child: Container(
-                            width: 32, height: 32,
-                            decoration: BoxDecoration(color: AppColors.error.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                            child: const Icon(Icons.delete_outline_rounded, size: 16, color: AppColors.error),
-                          ),
-                        ),
-                      ]),
-                    );
-                  }),
-                GestureDetector(
-                  onTap: _uploadingMedia ? null : _uploadIntroMedia,
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.borderLight, style: BorderStyle.solid),
-                    ),
-                    child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      if (_uploadingMedia)
-                        const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
-                      else
-                        SvgPicture.asset('assets/icons/video-icon.svg', width: 20, height: 20,
-                          colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn)),
-                      const SizedBox(width: 8),
-                      Text(_uploadingMedia ? 'Uploading...' : 'Upload Intro Clip', style: _f(size: 13, weight: FontWeight.w600, color: AppColors.primary)),
+          : Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      _categoryTypeCard(),
+                      const SizedBox(height: 16),
+                      _titleDescCard(),
+                      const SizedBox(height: 16),
+                      _pricingLocationCard(),
+                      const SizedBox(height: 16),
+                      _statusCard(),
+                      const SizedBox(height: 16),
+                      _imagesCard(),
+                      const SizedBox(height: 16),
+                      _introClipCard(),
                     ]),
                   ),
                 ),
-                const SizedBox(height: 32),
-
-                // Save button
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: _submitting ? null : _save,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                      elevation: 0,
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                  child: SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      onPressed: _submitting ? null : _save,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: AppColors.textPrimary,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        elevation: 0,
+                      ),
+                      child: _submitting
+                          ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                          : Text('Save Changes', style: GoogleFonts.sora(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
                     ),
-                    child: _submitting
-                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                        : Text('Save Changes', style: _f(size: 15, weight: FontWeight.w700, color: Colors.white)),
                   ),
                 ),
-              ]),
+              ],
             ),
     );
   }
 
-  Widget _label(String text) => Padding(
-    padding: const EdgeInsets.only(bottom: 6),
-    child: Text(text, style: _f(size: 13, weight: FontWeight.w600)),
-  );
+  // ── Cards ──────────────────────────────────────────────────────────
 
-  Widget _field(TextEditingController ctrl, String hint, {int maxLines = 1, TextInputType keyboardType = TextInputType.text}) {
+  Widget _categoryTypeCard() => _sectionCard('Category & Service Type', [
+    _fieldLabel('Category *'),
+    _dropdown(
+      value: _categories.any((c) => c['id']?.toString() == _selectedCategoryId) ? _selectedCategoryId : null,
+      hint: 'Select a category',
+      items: _categories.map<DropdownMenuItem<String>>((c) => DropdownMenuItem(
+        value: c['id']?.toString() ?? '',
+        child: Text(c['name']?.toString() ?? '', style: _f(size: 14)),
+      )).toList(),
+      onChanged: (v) {
+        setState(() {
+          _selectedCategoryId = v ?? '';
+          _selectedTypeIds.clear();
+          _serviceTypes = [];
+        });
+        _loadTypes(v ?? '');
+      },
+    ),
+    const SizedBox(height: 16),
+    _fieldLabel('Service Types *'),
+    if (_selectedCategoryId.isEmpty)
+      Text('Select a category first.', style: _f(size: 13, color: AppColors.textTertiary))
+    else if (_loadingTypes)
+      Row(children: [
+        const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: AppColors.primary, strokeWidth: 2)),
+        const SizedBox(width: 10),
+        Text('Loading types...', style: _f(size: 13, color: AppColors.textTertiary)),
+      ])
+    else if (_serviceTypes.isEmpty)
+      Text('No service types available for this category.', style: _f(size: 13, color: AppColors.textTertiary))
+    else ...[
+      Text('Tap to select one or more', style: _f(size: 12, color: AppColors.textSecondary)),
+      const SizedBox(height: 10),
+      Wrap(spacing: 8, runSpacing: 8, children: _serviceTypes.map<Widget>((t) {
+        final id = t['id']?.toString() ?? '';
+        final name = t['name']?.toString() ?? '';
+        final selected = _selectedTypeIds.contains(id);
+        return GestureDetector(
+          onTap: () => setState(() {
+            if (selected) _selectedTypeIds.remove(id); else _selectedTypeIds.add(id);
+          }),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            decoration: BoxDecoration(
+              color: selected ? AppColors.primary : Colors.white,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: selected ? AppColors.primary : AppColors.borderLight),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              if (selected) ...[
+                const Icon(Icons.check_rounded, size: 14, color: AppColors.textPrimary),
+                const SizedBox(width: 6),
+              ],
+              Text(name, style: _f(size: 13, weight: FontWeight.w600,
+                  color: selected ? AppColors.textPrimary : AppColors.textSecondary)),
+            ]),
+          ),
+        );
+      }).toList()),
+    ],
+  ]);
+
+  Widget _titleDescCard() => _sectionCard('Service Title & Description', [
+    _fieldLabel('Service Title *'),
+    _textField(_titleCtrl, 'e.g., Professional Wedding Photography'),
+    const SizedBox(height: 14),
+    _fieldLabel('Description *'),
+    _textField(_descCtrl, 'Describe your service, experience, and what makes you unique...', maxLines: 4),
+  ]);
+
+  Widget _pricingLocationCard() => _sectionCard('Pricing & Location', [
+    Row(children: [
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _fieldLabel('Min Price (TZS) *'),
+        _textField(_minPriceCtrl, 'e.g., 300,000', keyboardType: TextInputType.number, onChanged: (v) {
+          final f = _formatPrice(v);
+          if (f != v) _minPriceCtrl.value = TextEditingValue(text: f, selection: TextSelection.collapsed(offset: f.length));
+        }),
+      ])),
+      const SizedBox(width: 12),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _fieldLabel('Max Price (TZS) *'),
+        _textField(_maxPriceCtrl, 'e.g., 2,500,000', keyboardType: TextInputType.number, onChanged: (v) {
+          final f = _formatPrice(v);
+          if (f != v) _maxPriceCtrl.value = TextEditingValue(text: f, selection: TextSelection.collapsed(offset: f.length));
+        }),
+      ])),
+    ]),
+    const SizedBox(height: 14),
+    _fieldLabel('Service Location'),
+    _textField(_locationCtrl, 'e.g., Dar es Salaam, Mikocheni'),
+  ]);
+
+  Widget _statusCard() => _sectionCard('Status & Availability', [
+    Row(children: [
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _fieldLabel('Status'),
+        _dropdown(
+          value: _status,
+          hint: 'Select status',
+          items: const [
+            DropdownMenuItem(value: 'active', child: Text('Active')),
+            DropdownMenuItem(value: 'inactive', child: Text('Inactive')),
+          ],
+          onChanged: (v) => setState(() => _status = v ?? 'active'),
+        ),
+      ])),
+      const SizedBox(width: 12),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _fieldLabel('Availability'),
+        _dropdown(
+          value: _availability,
+          hint: 'Select availability',
+          items: const [
+            DropdownMenuItem(value: 'available', child: Text('Available')),
+            DropdownMenuItem(value: 'busy', child: Text('Busy')),
+            DropdownMenuItem(value: 'unavailable', child: Text('Unavailable')),
+          ],
+          onChanged: (v) => setState(() => _availability = v ?? 'available'),
+        ),
+      ])),
+    ]),
+  ]);
+
+  Widget _imagesCard() => _sectionCard('Service Images', [
+    Row(children: [
+      SvgPicture.asset('assets/icons/gallery-icon.svg', width: 16, height: 16,
+        colorFilter: const ColorFilter.mode(AppColors.textSecondary, BlendMode.srcIn)),
+      const SizedBox(width: 8),
+      Text('Add or remove gallery images', style: _f(size: 12, color: AppColors.textSecondary)),
+    ]),
+    const SizedBox(height: 12),
+    if (_existingImages.isNotEmpty || _newImages.isNotEmpty)
+      SizedBox(
+        height: 100,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          children: [
+            ..._existingImages.map((url) => _imageThumb(networkUrl: url)),
+            ..._newImages.map((file) => _imageThumb(file: file, onRemove: () => setState(() => _newImages.remove(file)))),
+            _addImageBtn(),
+          ],
+        ),
+      )
+    else
+      _addImageBtn(),
+  ]);
+
+  Widget _introClipCard() => _sectionCard('Intro Clip', [
+    Row(children: [
+      SvgPicture.asset('assets/icons/video-icon.svg', width: 16, height: 16,
+        colorFilter: const ColorFilter.mode(AppColors.textSecondary, BlendMode.srcIn)),
+      const SizedBox(width: 8),
+      Text('A short video shown on your service page', style: _f(size: 12, color: AppColors.textSecondary)),
+    ]),
+    const SizedBox(height: 12),
+    if (_introMedia.isNotEmpty)
+      ..._introMedia.map((m) {
+        final mediaId = m is Map ? m['id']?.toString() ?? '' : '';
+        final mediaType = m is Map ? (m['media_type']?.toString() ?? 'video') : 'video';
+        final mediaUrl = m is Map ? (m['media_url']?.toString() ?? '') : '';
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFFF8FAFC),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+          ),
+          child: Row(children: [
+            Container(
+              width: 40, height: 40,
+              decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.10), borderRadius: BorderRadius.circular(10)),
+              child: Center(child: SvgPicture.asset('assets/icons/video-icon.svg', width: 18, height: 18,
+                colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn))),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(mediaType == 'video' ? 'Video Clip' : 'Audio Clip', style: _f(size: 13, weight: FontWeight.w700)),
+              if (mediaUrl.isNotEmpty)
+                Text(mediaUrl.split('/').last, style: _f(size: 11, color: AppColors.textTertiary), maxLines: 1, overflow: TextOverflow.ellipsis),
+            ])),
+            GestureDetector(
+              onTap: () => _deleteIntroMedia(mediaId),
+              child: Container(
+                width: 32, height: 32,
+                decoration: BoxDecoration(color: AppColors.error.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                child: const Icon(Icons.delete_outline_rounded, size: 16, color: AppColors.error),
+              ),
+            ),
+          ]),
+        );
+      }),
+    GestureDetector(
+      onTap: _uploadingMedia ? null : _uploadIntroMedia,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.borderLight),
+        ),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          if (_uploadingMedia)
+            const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+          else
+            SvgPicture.asset('assets/icons/upload-icon.svg', width: 18, height: 18,
+              colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn)),
+          const SizedBox(width: 8),
+          Text(_uploadingMedia ? 'Uploading...' : 'Upload Intro Clip', style: _f(size: 13, weight: FontWeight.w700, color: AppColors.primary)),
+        ]),
+      ),
+    ),
+  ]);
+
+  // ── UI Helpers (mirrors add_service_screen) ────────────────────────
+
+  Widget _sectionCard(String title, List<Widget> children) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: _f(size: 15, weight: FontWeight.w700)),
+        const SizedBox(height: 14),
+        ...children,
+      ]),
+    );
+  }
+
+  Widget _fieldLabel(String label) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(label, style: _f(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
+      );
+
+  Widget _textField(TextEditingController ctrl, String hint,
+      {int maxLines = 1, TextInputType keyboardType = TextInputType.text, ValueChanged<String>? onChanged, bool readOnly = false}) {
     return TextField(
       controller: ctrl,
       maxLines: maxLines,
       keyboardType: keyboardType,
+      onChanged: onChanged,
+      readOnly: readOnly,
       style: _f(size: 14),
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: _f(size: 14, color: AppColors.textHint),
         filled: true,
         fillColor: Colors.white,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.borderLight)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: AppColors.borderLight)),
-        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 1)),
+        focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.primary, width: 1.4)),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE5E7EB), width: 1)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       ),
     );
   }
 
-  Widget _dropdown({String? value, required String hint, required List<DropdownMenuItem<String>> items, required ValueChanged<String?> onChanged}) {
+  Widget _dropdown({String? value, required String hint, required List<DropdownMenuItem<String>> items, ValueChanged<String?>? onChanged}) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderLight),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
@@ -546,14 +683,6 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
         ),
       ),
     );
-  }
-
-  Widget _sectionHeader(String title, String svgAsset) {
-    return Row(children: [
-      SvgPicture.asset(svgAsset, width: 18, height: 18, colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
-      const SizedBox(width: 8),
-      Text(title, style: _f(size: 15, weight: FontWeight.w700)),
-    ]);
   }
 
   Widget _imageThumb({String? networkUrl, File? file, VoidCallback? onRemove}) {
@@ -588,7 +717,7 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.borderLight, style: BorderStyle.solid),
+          border: Border.all(color: AppColors.borderLight),
         ),
         child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
           SvgPicture.asset('assets/icons/photos-icon.svg', width: 22, height: 22,

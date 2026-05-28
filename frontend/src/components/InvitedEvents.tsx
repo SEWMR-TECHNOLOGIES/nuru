@@ -14,6 +14,7 @@ import InvitationCard from './InvitationCard';
 import { getEventCountdown } from '@/utils/getEventCountdown';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import { getEventImage } from '@/lib/eventImage';
+import { getEventOwnerName } from '@/lib/eventOwner';
 
 const rsvpStyles: Record<string, string> = {
   pending: 'bg-amber-100 text-amber-800',
@@ -199,11 +200,14 @@ const InvitedEvents = () => {
                       )}
                     </div>
 
-                    {event.organizer?.name && (
-                      <p className="text-sm text-muted-foreground mt-2">
-                        Organized by <span className="font-medium text-foreground">{event.organizer.name}</span>
-                      </p>
-                    )}
+                    {(() => {
+                      const ownerName = getEventOwnerName(event as any);
+                      return ownerName ? (
+                        <p className="text-sm text-muted-foreground mt-2">
+                          Organized by <span className="font-medium text-foreground">{ownerName}</span>
+                        </p>
+                      ) : null;
+                    })()}
 
                     {/* RSVP Action Buttons */}
                     <div className="flex flex-wrap items-center gap-2 mt-3">

@@ -21,7 +21,7 @@ def send_otp_async(self, phone: str, code: str, first_name: str = "", context: s
     """
     try:
         from utils.notification_service import send_otp_with_routing
-        result = send_otp_with_routing(phone, code, first_name, context)
+        result = send_otp_with_routing(phone, code, first_name, context, dispatch_async=False)
         if not result.success:
             raise Exception(f"OTP delivery failed: {result.message}")
         return {"success": True, "channel": result.channel}

@@ -285,6 +285,34 @@ const Settings = () => {
             </div>
             <Separator />
             <div className="space-y-2">
+              <Label>Notification Language</Label>
+              <p className="text-xs text-muted-foreground">
+                The language used for SMS, WhatsApp, push and in-app notifications we send you. Defaults to Swahili.
+              </p>
+              <div className="flex gap-2">
+                {([
+                  { value: 'sw', label: 'Swahili' },
+                  { value: 'en', label: 'English' },
+                ] as const).map((opt) => {
+                  const current = (prefs?.notification_language || 'sw') as string;
+                  const active = current === opt.value;
+                  return (
+                    <Button
+                      key={opt.value}
+                      type="button"
+                      variant={active ? 'default' : 'outline'}
+                      disabled={updating}
+                      onClick={() => handlePreferenceChange('notification_language', opt.value)}
+                      className="flex-1"
+                    >
+                      {opt.label}
+                    </Button>
+                  );
+                })}
+              </div>
+            </div>
+            <Separator />
+            <div className="space-y-2">
               <Label>{t('time_zone')}</Label>
               <Button variant="outline" className="w-full justify-between" disabled={updating}>
                 {prefs?.timezone || 'Africa/Nairobi'}

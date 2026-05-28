@@ -147,6 +147,16 @@ class EventContributorsService {
     return ApiBase.postRaw('/user-contributors/events/$eventId/contributors/bulk', data);
   }
 
+  /// Poll a queued contributor-import job for progress and status.
+  static Future<Map<String, dynamic>> getImportJobStatus(String eventId, String jobId) {
+    return ApiBase.getRaw('/user-contributors/events/$eventId/contributor-imports/$jobId');
+  }
+
+  /// Fetch per-row errors for a completed/partially-completed job.
+  static Future<Map<String, dynamic>> getImportJobErrors(String eventId, String jobId) {
+    return ApiBase.getRaw('/user-contributors/events/$eventId/contributor-imports/$jobId/errors');
+  }
+
   // ────────────────────────────────────────────────────────────────────
   // Guest payment links — host-side actions for the /c/:token web flow.
   // The plain token is returned ONCE; the server stores only its hash.

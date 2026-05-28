@@ -1,0 +1,100 @@
+"""Localised date/time formatting for Nuru notifications.
+
+We deliberately ship inline Swahili / English month + weekday tables so
+the formatter works on Vercel without locale packages installed.
+
+Output formats follow the SMS catalogue exactly:
+
+    SW: ``Jumatano, 12 Mei 2026 Saa 13:30``
+    EN: ``Wednesday, 12 May 2026 at 13:30``
+"""
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from typing import Optional
+
+try:  # pytz is already a backend dependency
+    import pytz
+except Exception:  # pragma: no cover
+    pytz = None  # type: ignore
+
+
+SW_WEEKDAYS = [
+    "Jumatatu",   # 0 = Monday
+    "Jumanne",
+    "Jumatano",
+    "Alhamisi",
+    "Ijumaa",
+    "Jumamosi",
+    "Jumapili",
+]
+
+SW_MONTHS = [
+    "Januari", "Februari", "Machi", "Aprili", "Mei", "Juni",
+    "Julai", "Agosti", "Septemba", "Oktoba", "Novemba", "Desemba",
+]
+
+EN_WEEKDAYS = [
+    "Monday", "Tuesday", "Wednesday", "Thursday",
+    "Friday", "Saturday", "Sunday",
+]
+
+EN_MONTHS = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December",
+]
+
+
+def _coerce_dt(value) -> Optional[datetime]:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            # Accept ISO 8601, with or without timezone
+            return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except Exception:
+            return None
+    return None
+
+
+def _to_zone(dt: datetime, tz_name: Optional[str]) -> datetime:
+    if pytz is None or not tz_name:
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    try:
+        zone = pytz.timezone(tz_name)
+    except Exception:
+        zone = pytz.timezone("Africa/Nairobi")
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(zone)
+
+
+def format_event_datetime(value, lang: str = "sw", tz_name: Optional[str] = "Africa/Nairobi") -> str:
+    """Return a friendly localised date+time string.
+
+    Returns an empty string when ``value`` is missing so callers can pass
+    it straight into a template without guarding.
+    """
+    dt = _coerce_dt(value)
+    if dt is None:
+        return ""
+
+    dt = _to_zone(dt, tz_name)
+    language = (lang or "sw").lower()
+    if language not in ("sw", "en"):
+        language = "sw"
+
+    weekday_idx = dt.weekday()
+    month_idx = dt.month - 1
+
+    if language == "sw":
+        return (
+            f"{SW_WEEKDAYS[weekday_idx]}, {dt.day} {SW_MONTHS[month_idx]} "
+            f"{dt.year} Saa {dt.hour:02d}:{dt.minute:02d}"
+        )
+    return (
+        f"{EN_WEEKDAYS[weekday_idx]}, {dt.day} {EN_MONTHS[month_idx]} "
+        f"{dt.year} at {dt.hour:02d}:{dt.minute:02d}"
+    )

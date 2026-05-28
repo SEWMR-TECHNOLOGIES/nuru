@@ -1653,6 +1653,7 @@ class _PreferencesSectionState extends State<_PreferencesSection> {
     if (_loading) return const Center(child: CircularProgressIndicator(color: AppColors.primary));
 
     final lang = (_p['language'] ?? 'en').toString();
+    final notifLang = (_p['notification_language'] ?? 'sw').toString();
     final cur = (_p['currency'] ?? 'TZS').toString();
     final tz = (_p['timezone'] ?? 'Africa/Nairobi').toString();
     final theme = (_p['theme'] ?? 'system').toString();
@@ -1674,6 +1675,19 @@ class _PreferencesSectionState extends State<_PreferencesSection> {
                 MapEntry('sw', 'Kiswahili'),
               ], lang);
               if (v != null) _update('language', v);
+            },
+          ),
+          const Divider(height: 1, indent: 14),
+          _settingsTile(
+            icon: Icons.notifications_active_rounded,
+            title: 'Notification Language',
+            subtitle: const {'sw': 'Swahili', 'en': 'English'}[notifLang] ?? 'Swahili',
+            onTap: () async {
+              final v = await _pickFromList('Notification Language', const [
+                MapEntry('sw', 'Swahili'),
+                MapEntry('en', 'English'),
+              ], notifLang);
+              if (v != null) _update('notification_language', v);
             },
           ),
           const Divider(height: 1, indent: 14),

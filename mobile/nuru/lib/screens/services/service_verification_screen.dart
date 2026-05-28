@@ -187,7 +187,7 @@ class _ServiceVerificationScreenState extends State<ServiceVerificationScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F3F8),
+      backgroundColor: Colors.white,
       appBar: NuruSubPageAppBar(title: context.tr('service_verification')),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
@@ -285,23 +285,27 @@ class _ServiceVerificationScreenState extends State<ServiceVerificationScreen> {
           Row(children: [
             Expanded(
               child: SizedBox(
-                height: 48,
+                height: 52,
                 child: OutlinedButton(
                   onPressed: _submitting ? null : () => _submit(partial: true),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.primary,
                     side: BorderSide(color: AppColors.primary.withOpacity(0.5)),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
                   ),
-                  child: Text(_submitting ? 'Saving…' : 'Save & Continue Later',
-                      style: appText(size: 13, weight: FontWeight.w700, color: AppColors.primary)),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(_submitting ? 'Saving…' : 'Save Progress',
+                        style: appText(size: 13, weight: FontWeight.w700, color: AppColors.primary)),
+                  ),
                 ),
               ),
             ),
             const SizedBox(width: 10),
             Expanded(
               child: SizedBox(
-                height: 48,
+                height: 52,
                 child: ElevatedButton(
                   onPressed: _submitting ? null : () => _submit(partial: false),
                   style: ElevatedButton.styleFrom(
@@ -309,11 +313,15 @@ class _ServiceVerificationScreenState extends State<ServiceVerificationScreen> {
                     foregroundColor: Colors.white,
                     elevation: 0,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
                   ),
                   child: _submitting
                       ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                      : Text('Submit & Activate',
-                          style: appText(size: 13, weight: FontWeight.w700, color: Colors.white)),
+                      : FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text('Submit for Review',
+                              style: appText(size: 13, weight: FontWeight.w700, color: Colors.white)),
+                        ),
                 ),
               ),
             ),
@@ -346,64 +354,104 @@ class _ServiceVerificationScreenState extends State<ServiceVerificationScreen> {
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: isVerified
             ? AppColors.success.withOpacity(0.3)
             : isRejected ? AppColors.error.withOpacity(0.3) : AppColors.borderLight),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6)],
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6)],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          // Leading document icon tile
           Container(
-            width: 28, height: 28,
+            width: 40, height: 40,
             decoration: BoxDecoration(
               color: isVerified
                   ? AppColors.success.withOpacity(0.1)
-                  : isPending ? AppColors.warning.withOpacity(0.1) : AppColors.surfaceVariant,
-              shape: BoxShape.circle,
+                  : isPending
+                      ? AppColors.warning.withOpacity(0.1)
+                      : AppColors.primary.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(
-              isVerified ? Icons.check_circle_rounded : isPending ? Icons.schedule_rounded : Icons.circle_outlined,
-              size: 14,
-              color: isVerified ? AppColors.success : isPending ? AppColors.warning : AppColors.textHint,
+            child: Center(
+              child: SvgPicture.asset(
+                isVerified
+                    ? 'assets/icons/verified-icon.svg'
+                    : isPending
+                        ? 'assets/icons/clock-icon.svg'
+                        : 'assets/icons/file-pdf-icon.svg',
+                width: 20, height: 20,
+                colorFilter: ColorFilter.mode(
+                  isVerified
+                      ? AppColors.success
+                      : isPending
+                          ? AppColors.warning
+                          : AppColors.primary,
+                  BlendMode.srcIn,
+                ),
+              ),
             ),
           ),
-          const SizedBox(width: 10),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Expanded(child: Text(item['name']?.toString() ?? 'Document',
-                  style: appText(size: 13, weight: FontWeight.w700))),
-              if (isMandatory && !isVerified && !isPending)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: AppColors.error.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text('Required',
-                      style: appText(size: 9, weight: FontWeight.w600, color: AppColors.error))),
+          const SizedBox(width: 12),
+          // Title + subtitle (Required / status)
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(item['name']?.toString() ?? 'Document',
+                  style: appText(size: 13.5, weight: FontWeight.w700)),
+              const SizedBox(height: 2),
+              Text(
+                isVerified || isPending || isRejected
+                    ? statusLabel
+                    : (isMandatory ? 'Required' : 'Optional'),
+                style: appText(
+                  size: 11,
+                  weight: FontWeight.w500,
+                  color: isVerified
+                      ? AppColors.success
+                      : isPending
+                          ? AppColors.warning
+                          : isRejected
+                              ? AppColors.error
+                              : AppColors.textTertiary,
+                ),
+              ),
             ]),
-            Text(statusLabel,
-                style: appText(size: 10, color: statusColor, weight: FontWeight.w600)),
-          ])),
+          ),
+          // Right-aligned outlined "Upload" pill
+          if (!isVerified && !isPending)
+            OutlinedButton.icon(
+              onPressed: () => _pickFile(index),
+              icon: SvgPicture.asset('assets/icons/upload-icon.svg', width: 14, height: 14,
+                  colorFilter: ColorFilter.mode(AppColors.primary, BlendMode.srcIn)),
+              label: Text('Upload',
+                  style: appText(size: 12.5, weight: FontWeight.w700, color: AppColors.primary)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: BorderSide(color: AppColors.primary.withOpacity(0.5)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                minimumSize: const Size(0, 36),
+              ),
+            ),
         ]),
         if ((item['description']?.toString() ?? '').isNotEmpty) ...[
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(item['description'].toString(),
               style: appText(size: 11, color: AppColors.textTertiary, height: 1.4)),
         ],
         if (isRejected && remarks != null && remarks.isNotEmpty) ...[
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
                 color: AppColors.error.withOpacity(0.06),
                 borderRadius: BorderRadius.circular(8)),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Icon(Icons.info_outline, size: 14, color: AppColors.error),
+              SvgPicture.asset('assets/icons/warning-icon.svg', width: 14, height: 14,
+                  colorFilter: ColorFilter.mode(AppColors.error, BlendMode.srcIn)),
               const SizedBox(width: 6),
               Expanded(child: Text(remarks, style: appText(size: 11, color: AppColors.error))),
             ]),
@@ -417,33 +465,10 @@ class _ServiceVerificationScreenState extends State<ServiceVerificationScreen> {
             children: List.generate(files.length, (i) => _filePreview(index, i, files[i])),
           ),
         ],
-        if (!isVerified && !isPending) ...[
-          const SizedBox(height: 10),
-          GestureDetector(
-            onTap: () => _pickFile(index),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                border: Border.all(color: AppColors.primary.withOpacity(0.3)),
-                borderRadius: BorderRadius.circular(12),
-                color: AppColors.primary.withOpacity(0.03),
-              ),
-              child: Column(children: [
-                const Icon(Icons.cloud_upload_outlined, size: 22, color: AppColors.primary),
-                const SizedBox(height: 4),
-                Text(files.isEmpty ? 'Upload Document' : 'Add more files',
-                    style: appText(size: 12, weight: FontWeight.w600, color: AppColors.primary)),
-                const SizedBox(height: 2),
-                Text('JPG, PNG, PDF · Max 5MB per file',
-                    style: appText(size: 10, color: AppColors.textTertiary)),
-              ]),
-            ),
-          ),
-        ],
       ]),
     );
   }
+
 
   Widget _filePreview(int itemIdx, int fileIdx, File file) {
     final name = file.path.split('/').last;

@@ -5,6 +5,8 @@ import '../core/services/api_service.dart';
 import '../core/services/events_service.dart';
 import '../core/services/secure_token_storage.dart';
 import '../core/services/push_notification_service.dart';
+import '../core/services/event_groups_service.dart';
+import '../core/utils/event_groups_cache.dart';
 import '../core/utils/money_format.dart' as money_fmt;
 
 class AuthProvider extends ChangeNotifier {
@@ -220,6 +222,18 @@ class AuthProvider extends ChangeNotifier {
         // device. Best-effort — never block sign-in.
         try {
           await PushNotificationService.instance.registerWithBackend();
+        } catch (_) {}
+
+        // Silent contributor-claim refresh: reset the My Groups cache and
+        // prefetch so any event groups the backend just attached on login
+        // appear immediately on the My Groups tab.
+        try {
+          EventGroupsCache.reset();
+          final groupsRes = await EventGroupsService.listMyGroups();
+          if (groupsRes['success'] == true && groupsRes['data'] != null) {
+            final data = groupsRes['data'] as Map<String, dynamic>;
+            EventGroupsCache.groups = (data['groups'] as List?) ?? const [];
+          }
         } catch (_) {}
 
         notifyListeners();

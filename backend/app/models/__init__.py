@@ -35,6 +35,7 @@ from models.users import (
     UserBlock, UserSocialAccount, UserTwoFactorSecret, UserPrivacySetting,
     UserCircle, UserFollower, UserSetting, UserActivityLog, UserSession,
     PasswordResetToken, Achievement, UserAchievement, NameValidationFlag,
+    AccountSetupToken,
 )
 from models.nuru_cards import NuruCard, NuruCardOrder, NuruCardPricing
 from models.communities import Community, CommunityMember, CommunityPost, CommunityPostImage, CommunityPostGlow, CommunityPostComment, CommunityPostSave, CommunityPostShare, CommunityMute
@@ -94,7 +95,7 @@ from models.whatsapp import WAConversation, WAMessage
 from models.issues import IssueCategory, Issue, IssueResponse
 from models.agreements import AgreementVersion, UserAgreementAcceptance
 from models.card_templates import InvitationCardTemplate
-from models.meetings import EventMeeting, EventMeetingParticipant
+from models.meetings import EventMeeting, EventMeetingParticipant, MeetingRedirectToken
 from models.payments import (
     PaymentProvider, CommissionSetting, Wallet, PaymentProfile,
     Transaction, WalletLedgerEntry, MobilePaymentAttempt, PaymentCallbackLog,
@@ -116,3 +117,4 @@ from models.reminder_automations import (
     EventReminderTemplate, EventReminderAutomation,
     EventReminderRun, EventReminderRecipient,
 )
+from models.contributor_import_jobs import ContributorImportJob

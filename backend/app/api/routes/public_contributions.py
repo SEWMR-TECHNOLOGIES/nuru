@@ -476,11 +476,47 @@ def _send_receipt_sms(db: Session, ec: EventContributor, tx: Transaction, token:
     name = (contributor.name if contributor else "") or "Contributor"
     receipt_url = f"https://{host_for_currency(currency)}/c/{token}/r/{tx.transaction_code}"
 
-    for ph in recipients:
-        from utils.notify_channels import notify_user_wa_sms
-        notify_user_wa_sms(
-            ph,
-            f"Hello {name}, your payment of {currency} {float(tx.gross_amount or 0):,.0f} "
-            f"for {event_title} was successful. Ref: {tx.transaction_code}. "
-            f"View your receipt anytime: {receipt_url}",
+    # Compute total_paid for this contributor on this event (confirmed only)
+    # and the remaining balance against their pledge amount.
+    try:
+        from sqlalchemy import func as _sa_func
+        total_paid = float(
+            db.query(_sa_func.coalesce(_sa_func.sum(EventContribution.amount), 0))
+            .filter(
+                EventContribution.event_id == ec.event_id,
+                EventContribution.contributor_id == ec.contributor_id,
+                EventContribution.confirmation_status == ContributionStatusEnum.confirmed,
+            )
+            .scalar()
+            or 0
         )
+    except Exception:
+        total_paid = float(tx.gross_amount or 0)
+    pledge = float(getattr(ec, "pledge_amount", 0) or 0)
+    balance = max(0.0, pledge - total_paid) if pledge > 0 else 0.0
+
+    # Language: registered contributor → their preference; anonymous → SW.
+    from utils.message_templates import resolve_user_language
+    from utils.sms import sms_guest_contribution_receipt
+    contributor_user_id = getattr(contributor, "contributor_user_id", None)
+    if contributor_user_id:
+        lang = resolve_user_language(db, contributor_user_id)
+    else:
+        lang = "sw"
+
+    for ph in recipients:
+        try:
+            sms_guest_contribution_receipt(
+                phone=ph,
+                contributor_name=name,
+                event_title=event_title,
+                amount=float(tx.gross_amount or 0),
+                currency=currency,
+                transaction_code=tx.transaction_code,
+                receipt_url=receipt_url,
+                total_paid=total_paid,
+                balance=balance,
+                lang=lang,
+            )
+        except Exception as e:
+            print(f"[public_contributions] guest receipt SMS failed for {ph[-4:]}: {e}")
