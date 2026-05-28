@@ -79,6 +79,24 @@ def _organiser_display(user: Optional[User]) -> str:
     return name or getattr(user, "phone", None) or "the organiser"
 
 
+def _event_cover_url(event: Optional[Event]) -> Optional[str]:
+    """Best cover image for an event: explicit cover_image_url, else the
+    featured/first EventImage. Mirrors the web `getEventImage` fallback."""
+    if not event:
+        return None
+    if getattr(event, "cover_image_url", None):
+        return event.cover_image_url
+    imgs = list(getattr(event, "images", []) or [])
+    if not imgs:
+        return None
+    imgs.sort(key=lambda i: 0 if getattr(i, "is_featured", False) else 1)
+    for img in imgs:
+        url = getattr(img, "image_url", None)
+        if url:
+            return url
+    return None
+
+
 def _confirmed_paid_total(ec: EventContributor) -> float:
     return sum(
         float(c.amount or 0)
@@ -134,7 +152,8 @@ def _serialize_state(db: Session, ec: EventContributor, *, include_transactions:
         "event": {
             "id": str(event.id) if event else None,
             "name": event.name if event else "Event",
-            "cover_image_url": event.cover_image_url if event else None,
+            "cover_image_url": _event_cover_url(event),
+
             "start_date": event.start_date.isoformat() if event and event.start_date else None,
             "location": event.location if event else None,
             "organiser_name": _organiser_display(organiser),
@@ -148,6 +167,7 @@ def _serialize_state(db: Session, ec: EventContributor, *, include_transactions:
         "pledge_amount": pledge,
         "total_paid": paid,
         "balance": balance,
+        "contribution_payment_instructions": event.contribution_payment_instructions if event else None,
         "host": host_for_currency(currency),
         "recent_transactions": recent,
     }

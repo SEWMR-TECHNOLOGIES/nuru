@@ -20,7 +20,8 @@ from models import (
     ContentAppeal, AppealStatusEnum, AppealContentTypeEnum,
     MomentContentTypeEnum,
 )
-from utils.auth import get_current_user
+from utils.auth import get_current_user, get_optional_user
+
 from utils.helpers import standard_response
 
 EAT = pytz.timezone("Africa/Nairobi")
@@ -304,6 +305,30 @@ async def create_moment(
     db.commit()
 
     return standard_response(True, "Moment created successfully", _moment_dict(db, moment, current_user.id))
+
+@router.get("/{moment_id}")
+def get_single_moment(
+    moment_id: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
+):
+    """Single-moment fetch used by /moment/:id deep links. Auth-optional;
+    returns the moment if it is active and not expired."""
+    try:
+        mid = uuid.UUID(moment_id)
+    except ValueError:
+        return standard_response(False, "Invalid moment ID")
+    m = db.query(UserMoment).filter(UserMoment.id == mid).first()
+    if not m or not m.is_active:
+        return standard_response(False, "Moment not found")
+    if m.expires_at and m.expires_at < datetime.now(EAT).replace(tzinfo=None):
+        return standard_response(False, "Moment has expired")
+    return standard_response(
+        True,
+        "Moment retrieved",
+        _moment_dict(db, m, current_user.id if current_user else None),
+    )
+
 
 
 @router.delete("/{moment_id}")
