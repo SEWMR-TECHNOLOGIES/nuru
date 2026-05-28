@@ -264,7 +264,6 @@ def _enrich_ticket_rows(db: Session, rows: List[Dict[str, Any]]) -> None:
         r["ticket_quantity"] = tk.quantity or 1
     # Decorate retry hint for every row (also covers offline → False).
     for r in rows:
-    for r in rows:
         r["can_retry"] = _retryable(r)
 
 
