@@ -134,7 +134,7 @@ const BUILDERS: Record<string, (lang: Lang, p: any) => Built> = {
     ]),
   }),
 
-  // #13/14 — contribution_target_set (4 params)
+  // #13/14 — contribution_target_set (5 params: contributor, event, target, payment_instructions, organizer_phone)
   contribution_target_set: (lang, p) => ({
     name: `nuru_contribution_target_set_${lang}`,
     lang,
@@ -142,11 +142,14 @@ const BUILDERS: Record<string, (lang: Lang, p: any) => Built> = {
       p.contributor_name || "Contributor",
       p.event_name || "an event",
       p.target_text || p.target || "TZS 0",
+      p.payment_instructions || (lang === "en"
+        ? "Pay your contribution to the organizer through Nuru securely."
+        : "Unaweza kutoa mchango wako kupitia Nuru."),
       p.organizer_phone || "Nuru",
     ]),
   }),
 
-  // #14a/14b — contribution_target_updated (5 params)
+  // #14a/14b — contribution_target_updated (6 params: contributor, event, increase, total, payment_instructions, organizer_phone)
   contribution_target_updated: (lang, p) => ({
     name: `nuru_contribution_target_updated_${lang}`,
     lang,
@@ -155,6 +158,9 @@ const BUILDERS: Record<string, (lang: Lang, p: any) => Built> = {
       p.event_name || "an event",
       p.increase_text || p.increase || "TZS 0",
       p.total_target_text || p.total_target || "TZS 0",
+      p.payment_instructions || (lang === "en"
+        ? "Pay your contribution to the organizer through Nuru securely."
+        : "Unaweza kutoa mchango wako kupitia Nuru."),
       p.organizer_phone || "Nuru",
     ]),
   }),

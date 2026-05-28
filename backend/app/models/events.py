@@ -78,6 +78,10 @@ class Event(Base):
     # Optional fallback phone used in contributor reminder/bulk messages
     # (defaults to organiser's phone if NULL).
     reminder_contact_phone = Column(Text, nullable=True)
+    # Optional free-text payment instructions for contributors. Included in
+    # SMS and WhatsApp messages whenever a contribution target is set or
+    # updated. When NULL we render a language-specific default.
+    contribution_payment_instructions = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 
