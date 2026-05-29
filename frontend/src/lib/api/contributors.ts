@@ -195,7 +195,7 @@ export const contributorsApi = {
   }) =>
     post<{
       job_id: string;
-      status: "queued" | "processing" | "completed" | "failed";
+      status: "queued" | "processing" | "completed" | "failed" | "partially_completed";
       total_rows: number;
     }>(`/user-contributors/events/${eventId}/contributors/bulk`, data),
 
@@ -203,7 +203,7 @@ export const contributorsApi = {
   getImportJobStatus: (eventId: string, jobId: string) =>
     get<{
       job_id: string;
-      status: "queued" | "processing" | "completed" | "failed";
+      status: "queued" | "processing" | "completed" | "failed" | "partially_completed";
       mode: "targets" | "contributions";
       total_rows: number;
       processed_rows: number;

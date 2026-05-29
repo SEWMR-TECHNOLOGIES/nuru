@@ -583,7 +583,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
         const statusRes = await contributorsApi.getImportJobStatus(eventId, jobId);
         if (!statusRes.success || !statusRes.data) continue;
         const s = statusRes.data;
-        if (s.status === 'completed' || s.status === 'failed') {
+        if (s.status === 'completed' || s.status === 'failed' || s.status === 'partially_completed') {
           finished = true;
           let errs: { row: number; message: string }[] = [];
           if (s.failed_rows > 0) {
@@ -597,7 +597,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
             job_id: jobId,
             status: s.status,
           });
-          if (s.status === 'completed') {
+          if (s.status === 'completed' || s.status === 'partially_completed') {
             toast.success(`${s.successful_rows} contributors processed${s.failed_rows ? `, ${s.failed_rows} errors` : ''}`);
           } else {
             toast.error(s.error_message || 'Bulk import failed');
