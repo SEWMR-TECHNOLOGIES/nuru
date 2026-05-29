@@ -158,7 +158,13 @@ def _event_currency_code(db: Session, event: Event) -> str:
 
 
 def _public_event_detail_extras(db: Session, event: Event) -> dict:
-    extras = {"currency": _event_currency_code(db, event), "going_count": 0, "going_avatars": []}
+    extras = {
+        "currency": _event_currency_code(db, event),
+        "going_count": 0,
+        "going_avatars": [],
+        "contribution_payment_instructions": event.contribution_payment_instructions,
+    }
+
     ticket_classes = db.query(EventTicketClass).filter(EventTicketClass.event_id == event.id).all()
     if ticket_classes or event.sells_tickets:
         sold_by_class = {}
@@ -1060,7 +1066,7 @@ def get_event(
     except Exception:
         cache_get = cache_set = None
 
-    cache_key = f"event_essential:v2:{event_id}"
+    cache_key = f"event_essential:v3:{event_id}"
     data = None
     if cache_get is not None:
         try:
@@ -1846,7 +1852,7 @@ async def update_event(
     try:
         from core.redis import cache_delete, cache_delete_pattern
         cache_delete(f"public_event:{event_id}")
-        cache_delete(f"event_essential:v2:{event_id}")
+        cache_delete(f"event_essential:v3:{event_id}")
         cache_delete_pattern("events:featured:*")
         cache_delete_pattern("events:nearby:*")
         cache_delete_pattern("events:search:*")
@@ -1893,7 +1899,7 @@ def delete_event(event_id: str, db: Session = Depends(get_db), current_user: Use
     try:
         from core.redis import cache_delete, cache_delete_pattern
         cache_delete(f"public_event:{event_id}")
-        cache_delete(f"event_essential:v2:{event_id}")
+        cache_delete(f"event_essential:v3:{event_id}")
         cache_delete_pattern("events:featured:*")
         cache_delete_pattern("events:nearby:*")
         cache_delete_pattern("events:search:*")
@@ -1950,7 +1956,7 @@ def update_event_status(event_id: str, body: dict = Body(...), db: Session = Dep
     try:
         from core.redis import cache_delete, cache_delete_pattern
         cache_delete(f"public_event:{event_id}")
-        cache_delete(f"event_essential:v2:{event_id}")
+        cache_delete(f"event_essential:v3:{event_id}")
         cache_delete_pattern("events:featured:*")
         cache_delete_pattern("events:nearby:*")
         cache_delete_pattern("events:search:*")

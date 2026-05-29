@@ -11,6 +11,11 @@ from utils.message_templates import render_message, DEFAULT_LANGUAGE, format_mon
 from utils.datetime_format import format_event_datetime
 
 
+# Kept for Celery worker compatibility. Catalogue templates already include
+# the approved Nuru sign-off, so batch/single workers append an empty suffix.
+SMS_SIGNATURE = ""
+
+
 def normalize_tz_phone(phone: str | None) -> str | None:
     if not phone:
         return None

@@ -25,11 +25,11 @@ export const useEventContributors = (eventId: string | null) => {
     if (!eventId) return;
     if (!_eventContributorsCache.has(eventId)) setLoading(true);
     try {
-      // Fetch ALL event contributors in a single request (limit=1000)
+      // Fetch ALL event contributors in a single request.
       const response = await contributorsApi.getEventContributors(eventId, {
         ...params,
         page: 1,
-        limit: 1000,
+        limit: 5000,
       });
 
       if (response.success) {

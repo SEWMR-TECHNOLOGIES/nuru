@@ -87,6 +87,7 @@ def process_contributor_import_job(self, job_id: str) -> Dict[str, Any]:
         errors: List[Dict[str, Any]] = []
         success_count = 0
         failure_count = 0
+        notifications: List[Dict[str, Any]] = []
 
         for idx, row in enumerate(rows):
             row_num = idx + 1
@@ -147,19 +148,40 @@ def process_contributor_import_job(self, job_id: str) -> Dict[str, Any]:
 
                 if mode == "targets":
                     if ec:
+                        old_pledge = float(ec.pledge_amount or 0)
                         ec.pledge_amount = amount
                         ec.updated_at = now
+                        if send_sms and amount > 0 and amount != old_pledge:
+                            ec.contributor = contributor
+                            notifications.append({
+                                "event_contributor": ec,
+                                "contributor_name": contributor.name,
+                                "amount": amount,
+                                "old_pledge": old_pledge,
+                                "kind": "updated" if old_pledge > 0 and amount > old_pledge else "set",
+                            })
                     else:
                         ec = EventContributor(
                             id=uuid.uuid4(),
                             event_id=event.id,
                             contributor_id=contributor.id,
                             pledge_amount=amount,
+                            secondary_phone=getattr(contributor, "secondary_phone", None),
+                            notify_target=getattr(contributor, "notify_target", None) or "primary",
                             created_at=now,
                             updated_at=now,
                         )
                         db.add(ec)
                         db.flush()
+                        if send_sms and amount > 0:
+                            ec.contributor = contributor
+                            notifications.append({
+                                "event_contributor": ec,
+                                "contributor_name": contributor.name,
+                                "amount": amount,
+                                "old_pledge": 0,
+                                "kind": "set",
+                            })
                 else:
                     if not ec:
                         ec = EventContributor(
@@ -167,6 +189,8 @@ def process_contributor_import_job(self, job_id: str) -> Dict[str, Any]:
                             event_id=event.id,
                             contributor_id=contributor.id,
                             pledge_amount=0,
+                            secondary_phone=getattr(contributor, "secondary_phone", None),
+                            notify_target=getattr(contributor, "notify_target", None) or "primary",
                             created_at=now,
                             updated_at=now,
                         )
@@ -176,24 +200,37 @@ def process_contributor_import_job(self, job_id: str) -> Dict[str, Any]:
                     # to keep semantics aligned with the inline path.
                     if amount > 0:
                         try:
-                            from models import EventContribution, PaymentMethodEnum
+                            from models import EventContribution, PaymentMethodEnum, ContributionStatusEnum
                             pm = None
                             if job.payment_method:
                                 try:
                                     pm = PaymentMethodEnum(job.payment_method)
                                 except Exception:
                                     pm = None
+                            total_paid_before = sum(float(c.amount or 0) for c in getattr(ec, "contributions", []) or [])
                             db.add(EventContribution(
                                 id=uuid.uuid4(),
                                 event_id=event.id,
                                 event_contributor_id=ec.id,
-                                contributor_id=contributor.id,
+                                contributor_name=contributor.name,
                                 amount=amount,
-                                currency_id=event.currency_id,
                                 payment_method=pm,
+                                confirmation_status=ContributionStatusEnum.confirmed,
+                                confirmed_at=now,
+                                contributed_at=now,
                                 created_at=now,
                                 updated_at=now,
                             ))
+                            if send_sms:
+                                ec.contributor = contributor
+                                notifications.append({
+                                    "event_contributor": ec,
+                                    "contributor_name": contributor.name,
+                                    "amount": amount,
+                                    "total_paid": total_paid_before + amount,
+                                    "pledge": float(ec.pledge_amount or 0),
+                                    "kind": "recorded",
+                                })
                         except Exception as e:
                             errors.append({"row": row_num, "message": f"Payment record failed: {e}"})
                             failure_count += 1
@@ -213,6 +250,92 @@ def process_contributor_import_job(self, job_id: str) -> Dict[str, Any]:
                     db.commit()
 
         db.commit()
+
+        if notifications:
+            try:
+                from utils.offline_claims import contributor_notify_phones
+                from utils.payment_instructions import resolve_payment_instructions
+                from utils.sms import sms_contribution_recorded, sms_contribution_target_set, sms_contribution_target_updated
+                from utils.whatsapp import wa_contribution_recorded, wa_contribution_target_set, wa_contribution_target_updated
+                pay_instr = resolve_payment_instructions(event)
+                for item in notifications:
+                    ec = item["event_contributor"]
+                    recipients = contributor_notify_phones(ec)
+                    for ph in recipients:
+                        try:
+                            if item["kind"] == "updated":
+                                wa_contribution_target_updated(
+                                    ph,
+                                    item["contributor_name"],
+                                    event.name,
+                                    increase=(item["amount"] - item["old_pledge"]),
+                                    total_target=item["amount"],
+                                    currency=currency,
+                                    organizer_phone=organizer_phone,
+                                    payment_instructions=pay_instr,
+                                )
+                            elif item["kind"] == "recorded":
+                                wa_contribution_recorded(
+                                    ph,
+                                    item["contributor_name"],
+                                    event.name,
+                                    item["amount"],
+                                    item["pledge"],
+                                    item["total_paid"],
+                                    currency,
+                                    organizer_phone=organizer_phone,
+                                )
+                            else:
+                                wa_contribution_target_set(
+                                    ph,
+                                    item["contributor_name"],
+                                    event.name,
+                                    item["amount"],
+                                    0,
+                                    currency,
+                                    organizer_phone=organizer_phone,
+                                    payment_instructions=pay_instr,
+                                )
+                        except Exception as e:
+                            print(f"[bulk_import] WhatsApp notify failed: {e}")
+                        try:
+                            if item["kind"] == "updated":
+                                sms_contribution_target_updated(
+                                    ph,
+                                    item["contributor_name"],
+                                    event.name,
+                                    increase=(item["amount"] - item["old_pledge"]),
+                                    total_target=item["amount"],
+                                    currency=currency,
+                                    organizer_phone=organizer_phone,
+                                    payment_instructions=pay_instr,
+                                )
+                            elif item["kind"] == "recorded":
+                                sms_contribution_recorded(
+                                    ph,
+                                    item["contributor_name"],
+                                    event.name,
+                                    item["amount"],
+                                    item["pledge"],
+                                    item["total_paid"],
+                                    currency,
+                                    organizer_phone=organizer_phone,
+                                )
+                            else:
+                                sms_contribution_target_set(
+                                    ph,
+                                    item["contributor_name"],
+                                    event.name,
+                                    item["amount"],
+                                    0,
+                                    currency,
+                                    organizer_phone=organizer_phone,
+                                    payment_instructions=pay_instr,
+                                )
+                        except Exception as e:
+                            print(f"[bulk_import] SMS notify failed: {e}")
+            except Exception as e:
+                print(f"[bulk_import] notification setup failed: {e}")
 
         job.processed_rows = len(rows)
         job.successful_rows = success_count

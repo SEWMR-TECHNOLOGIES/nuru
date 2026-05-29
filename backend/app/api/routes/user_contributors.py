@@ -894,7 +894,7 @@ def delete_contributor(contributor_id: str, db: Session = Depends(get_db), curre
 def get_event_contributors(
     event_id: str,
     page: int = Query(1, ge=1),
-    limit: int = Query(50, ge=1, le=1000),
+    limit: int = Query(50, ge=1, le=5000),
     search: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -1211,13 +1211,24 @@ def update_event_contributor(event_id: str, ec_id: str, body: dict = Body(...), 
             is_increase = new_pledge > old_pledge and old_pledge > 0
             for ph in recipients:
                 try:
-                    from utils.whatsapp import wa_contribution_target_set
-                    wa_contribution_target_set(
-                        ph, ec.contributor.name,
-                        event.name, new_pledge, 0, currency,
-                        organizer_phone=organizer_phone,
-                        payment_instructions=pay_instr,
-                    )
+                    if is_increase:
+                        from utils.whatsapp import wa_contribution_target_updated
+                        wa_contribution_target_updated(
+                            ph, ec.contributor.name, event.name,
+                            increase=(new_pledge - old_pledge),
+                            total_target=new_pledge,
+                            currency=currency,
+                            organizer_phone=organizer_phone,
+                            payment_instructions=pay_instr,
+                        )
+                    else:
+                        from utils.whatsapp import wa_contribution_target_set
+                        wa_contribution_target_set(
+                            ph, ec.contributor.name,
+                            event.name, new_pledge, 0, currency,
+                            organizer_phone=organizer_phone,
+                            payment_instructions=pay_instr,
+                        )
                 except Exception:
                     pass
                 try:
@@ -1242,6 +1253,9 @@ def update_event_contributor(event_id: str, ec_id: str, body: dict = Body(...), 
                         )
                 except Exception:
                     pass
+
+    return standard_response(True, "Event contributor updated", _event_contributor_dict(ec))
+
 
 @router.delete("/events/{event_id}/contributors/{ec_id}")
 def remove_from_event(event_id: str, ec_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -3082,20 +3096,12 @@ def generate_share_link(
         "sms_supported": can_send_sms_for_currency(currency_code),
     })
 
-
-@router.post("/events/{event_id}/contributors/{ec_id}/send-share-sms")
-def send_share_sms(
-    event_id: str,
-    ec_id: str,
-    body: dict = Body(default={}),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Send the share link to the contributor's phone via SMS (TZ only for now)."""
+    """Send the share link to the contributor via WhatsApp (primary) + SMS (fallback)."""
     from services.share_links import (
         issue_share_token, build_share_url, can_send_sms_for_currency,
     )
     from utils.sms import sms_guest_contribution_invite
+    from utils.whatsapp import wa_guest_contribution_invite
     from fastapi import HTTPException
 
     event = _ensure_can_manage(db, event_id, current_user)
@@ -3113,14 +3119,9 @@ def send_share_sms(
         raise HTTPException(status_code=404, detail="Contributor not found on this event.")
 
     currency_code = _currency_code(db, event)
-    if not can_send_sms_for_currency(currency_code):
-        return standard_response(False, "SMS isn't available for this country yet — please copy the link instead.", {
-            "sms_supported": False,
-        })
+    sms_ok = can_send_sms_for_currency(currency_code)
 
-    # Always re-issue so the SMS contains a guaranteed-valid token. (We never
-    # have the plain text of an old token in DB, so we couldn't reuse it
-    # anyway.) The previous token becomes invalid — desired for security.
+    # Always re-issue so the link contains a guaranteed-valid token.
     plain = issue_share_token(db, ec)
     url = build_share_url(currency_code, plain)
     from utils.event_owner import get_event_owner_display_name
@@ -3131,22 +3132,56 @@ def send_share_sms(
     if not recipients:
         raise HTTPException(status_code=400, detail="This contributor doesn't have a phone number for the selected notify option.")
 
+    pledge_val = float(ec.pledge_amount or 0)
+    contributor_name = ec.contributor.name or "there"
+    event_title = event.name or "the event"
+
+    sent_wa = False
+    sent_sms = False
     for phone in recipients:
-        sms_guest_contribution_invite(
-            phone=phone,
-            contributor_name=ec.contributor.name or "there",
-            organiser_name=organiser_name,
-            event_title=event.name or "the event",
-            pledge_amount=float(ec.pledge_amount or 0),
-            currency=currency_code,
-            payment_url=url,
-        )
+        # WhatsApp (primary — works internationally)
+        try:
+            wa_guest_contribution_invite(
+                phone=phone,
+                contributor_name=contributor_name,
+                organiser_name=organiser_name,
+                event_name=event_title,
+                pledge_amount=pledge_val,
+                share_token=plain,
+                currency=currency_code,
+            )
+            sent_wa = True
+        except Exception:
+            pass
+        # SMS fallback (currency-gated)
+        if sms_ok:
+            try:
+                sms_guest_contribution_invite(
+                    phone=phone,
+                    contributor_name=contributor_name,
+                    organiser_name=organiser_name,
+                    event_title=event_title,
+                    pledge_amount=pledge_val,
+                    currency=currency_code,
+                    payment_url=url,
+                )
+                sent_sms = True
+            except Exception:
+                pass
+
     ec.share_link_sms_last_sent_at = datetime.utcnow()
     db.commit()
-    return standard_response(True, "Payment link sent by SMS.", {
+    channels = []
+    if sent_wa: channels.append("WhatsApp")
+    if sent_sms: channels.append("SMS")
+    msg = f"Payment link sent via {' and '.join(channels)}." if channels else "Payment link generated."
+    return standard_response(True, msg, {
         "url": url,
-        "sms_supported": True,
+        "sms_supported": sms_ok,
+        "sent_whatsapp": sent_wa,
+        "sent_sms": sent_sms,
     })
+
 
 
 @router.post("/events/{event_id}/contributors/{ec_id}/revoke-share-link")
