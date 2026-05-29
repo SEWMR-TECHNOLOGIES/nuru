@@ -1601,17 +1601,24 @@ def bulk_add_contributors(event_id: str, body: dict = Body(...), db: Session = D
     db.commit()
     db.refresh(job)
 
-    try:
-        from tasks.contributor_imports import process_contributor_import_job
-        process_contributor_import_job.delay(str(job.id))
-    except Exception as e:
-        # On Vercel (no Celery) fall back to inline execution so behaviour
-        # degrades gracefully — the request still returns the job row.
+    # Return immediately after the job row is accepted. Dispatch happens in a
+    # daemon thread so Redis/Celery connection timeouts never block the user.
+    import threading
+
+    def _dispatch_job(jid: str):
         try:
-            from tasks.contributor_imports import process_contributor_import_job as _proc
-            _proc.run(str(job.id))
-        except Exception as e2:
-            print(f"[bulk_import] enqueue+inline failed: {e} / {e2}")
+            from tasks.contributor_imports import process_contributor_import_job
+            process_contributor_import_job.delay(jid)
+        except Exception as e:
+            print(f"[bulk_import] celery enqueue failed, falling back to thread: {e}")
+            try:
+                from tasks.contributor_imports import process_contributor_import_job as _proc
+                _proc.run(jid)
+            except Exception as ex:
+                print(f"[bulk_import] background thread failed: {ex}")
+
+    threading.Thread(target=_dispatch_job, args=(str(job.id),), daemon=True).start()
+
 
     return standard_response(
         True,

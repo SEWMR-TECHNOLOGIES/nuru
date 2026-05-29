@@ -12,6 +12,8 @@ from datetime import datetime
 from typing import Any, Dict, List
 
 import pytz
+from sqlalchemy import func as sa_func
+
 
 from core.celery_app import celery_app
 from core.database import SessionLocal
@@ -39,6 +41,69 @@ def _currency_code(db, event: Event) -> str:
     except Exception:
         pass
     return "TZS"
+
+
+def _phone_key(phone: str | None) -> str:
+    digits = "".join(ch for ch in str(phone or "") if ch.isdigit())
+    return digits[-9:] if len(digits) >= 9 else digits
+
+
+def _phone_key_expr(column):
+    return sa_func.right(sa_func.regexp_replace(column, r"[^0-9]", "", "g"), 9)
+
+
+def _find_event_contributor_by_phone(db, event_id, phone: str):
+    key = _phone_key(phone)
+    if not key:
+        return None
+    return (
+        db.query(EventContributor)
+        .join(UserContributor, EventContributor.contributor_id == UserContributor.id)
+        .filter(
+            EventContributor.event_id == event_id,
+            UserContributor.phone.isnot(None),
+            _phone_key_expr(UserContributor.phone) == key,
+        )
+        .order_by(EventContributor.created_at.asc(), EventContributor.id.asc())
+        .first()
+    )
+
+
+def _find_event_contributor_by_name_without_phone(db, event_id, name: str):
+    return (
+        db.query(EventContributor)
+        .join(UserContributor, EventContributor.contributor_id == UserContributor.id)
+        .filter(
+            EventContributor.event_id == event_id,
+            sa_func.lower(UserContributor.name) == name.lower(),
+            (UserContributor.phone.is_(None) | (sa_func.trim(UserContributor.phone) == "")),
+        )
+        .order_by(EventContributor.created_at.asc(), EventContributor.id.asc())
+        .first()
+    )
+
+
+def _find_address_book_contributor_by_phone(db, owner_id, phone: str):
+    key = _phone_key(phone)
+    if not key:
+        return None
+    contributor = (
+        db.query(UserContributor)
+        .filter(UserContributor.user_id == owner_id, UserContributor.phone == phone)
+        .first()
+    )
+    if contributor:
+        return contributor
+    return (
+        db.query(UserContributor)
+        .filter(
+            UserContributor.user_id == owner_id,
+            UserContributor.phone.isnot(None),
+            _phone_key_expr(UserContributor.phone) == key,
+        )
+        .order_by(UserContributor.created_at.asc(), UserContributor.id.asc())
+        .first()
+    )
 
 
 @celery_app.task(name="contributors.process_import_job", bind=True, max_retries=2)
@@ -79,6 +144,8 @@ def process_contributor_import_job(self, job_id: str) -> Dict[str, Any]:
 
         now = datetime.now(EAT)
         currency = _currency_code(db, event)
+        from utils.event_owner import event_owner_id
+        owner_id = uuid.UUID(event_owner_id(event) or str(event.organizer_id))
         organizer = db.query(User).filter(User.id == event.organizer_id).first()
         organizer_phone = (
             format_phone_display(organizer.phone) if organizer and organizer.phone else None
@@ -100,32 +167,33 @@ def process_contributor_import_job(self, job_id: str) -> Dict[str, Any]:
                     errors.append({"row": row_num, "message": "Name is required"})
                     failure_count += 1
                     continue
-                if not phone_raw:
-                    errors.append({"row": row_num, "message": f"Phone is required for {name}"})
-                    failure_count += 1
-                    continue
-                try:
-                    phone = validate_phone_number(phone_raw)
-                except ValueError:
-                    errors.append({
-                        "row": row_num,
-                        "message": f"Invalid phone for {name}: {phone_raw}",
-                    })
-                    failure_count += 1
-                    continue
+                phone = None
+                if phone_raw:
+                    try:
+                        phone = validate_phone_number(phone_raw)
+                    except ValueError:
+                        errors.append({
+                            "row": row_num,
+                            "message": f"Invalid phone for {name}: {phone_raw}",
+                        })
+                        failure_count += 1
+                        continue
 
-                contributor = (
-                    db.query(UserContributor)
-                    .filter(
-                        UserContributor.user_id == job.created_by,
-                        UserContributor.phone == phone,
-                    )
-                    .first()
-                )
+                ec = _find_event_contributor_by_phone(db, event.id, phone) if phone else None
+                if not ec and not phone:
+                    ec = _find_event_contributor_by_name_without_phone(db, event.id, name)
+
+                # Upsert UserContributor without deleting anything. Phone is
+                # authoritative when present; rows without a phone are recorded
+                # as new/no-phone contributors unless the same no-phone name is
+                # already linked to this event.
+                contributor = ec.contributor if ec and ec.contributor else None
+                if not contributor and phone:
+                    contributor = _find_address_book_contributor_by_phone(db, owner_id, phone)
                 if not contributor:
                     contributor = UserContributor(
                         id=uuid.uuid4(),
-                        user_id=job.created_by,
+                        user_id=owner_id,
                         name=name,
                         phone=phone,
                         created_at=now,
@@ -133,18 +201,41 @@ def process_contributor_import_job(self, job_id: str) -> Dict[str, Any]:
                     )
                     db.add(contributor)
                     db.flush()
-                elif name and contributor.name != name:
-                    contributor.name = name
-                    contributor.updated_at = now
+                else:
+                    changed = False
+                    if name and contributor.name != name:
+                        contributor.name = name
+                        changed = True
+                    # Backfill / update phone on the matched contributor so
+                    # subsequent uploads stay in sync.
+                    if phone and contributor.phone != phone:
+                        # Guard against violating the (user_id, phone) unique
+                        # constraint — if another row already owns this phone,
+                        # keep the original phone instead of overwriting.
+                        clash = (
+                            db.query(UserContributor.id)
+                            .filter(
+                                UserContributor.user_id == owner_id,
+                                UserContributor.phone == phone,
+                                UserContributor.id != contributor.id,
+                            )
+                            .first()
+                        )
+                        if not clash:
+                            contributor.phone = phone
+                            changed = True
+                    if changed:
+                        contributor.updated_at = now
 
-                ec = (
-                    db.query(EventContributor)
-                    .filter(
-                        EventContributor.event_id == event.id,
-                        EventContributor.contributor_id == contributor.id,
+                if not ec:
+                    ec = (
+                        db.query(EventContributor)
+                        .filter(
+                            EventContributor.event_id == event.id,
+                            EventContributor.contributor_id == contributor.id,
+                        )
+                        .first()
                     )
-                    .first()
-                )
 
                 if mode == "targets":
                     if ec:
