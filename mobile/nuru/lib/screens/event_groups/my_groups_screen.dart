@@ -1,4 +1,5 @@
 import '../../core/widgets/nuru_refresh_indicator.dart';
+import '../../core/widgets/nuru_skeleton.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -207,7 +208,7 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
               onRefresh: _load,
               color: AppColors.primary,
               child: _loading && _groups.isEmpty
-                  ? const Center(child: CircularProgressIndicator())
+                  ? const NuruSkeletonEventList(itemCount: 5)
                   : filtered.isEmpty
                       ? _emptyState(
                           // True empty only when there's no DB data AND no

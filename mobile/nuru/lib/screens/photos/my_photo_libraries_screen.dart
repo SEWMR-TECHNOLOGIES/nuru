@@ -47,7 +47,6 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
   final ScrollController _tabsScrollCtrl = ScrollController();
   final List<GlobalKey> _tabKeys = List.generate(4, (_) => GlobalKey());
 
-
   // Filter state
   String _filterPrivacy = 'all'; // all | private | public
   String _filterOwnership = 'all'; // all | owner | shared
@@ -80,7 +79,9 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
     final box = ctx.findRenderObject() as RenderBox?;
     if (box == null) return;
     final viewportWidth = _tabsScrollCtrl.position.viewportDimension;
-    final tabOffset = box.localToGlobal(Offset.zero, ancestor: context.findRenderObject()).dx;
+    final tabOffset = box
+        .localToGlobal(Offset.zero, ancestor: context.findRenderObject())
+        .dx;
     final tabWidth = box.size.width;
     final currentScroll = _tabsScrollCtrl.offset;
     final tabCenterAbs = currentScroll + tabOffset + tabWidth / 2;
@@ -88,10 +89,12 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
       _tabsScrollCtrl.position.minScrollExtent,
       _tabsScrollCtrl.position.maxScrollExtent,
     );
-    _tabsScrollCtrl.animateTo(target,
-        duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
+    _tabsScrollCtrl.animateTo(
+      target,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOut,
+    );
   }
-
 
   void _onSearchChanged(String v) {
     // Client-side filter only — do NOT trigger a network reload on every
@@ -107,10 +110,17 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
       src = _all;
     } else {
       switch (_tabIndex) {
-        case 1: src = _mine; break;
-        case 2: src = _shared; break;
-        case 3: src = _favorites; break;
-        default: src = _all;
+        case 1:
+          src = _mine;
+          break;
+        case 2:
+          src = _shared;
+          break;
+        case 3:
+          src = _favorites;
+          break;
+        default:
+          src = _all;
       }
     }
     return _applyFilters(_searchFilter(src));
@@ -129,13 +139,18 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
   List<Map<String, dynamic>> _applyFilters(List<Map<String, dynamic>> src) {
     return src.where((lib) {
       if (_filterPrivacy != 'all') {
-        final p = (lib['privacy']?.toString() ?? 'event_creator_only').toLowerCase();
+        final p = (lib['privacy']?.toString() ?? 'event_creator_only')
+            .toLowerCase();
         final isPublic = p == 'public';
         if (_filterPrivacy == 'public' && !isPublic) return false;
         if (_filterPrivacy == 'private' && isPublic) return false;
       }
       if (_filterOwnership != 'all') {
-        final role = (lib['_owner_role'] ?? (lib['is_owner'] == true ? 'Owner' : 'Shared')).toString().toLowerCase();
+        final role =
+            (lib['_owner_role'] ??
+                    (lib['is_owner'] == true ? 'Owner' : 'Shared'))
+                .toString()
+                .toLowerCase();
         if (_filterOwnership == 'owner' && role != 'owner') return false;
         if (_filterOwnership == 'shared' && role == 'owner') return false;
       }
@@ -143,7 +158,8 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
     }).toList();
   }
 
-  bool get _hasActiveFilter => _filterPrivacy != 'all' || _filterOwnership != 'all';
+  bool get _hasActiveFilter =>
+      _filterPrivacy != 'all' || _filterOwnership != 'all';
 
   /// Try to populate lists from in-memory cache so the screen renders
   /// instantly while a background refresh runs. Returns true if any data
@@ -155,18 +171,26 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
       return false;
     }
     if (widget.serviceId != null) {
-      final svcKey = 'service:${widget.serviceId}:${_search.trim().toLowerCase()}';
+      final svcKey =
+          'service:${widget.serviceId}:${_search.trim().toLowerCase()}';
       final svc = PhotoLibrariesService.cached(svcKey);
       if (svc != null) {
-        _mine = _extract(svc).map((m) => {...m, '_owner_role': 'Owner'}).toList();
+        _mine = _extract(
+          svc,
+        ).map((m) => {...m, '_owner_role': 'Owner'}).toList();
         hydrated = true;
       }
     }
     final fav = PhotoLibrariesService.cached('me:favorites');
-    if (fav != null) { _favorites = _extract(fav); hydrated = true; }
+    if (fav != null) {
+      _favorites = _extract(fav);
+      hydrated = true;
+    }
     final shared = PhotoLibrariesService.cached('me:shared');
     if (shared != null) {
-      _shared = _extract(shared).map((m) => {...m, '_owner_role': 'Shared'}).toList();
+      _shared = _extract(
+        shared,
+      ).map((m) => {...m, '_owner_role': 'Shared'}).toList();
       hydrated = true;
     }
     if (hydrated) {
@@ -181,7 +205,6 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
     return hydrated;
   }
 
-
   Future<void> _load({bool background = false}) async {
     if (!background) {
       // Try to hydrate from in-memory cache first so the user sees something
@@ -194,7 +217,9 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
     }
 
     if (widget.eventId != null) {
-      final res = await PhotoLibrariesService.getEventLibraries(widget.eventId!);
+      final res = await PhotoLibrariesService.getEventLibraries(
+        widget.eventId!,
+      );
       if (!mounted) return;
       setState(() {
         _loading = false;
@@ -223,10 +248,16 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
       setState(() {
         _loading = false;
         if (svcRes['success'] == true) {
-          _mine = _extract(svcRes).map((m) => {...m, '_owner_role': 'Owner'}).toList();
-          _favorites = favRes['success'] == true ? _extract(favRes) : _favorites;
+          _mine = _extract(
+            svcRes,
+          ).map((m) => {...m, '_owner_role': 'Owner'}).toList();
+          _favorites = favRes['success'] == true
+              ? _extract(favRes)
+              : _favorites;
           _shared = sharedRes['success'] == true
-              ? _extract(sharedRes).map((m) => {...m, '_owner_role': 'Shared'}).toList()
+              ? _extract(
+                  sharedRes,
+                ).map((m) => {...m, '_owner_role': 'Shared'}).toList()
               : _shared;
           final seen = <String>{};
           final all = <Map<String, dynamic>>[];
@@ -242,18 +273,22 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
       return;
     }
 
-
     // Aggregate view: my services + favorites + shared.
     final servicesRes = await UserServicesService.getMyServices();
     if (!mounted) return;
     if (servicesRes['success'] != true) {
-      setState(() { _loading = false; _error = 'Unable to load services'; });
+      setState(() {
+        _loading = false;
+        _error = 'Unable to load services';
+      });
       return;
     }
 
     final services = servicesRes['data'] is List
         ? servicesRes['data'] as List
-        : (servicesRes['data'] is Map ? (servicesRes['data']['services'] ?? []) : []);
+        : (servicesRes['data'] is Map
+              ? (servicesRes['data']['services'] ?? [])
+              : []);
 
     final mine = <Map<String, dynamic>>[];
     for (final svc in services) {
@@ -263,7 +298,11 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
       final res = await PhotoLibrariesService.getServiceLibraries(svcId);
       if (res['success'] == true) {
         for (final lib in _extract(res)) {
-          mine.add({...lib, '_service_name': svc['title'] ?? svc['name'] ?? 'Service', '_owner_role': 'Owner'});
+          mine.add({
+            ...lib,
+            '_service_name': svc['title'] ?? svc['name'] ?? 'Service',
+            '_owner_role': 'Owner',
+          });
         }
       }
     }
@@ -272,9 +311,13 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
     final sharedRes = await PhotoLibrariesService.getSharedWithMe();
     if (!mounted) return;
 
-    final favorites = favRes['success'] == true ? _extract(favRes) : <Map<String, dynamic>>[];
+    final favorites = favRes['success'] == true
+        ? _extract(favRes)
+        : <Map<String, dynamic>>[];
     final shared = sharedRes['success'] == true
-        ? _extract(sharedRes).map((m) => {...m, '_owner_role': 'Shared'}).toList()
+        ? _extract(
+            sharedRes,
+          ).map((m) => {...m, '_owner_role': 'Shared'}).toList()
         : <Map<String, dynamic>>[];
 
     final seen = <String>{};
@@ -295,9 +338,20 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
 
   bool _isPhotographyService(dynamic service) {
     final s = service is Map<String, dynamic> ? service : <String, dynamic>{};
-    final slug = (s['service_type_slug'] ?? s['service_type']?['slug'] ?? '').toString().toLowerCase();
-    final name = (s['service_type_name'] ?? s['category'] ?? s['service_type']?['name'] ?? '').toString().toLowerCase();
-    return slug.contains('photo') || slug.contains('video') || name.contains('photo') || name.contains('video');
+    final slug = (s['service_type_slug'] ?? s['service_type']?['slug'] ?? '')
+        .toString()
+        .toLowerCase();
+    final name =
+        (s['service_type_name'] ??
+                s['category'] ??
+                s['service_type']?['name'] ??
+                '')
+            .toString()
+            .toLowerCase();
+    return slug.contains('photo') ||
+        slug.contains('video') ||
+        name.contains('photo') ||
+        name.contains('video');
   }
 
   List<Map<String, dynamic>> _extract(Map<String, dynamic> response) {
@@ -311,7 +365,10 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
       source = response['libraries'];
     }
     if (source is! List) return [];
-    return source.whereType<Map>().map((m) => Map<String, dynamic>.from(m)).toList();
+    return source
+        .whereType<Map>()
+        .map((m) => Map<String, dynamic>.from(m))
+        .toList();
   }
 
   Future<void> _toggleFavorite(String libraryId) async {
@@ -322,49 +379,69 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
   // ─── Notifications bell ─────────────────────────────────────────────
   Future<void> _openNotifications() async {
     // Push a temporary loading-aware screen that fetches & displays notifications.
-    await Navigator.push(context, MaterialPageRoute(
-      builder: (_) => const _NotificationsRoute(),
-    ));
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const _NotificationsRoute()),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(statusBarColor: Colors.transparent, statusBarIconBrightness: Brightness.dark),
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+      ),
       child: Scaffold(
         backgroundColor: Colors.white,
         body: SafeArea(
-          child: Column(children: [
-            _header(),
-            Expanded(
-              child: _loading
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-                  : NuruRefreshIndicator(
-                      onRefresh: _load,
-                      color: AppColors.primary,
-                      child: ListView(
-                        padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
-                        children: [
-                          if (_canCreate) _infoCard(),
-                          if (_canCreate) const SizedBox(height: 16),
-                          _searchRow(),
-                          const SizedBox(height: 16),
-                          if (_showTabs) _tabs(),
-                          if (_showTabs) const SizedBox(height: 12),
-                          if (_error != null)
-                            Center(child: Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 24),
-                              child: Text(_error!, style: appText(size: 13, color: AppColors.textTertiary)),
-                            ))
-                          else if (_activeLibraries.isEmpty)
-                            _emptyState()
-                          else
-                            ..._activeLibraries.map(_libraryCard),
-                        ],
+          child: Column(
+            children: [
+              _header(),
+              Expanded(
+                child: _loading
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.primary,
+                        ),
+                      )
+                    : NuruRefreshIndicator(
+                        onRefresh: _load,
+                        color: AppColors.primary,
+                        child: ListView(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 100),
+                          children: [
+                            if (_canCreate) _infoCard(),
+                            if (_canCreate) const SizedBox(height: 16),
+                            _searchRow(),
+                            const SizedBox(height: 16),
+                            if (_showTabs) _tabs(),
+                            if (_showTabs) const SizedBox(height: 12),
+                            if (_error != null)
+                              Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 24,
+                                  ),
+                                  child: Text(
+                                    _error!,
+                                    style: appText(
+                                      size: 13,
+                                      color: AppColors.textTertiary,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            else if (_activeLibraries.isEmpty)
+                              _emptyState()
+                            else
+                              ..._activeLibraries.map(_libraryCard),
+                          ],
+                        ),
                       ),
-                    ),
-            ),
-          ]),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -373,19 +450,42 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
   Widget _header() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(8, 4, 8, 8),
-      child: Row(children: [
-        IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: SvgPicture.asset('assets/icons/arrow-left-icon.svg', width: 22, height: 22,
-            colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
-        ),
-        Expanded(child: Center(child: Text(widget.title, style: appText(size: 17, weight: FontWeight.w700)))),
-        IconButton(
-          onPressed: _openNotifications,
-          icon: SvgPicture.asset('assets/icons/bell-icon.svg', width: 22, height: 22,
-            colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
-        ),
-      ]),
+      child: Row(
+        children: [
+          IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: SvgPicture.asset(
+              'assets/icons/arrow-left-icon.svg',
+              width: 22,
+              height: 22,
+              colorFilter: const ColorFilter.mode(
+                AppColors.textPrimary,
+                BlendMode.srcIn,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Center(
+              child: Text(
+                widget.title,
+                style: appText(size: 17, weight: FontWeight.w700),
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: _openNotifications,
+            icon: SvgPicture.asset(
+              'assets/icons/bell-icon.svg',
+              width: 22,
+              height: 22,
+              colorFilter: const ColorFilter.mode(
+                AppColors.textPrimary,
+                BlendMode.srcIn,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -396,190 +496,374 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
         color: const Color(0xFFFFF7DC),
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-        Container(
-          width: 56, height: 56,
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(28)),
-          child: Center(
-            child: SvgPicture.asset('assets/icons/image-icon.svg', width: 28, height: 28,
-              colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn)),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Store, organize and share beautiful moments.',
-              style: appText(size: 13, weight: FontWeight.w700, color: AppColors.textPrimary)),
-          const SizedBox(height: 4),
-          Text('Built-in libraries make it easy to deliver photos and videos to your clients after every event.',
-              style: appText(size: 11, color: AppColors.textSecondary)),
-          const SizedBox(height: 10),
-          GestureDetector(
-            onTap: _showCreateLibrarySheet,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(12)),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                SvgPicture.asset('assets/icons/plus-icon.svg', width: 14, height: 14,
-                  colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn)),
-                const SizedBox(width: 6),
-                Text('Create New Library', style: appText(size: 12, weight: FontWeight.w700, color: Colors.white)),
-              ]),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(28),
+            ),
+            child: Center(
+              child: SvgPicture.asset(
+                'assets/icons/image-icon.svg',
+                width: 28,
+                height: 28,
+                colorFilter: const ColorFilter.mode(
+                  AppColors.primary,
+                  BlendMode.srcIn,
+                ),
+              ),
             ),
           ),
-        ])),
-      ]),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Store, organize and share beautiful moments.',
+                  style: appText(
+                    size: 13,
+                    weight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Built-in libraries make it easy to deliver photos and videos to your clients after every event.',
+                  style: appText(size: 11, color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 10),
+                GestureDetector(
+                  onTap: _showCreateLibrarySheet,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SvgPicture.asset(
+                          'assets/icons/plus-icon.svg',
+                          width: 14,
+                          height: 14,
+                          colorFilter: const ColorFilter.mode(
+                            Colors.white,
+                            BlendMode.srcIn,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'Create New Library',
+                          style: appText(
+                            size: 12,
+                            weight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _searchRow() {
-    return Row(children: [
-      Expanded(
-        child: Container(
-          height: 46,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFEDEDEF), width: 1),
+    return Row(
+      children: [
+        Expanded(
+          child: Container(
+            height: 46,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFEDEDEF), width: 1),
+            ),
+            child: Row(
+              children: [
+                SvgPicture.asset(
+                  'assets/icons/search-icon.svg',
+                  width: 18,
+                  height: 18,
+                  colorFilter: const ColorFilter.mode(
+                    Color(0xFF8E8E93),
+                    BlendMode.srcIn,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    onChanged: _onSearchChanged,
+                    cursorColor: Colors.black,
+                    textAlignVertical: TextAlignVertical.center,
+                    style: GoogleFonts.inter(fontSize: 14, color: Colors.black),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      filled: false,
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                      hintText: 'Search libraries...',
+                      hintStyle: GoogleFonts.inter(
+                        fontSize: 14,
+                        color: const Color(0xFF9E9E9E),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          child: Row(children: [
-            SvgPicture.asset('assets/icons/search-icon.svg', width: 18, height: 18,
-              colorFilter: const ColorFilter.mode(Color(0xFF8E8E93), BlendMode.srcIn)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: TextField(
-                onChanged: _onSearchChanged,
-                cursorColor: Colors.black,
-                textAlignVertical: TextAlignVertical.center,
-                style: GoogleFonts.inter(fontSize: 14, color: Colors.black),
-                decoration: InputDecoration(
-                  isDense: true,
-                  filled: false,
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                  hintText: 'Search libraries...',
-                  hintStyle: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF9E9E9E)),
+        ),
+        const SizedBox(width: 10),
+        GestureDetector(
+          onTap: _openFilterSheet,
+          child: Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: _hasActiveFilter ? AppColors.primarySoft : Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: _hasActiveFilter
+                    ? AppColors.primary
+                    : const Color(0xFFEDEDEF),
+              ),
+            ),
+            child: Center(
+              child: SvgPicture.asset(
+                'assets/icons/menu-icon.svg',
+                width: 18,
+                height: 18,
+                colorFilter: ColorFilter.mode(
+                  _hasActiveFilter ? AppColors.primary : AppColors.textPrimary,
+                  BlendMode.srcIn,
                 ),
               ),
             ),
-          ]),
-        ),
-      ),
-      const SizedBox(width: 10),
-      GestureDetector(
-        onTap: _openFilterSheet,
-        child: Container(
-          width: 46, height: 46,
-          decoration: BoxDecoration(
-            color: _hasActiveFilter ? AppColors.primarySoft : Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: _hasActiveFilter ? AppColors.primary : const Color(0xFFEDEDEF)),
-          ),
-          child: Center(
-            child: SvgPicture.asset('assets/icons/menu-icon.svg', width: 18, height: 18,
-              colorFilter: ColorFilter.mode(
-                _hasActiveFilter ? AppColors.primary : AppColors.textPrimary,
-                BlendMode.srcIn,
-              )),
           ),
         ),
-      ),
-    ]);
+      ],
+    );
   }
 
   void _openFilterSheet() {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) {
         String privacy = _filterPrivacy;
         String ownership = _filterOwnership;
-        return StatefulBuilder(builder: (ctx, setSheet) {
-          Widget chip(String label, bool active, VoidCallback onTap) {
-            return GestureDetector(
-              onTap: onTap,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                margin: const EdgeInsets.only(right: 8),
-                decoration: BoxDecoration(
-                  color: active ? AppColors.primarySoft : Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: active ? AppColors.primary : AppColors.border),
+        return StatefulBuilder(
+          builder: (ctx, setSheet) {
+            Widget chip(String label, bool active, VoidCallback onTap) {
+              return GestureDetector(
+                onTap: onTap,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 9,
+                  ),
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    color: active ? AppColors.primarySoft : Colors.white,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: active ? AppColors.primary : AppColors.border,
+                    ),
+                  ),
+                  child: Text(
+                    label,
+                    style: appText(
+                      size: 12,
+                      weight: FontWeight.w700,
+                      color: active
+                          ? AppColors.primary
+                          : AppColors.textSecondary,
+                    ),
+                  ),
                 ),
-                child: Text(label, style: appText(
-                  size: 12, weight: FontWeight.w700,
-                  color: active ? AppColors.primary : AppColors.textSecondary,
-                )),
+              );
+            }
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AppColors.border,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Filter libraries',
+                      style: appText(size: 15, weight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Privacy',
+                      style: appText(
+                        size: 12,
+                        weight: FontWeight.w700,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        chip(
+                          'All',
+                          privacy == 'all',
+                          () => setSheet(() => privacy = 'all'),
+                        ),
+                        chip(
+                          'Private',
+                          privacy == 'private',
+                          () => setSheet(() => privacy = 'private'),
+                        ),
+                        chip(
+                          'Public',
+                          privacy == 'public',
+                          () => setSheet(() => privacy = 'public'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'Ownership',
+                      style: appText(
+                        size: 12,
+                        weight: FontWeight.w700,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        chip(
+                          'All',
+                          ownership == 'all',
+                          () => setSheet(() => ownership = 'all'),
+                        ),
+                        chip(
+                          'Owner',
+                          ownership == 'owner',
+                          () => setSheet(() => ownership = 'owner'),
+                        ),
+                        chip(
+                          'Shared',
+                          ownership == 'shared',
+                          () => setSheet(() => ownership = 'shared'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () {
+                              setSheet(() {
+                                privacy = 'all';
+                                ownership = 'all';
+                              });
+                            },
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: AppColors.border),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                            ),
+                            child: Text(
+                              'Reset',
+                              style: appText(
+                                size: 13,
+                                weight: FontWeight.w700,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              setState(() {
+                                _filterPrivacy = privacy;
+                                _filterOwnership = ownership;
+                              });
+                              Navigator.pop(ctx);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primary,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 13),
+                              elevation: 0,
+                            ),
+                            child: Text(
+                              'Apply',
+                              style: appText(
+                                size: 13,
+                                weight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             );
-          }
-
-          return SafeArea(child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
-            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Center(child: Container(width: 40, height: 4,
-                decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
-              const SizedBox(height: 16),
-              Text('Filter libraries', style: appText(size: 15, weight: FontWeight.w700)),
-              const SizedBox(height: 14),
-              Text('Privacy', style: appText(size: 12, weight: FontWeight.w700, color: AppColors.textSecondary)),
-              const SizedBox(height: 8),
-              Row(children: [
-                chip('All', privacy == 'all', () => setSheet(() => privacy = 'all')),
-                chip('Private', privacy == 'private', () => setSheet(() => privacy = 'private')),
-                chip('Public', privacy == 'public', () => setSheet(() => privacy = 'public')),
-              ]),
-              const SizedBox(height: 14),
-              Text('Ownership', style: appText(size: 12, weight: FontWeight.w700, color: AppColors.textSecondary)),
-              const SizedBox(height: 8),
-              Row(children: [
-                chip('All', ownership == 'all', () => setSheet(() => ownership = 'all')),
-                chip('Owner', ownership == 'owner', () => setSheet(() => ownership = 'owner')),
-                chip('Shared', ownership == 'shared', () => setSheet(() => ownership = 'shared')),
-              ]),
-              const SizedBox(height: 20),
-              Row(children: [
-                Expanded(child: OutlinedButton(
-                  onPressed: () {
-                    setSheet(() { privacy = 'all'; ownership = 'all'; });
-                  },
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: AppColors.border),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                  ),
-                  child: Text('Reset', style: appText(size: 13, weight: FontWeight.w700, color: AppColors.textSecondary)),
-                )),
-                const SizedBox(width: 10),
-                Expanded(child: ElevatedButton(
-                  onPressed: () {
-                    setState(() { _filterPrivacy = privacy; _filterOwnership = ownership; });
-                    Navigator.pop(ctx);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    elevation: 0,
-                  ),
-                  child: Text('Apply', style: appText(size: 13, weight: FontWeight.w700, color: Colors.white)),
-                )),
-              ]),
-            ]),
-          ));
-        });
+          },
+        );
       },
     );
   }
 
   Widget _tabs() {
-    const labels = ['All Libraries', 'My Libraries', 'Shared With Me', 'Favorites'];
+    const labels = [
+      'All Libraries',
+      'My Libraries',
+      'Shared With Me',
+      'Favorites',
+    ];
     return Container(
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.borderLight, width: 1)),
+        border: Border(
+          bottom: BorderSide(color: AppColors.borderLight, width: 1),
+        ),
       ),
       child: SingleChildScrollView(
         controller: _tabsScrollCtrl,
@@ -594,10 +878,15 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
               behavior: HitTestBehavior.opaque,
               onTap: () {
                 setState(() => _tabIndex = i);
-                WidgetsBinding.instance.addPostFrameCallback((_) => _scrollActiveTabIntoView());
+                WidgetsBinding.instance.addPostFrameCallback(
+                  (_) => _scrollActiveTabIntoView(),
+                );
               },
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
                 child: IntrinsicWidth(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -609,14 +898,18 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
                         style: appText(
                           size: 13,
                           weight: active ? FontWeight.w700 : FontWeight.w500,
-                          color: active ? AppColors.textPrimary : AppColors.textTertiary,
+                          color: active
+                              ? AppColors.textPrimary
+                              : AppColors.textTertiary,
                         ),
                       ),
                       const SizedBox(height: 6),
                       Container(
                         height: 3,
                         decoration: BoxDecoration(
-                          color: active ? AppColors.primary : Colors.transparent,
+                          color: active
+                              ? AppColors.primary
+                              : Colors.transparent,
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -631,37 +924,61 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
     );
   }
 
-
   Widget _emptyState() {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 48),
-      child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        SvgPicture.asset('assets/icons/image-icon.svg', width: 56, height: 56,
-          colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
-        const SizedBox(height: 16),
-        Text(_search.isNotEmpty || _hasActiveFilter ? 'No libraries match' : 'No libraries yet',
-            style: appText(size: 15, weight: FontWeight.w600)),
-        const SizedBox(height: 4),
-        Text(_search.isNotEmpty || _hasActiveFilter
-                ? 'Try a different keyword or clear filters'
-                : 'Create a library from your service events',
-            style: appText(size: 12, color: AppColors.textTertiary)),
-      ])),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SvgPicture.asset(
+              'assets/icons/image-icon.svg',
+              width: 56,
+              height: 56,
+              colorFilter: const ColorFilter.mode(
+                AppColors.textHint,
+                BlendMode.srcIn,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              _search.isNotEmpty || _hasActiveFilter
+                  ? 'No libraries match'
+                  : 'No libraries yet',
+              style: appText(size: 15, weight: FontWeight.w600),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _search.isNotEmpty || _hasActiveFilter
+                  ? 'Try a different keyword or clear filters'
+                  : 'Create a library from your service events',
+              style: appText(size: 12, color: AppColors.textTertiary),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
   Widget _libraryCard(Map<String, dynamic> lib) {
     final name = lib['name']?.toString() ?? 'Library';
-    final eventDate = (lib['event']?['start_date'] ?? lib['created_at'])?.toString() ?? '';
-    final privacy = (lib['privacy']?.toString() ?? 'event_creator_only').toLowerCase();
-    final ownerRole = (lib['_owner_role'] ?? (lib['is_owner'] == true ? 'Owner' : 'Shared')).toString();
+    final eventDate =
+        (lib['event']?['start_date'] ?? lib['created_at'])?.toString() ?? '';
+    final privacy = (lib['privacy']?.toString() ?? 'event_creator_only')
+        .toLowerCase();
+    final ownerRole =
+        (lib['_owner_role'] ?? (lib['is_owner'] == true ? 'Owner' : 'Shared'))
+            .toString();
     final coverItem = _firstPhotoItem(lib);
     final coverUrl = coverItem?['url'] as String?;
-    final coverIsVideo = (coverItem?['media_type']?.toString() ?? 'photo') == 'video';
+    final coverIsVideo =
+        (coverItem?['media_type']?.toString() ?? 'photo') == 'video';
     final totalSizeMb = _toDouble(lib['total_size_mb']) > 0
         ? _toDouble(lib['total_size_mb'])
         : (_toDouble(lib['total_size_bytes']) / (1024 * 1024));
-    final double storageLimitMb = _toDouble(lib['storage_limit_mb']) > 0 ? _toDouble(lib['storage_limit_mb']) : 200.0;
+    final double storageLimitMb = _toDouble(lib['storage_limit_mb']) > 0
+        ? _toDouble(lib['storage_limit_mb'])
+        : 200.0;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -669,9 +986,13 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
         onTap: () {
           final id = lib['id']?.toString();
           if (id != null) {
-            Navigator.push(context, MaterialPageRoute(
-              builder: (_) => PhotoLibraryScreen(libraryId: id, libraryName: name),
-            )).then((_) => _load());
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) =>
+                    PhotoLibraryScreen(libraryId: id, libraryName: name),
+              ),
+            ).then((_) => _load());
           }
         },
         child: Container(
@@ -681,51 +1002,120 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
             borderRadius: BorderRadius.circular(16),
             boxShadow: AppColors.subtleShadow,
           ),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Container(
-                width: 64, height: 64, color: const Color(0xFFF3F4F6),
-                child: coverUrl != null
-                    ? (coverIsVideo
-                        ? VideoThumbnailImage(videoUrl: coverUrl, fit: BoxFit.cover, width: 64, height: 64)
-                        : Image.network(coverUrl, fit: BoxFit.cover, errorBuilder: (_, __, ___) =>
-                            Center(child: SvgPicture.asset('assets/icons/image-icon.svg', width: 24, height: 24,
-                              colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)))))
-                    : Center(child: SvgPicture.asset('assets/icons/image-icon.svg', width: 24, height: 24,
-                        colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn))),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  width: 64,
+                  height: 64,
+                  color: const Color(0xFFF3F4F6),
+                  child: coverUrl != null
+                      ? (coverIsVideo
+                            ? VideoThumbnailImage(
+                                videoUrl: coverUrl,
+                                fit: BoxFit.cover,
+                                width: 64,
+                                height: 64,
+                              )
+                            : Image.network(
+                                coverUrl,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Center(
+                                  child: SvgPicture.asset(
+                                    'assets/icons/image-icon.svg',
+                                    width: 24,
+                                    height: 24,
+                                    colorFilter: const ColorFilter.mode(
+                                      AppColors.textHint,
+                                      BlendMode.srcIn,
+                                    ),
+                                  ),
+                                ),
+                              ))
+                      : Center(
+                          child: SvgPicture.asset(
+                            'assets/icons/image-icon.svg',
+                            width: 24,
+                            height: 24,
+                            colorFilter: const ColorFilter.mode(
+                              AppColors.textHint,
+                              BlendMode.srcIn,
+                            ),
+                          ),
+                        ),
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(name, style: appText(size: 14, weight: FontWeight.w700),
-                  maxLines: 1, overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 4),
-              Row(children: [
-                Text(_fmtDate(eventDate), style: appText(size: 11, color: AppColors.textTertiary)),
-                const SizedBox(width: 8),
-                _ownerBadge(ownerRole),
-              ]),
-              const SizedBox(height: 8),
-              Row(children: [
-                _privacyChip(privacy),
-                const SizedBox(width: 10),
-                SvgPicture.asset('assets/icons/photos-icon.svg', width: 12, height: 12,
-                  colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
-                const SizedBox(width: 4),
-                Text('${_fmtSize(totalSizeMb)} of ${_fmtSize(storageLimitMb)}',
-                    style: appText(size: 11, color: AppColors.textTertiary)),
-              ]),
-            ])),
-            GestureDetector(
-              onTap: () => _showLibraryActions(lib),
-              child: Padding(
-                padding: const EdgeInsets.all(4),
-                child: SvgPicture.asset('assets/icons/more-vertical-icon.svg', width: 18, height: 18,
-                  colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: appText(size: 14, weight: FontWeight.w700),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text(
+                          _fmtDate(eventDate),
+                          style: appText(
+                            size: 11,
+                            color: AppColors.textTertiary,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _ownerBadge(ownerRole),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        _privacyChip(privacy),
+                        const SizedBox(width: 10),
+                        SvgPicture.asset(
+                          'assets/icons/photos-icon.svg',
+                          width: 12,
+                          height: 12,
+                          colorFilter: const ColorFilter.mode(
+                            AppColors.textTertiary,
+                            BlendMode.srcIn,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${_fmtSize(totalSizeMb)} of ${_fmtSize(storageLimitMb)}',
+                          style: appText(
+                            size: 11,
+                            color: AppColors.textTertiary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ]),
+              GestureDetector(
+                onTap: () => _showLibraryActions(lib),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: SvgPicture.asset(
+                    'assets/icons/more-vertical-icon.svg',
+                    width: 18,
+                    height: 18,
+                    colorFilter: const ColorFilter.mode(
+                      AppColors.textTertiary,
+                      BlendMode.srcIn,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -739,24 +1129,40 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
         color: isOwner ? const Color(0xFFFFF1C2) : const Color(0xFFE0F2FE),
         borderRadius: BorderRadius.circular(10),
       ),
-      child: Text(role, style: appText(
-        size: 10, weight: FontWeight.w700,
-        color: isOwner ? const Color(0xFFA86A00) : const Color(0xFF0369A1),
-      )),
+      child: Text(
+        role,
+        style: appText(
+          size: 10,
+          weight: FontWeight.w700,
+          color: isOwner ? const Color(0xFFA86A00) : const Color(0xFF0369A1),
+        ),
+      ),
     );
   }
 
   Widget _privacyChip(String privacy) {
     final isPublic = privacy == 'public';
-    return Row(mainAxisSize: MainAxisSize.min, children: [
-      SvgPicture.asset(
-        isPublic ? 'assets/icons/earth-icon.svg' : 'assets/icons/lock-icon.svg',
-        width: 12, height: 12,
-        colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn),
-      ),
-      const SizedBox(width: 5),
-      Text(isPublic ? 'Public' : 'Private', style: appText(size: 11, color: AppColors.textTertiary)),
-    ]);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SvgPicture.asset(
+          isPublic
+              ? 'assets/icons/earth-icon.svg'
+              : 'assets/icons/lock-icon.svg',
+          width: 12,
+          height: 12,
+          colorFilter: const ColorFilter.mode(
+            AppColors.textTertiary,
+            BlendMode.srcIn,
+          ),
+        ),
+        const SizedBox(width: 5),
+        Text(
+          isPublic ? 'Public' : 'Private',
+          style: appText(size: 11, color: AppColors.textTertiary),
+        ),
+      ],
+    );
   }
 
   void _showLibraryActions(Map<String, dynamic> lib) {
@@ -765,74 +1171,140 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => SafeArea(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Container(width: 40, height: 4, margin: const EdgeInsets.only(top: 10),
-          decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2))),
-        const SizedBox(height: 14),
-        ListTile(
-          leading: SvgPicture.asset('assets/icons/view-icon.svg', width: 20, height: 20,
-            colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
-          title: Text('Open library', style: appText(size: 14, weight: FontWeight.w600)),
-          onTap: () {
-            Navigator.pop(ctx);
-            if (id != null) {
-              Navigator.push(context, MaterialPageRoute(
-                builder: (_) => PhotoLibraryScreen(libraryId: id, libraryName: lib['name']?.toString()),
-              )).then((_) => _load());
-            }
-          },
-        ),
-        ListTile(
-          leading: SvgPicture.asset(
-            isFav ? 'assets/icons/heart-filled-icon.svg' : 'assets/icons/heart-icon.svg',
-            width: 20, height: 20,
-            colorFilter: ColorFilter.mode(isFav ? AppColors.error : AppColors.textPrimary, BlendMode.srcIn),
-          ),
-          title: Text(isFav ? 'Remove from favorites' : 'Add to favorites',
-              style: appText(size: 14, weight: FontWeight.w600)),
-          onTap: () {
-            Navigator.pop(ctx);
-            if (id != null) _toggleFavorite(id);
-          },
-        ),
-        ListTile(
-          leading: SvgPicture.asset('assets/icons/share-icon.svg', width: 20, height: 20,
-            colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
-          title: Text('Share link', style: appText(size: 14, weight: FontWeight.w600)),
-          onTap: () async {
-            Navigator.pop(ctx);
-            final url = lib['share_url']?.toString();
-            if (url != null && url.isNotEmpty && url.startsWith('http')) {
-              await Clipboard.setData(ClipboardData(text: url));
-              if (!mounted) return;
-              AppSnackbar.success(context, 'Share link copied');
-            } else {
-              AppSnackbar.error(context, 'Switch to Public to share link');
-            }
-          },
-        ),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(top: 10),
+              decoration: BoxDecoration(
+                color: AppColors.border,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 14),
+            ListTile(
+              leading: SvgPicture.asset(
+                'assets/icons/view-icon.svg',
+                width: 20,
+                height: 20,
+                colorFilter: const ColorFilter.mode(
+                  AppColors.textPrimary,
+                  BlendMode.srcIn,
+                ),
+              ),
+              title: Text(
+                'Open library',
+                style: appText(size: 14, weight: FontWeight.w600),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                if (id != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => PhotoLibraryScreen(
+                        libraryId: id,
+                        libraryName: lib['name']?.toString(),
+                      ),
+                    ),
+                  ).then((_) => _load());
+                }
+              },
+            ),
+            ListTile(
+              leading: SvgPicture.asset(
+                isFav
+                    ? 'assets/icons/heart-filled-icon.svg'
+                    : 'assets/icons/heart-icon.svg',
+                width: 20,
+                height: 20,
+                colorFilter: ColorFilter.mode(
+                  isFav ? AppColors.error : AppColors.textPrimary,
+                  BlendMode.srcIn,
+                ),
+              ),
+              title: Text(
+                isFav ? 'Remove from favorites' : 'Add to favorites',
+                style: appText(size: 14, weight: FontWeight.w600),
+              ),
+              onTap: () {
+                Navigator.pop(ctx);
+                if (id != null) _toggleFavorite(id);
+              },
+            ),
+            ListTile(
+              leading: SvgPicture.asset(
+                'assets/icons/share-icon.svg',
+                width: 20,
+                height: 20,
+                colorFilter: const ColorFilter.mode(
+                  AppColors.textPrimary,
+                  BlendMode.srcIn,
+                ),
+              ),
+              title: Text(
+                'Share link',
+                style: appText(size: 14, weight: FontWeight.w600),
+              ),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final url = lib['share_url']?.toString();
+                if (url != null && url.isNotEmpty && url.startsWith('http')) {
+                  await Clipboard.setData(ClipboardData(text: url));
+                  if (!mounted) return;
+                  AppSnackbar.success(context, 'Share link copied');
+                } else {
+                  AppSnackbar.error(context, 'Switch to Public to share link');
+                }
+              },
+            ),
 
-        if (lib['is_owner'] == true || (lib['_owner_role']?.toString().toLowerCase() == 'owner'))
-          ListTile(
-            leading: SvgPicture.asset('assets/icons/delete-icon.svg', width: 20, height: 20,
-              colorFilter: const ColorFilter.mode(AppColors.error, BlendMode.srcIn)),
-            title: Text('Delete library', style: appText(size: 14, weight: FontWeight.w600, color: AppColors.error)),
-            onTap: () async {
-              Navigator.pop(ctx);
-              if (id == null) return;
-              final res = await PhotoLibrariesService.deleteLibrary(id);
-              if (!mounted) return;
-              if (res['success'] == true) {
-                AppSnackbar.success(context, 'Library deleted');
-                _load();
-              } else {
-                AppSnackbar.error(context, res['message']?.toString() ?? 'Unable to delete');
-              }
-            },
-          ),
-        const SizedBox(height: 8),
-      ])),
+            if (lib['is_owner'] == true ||
+                (lib['_owner_role']?.toString().toLowerCase() == 'owner'))
+              ListTile(
+                leading: SvgPicture.asset(
+                  'assets/icons/delete-icon.svg',
+                  width: 20,
+                  height: 20,
+                  colorFilter: const ColorFilter.mode(
+                    AppColors.error,
+                    BlendMode.srcIn,
+                  ),
+                ),
+                title: Text(
+                  'Delete library',
+                  style: appText(
+                    size: 14,
+                    weight: FontWeight.w600,
+                    color: AppColors.error,
+                  ),
+                ),
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  if (id == null) return;
+                  final res = await PhotoLibrariesService.deleteLibrary(id);
+                  if (!mounted) return;
+                  if (res['success'] == true) {
+                    AppSnackbar.success(context, 'Library deleted');
+                    _load();
+                  } else {
+                    AppSnackbar.error(
+                      context,
+                      res['message']?.toString() ?? 'Unable to delete',
+                    );
+                  }
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
     );
   }
 
@@ -855,7 +1327,10 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
         }
       }
     }
-    final cover = lib['cover_image_url'] ?? lib['cover_url'] ?? lib['event']?['cover_image'];
+    final cover =
+        lib['cover_image_url'] ??
+        lib['cover_url'] ??
+        lib['event']?['cover_image'];
     final s = cover?.toString();
     if (s != null && s.isNotEmpty) {
       return {'url': s, 'media_type': 'photo'};
@@ -877,9 +1352,24 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
     if (iso.isEmpty) return '';
     try {
       final d = DateTime.parse(iso);
-      const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+      const months = [
+        'January',
+        'February',
+        'March',
+        'April',
+        'May',
+        'June',
+        'July',
+        'August',
+        'September',
+        'October',
+        'November',
+        'December',
+      ];
       return '${months[d.month - 1]} ${d.day}, ${d.year}';
-    } catch (_) { return iso; }
+    } catch (_) {
+      return iso;
+    }
   }
 }
 
@@ -909,7 +1399,9 @@ class _NotificationsRouteState extends State<_NotificationsRoute> {
       _loading = false;
       if (res['success'] == true) {
         final data = res['data'];
-        _notifications = data is Map ? (data['notifications'] ?? []) : (data is List ? data : []);
+        _notifications = data is Map
+            ? (data['notifications'] ?? [])
+            : (data is List ? data : []);
         _unread = data is Map ? (data['unread_count'] ?? 0) : 0;
       }
     });

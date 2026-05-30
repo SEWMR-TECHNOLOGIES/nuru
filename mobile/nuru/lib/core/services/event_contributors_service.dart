@@ -7,7 +7,7 @@ class EventContributorsService {
     return ApiBase.get('/user-contributors/', queryParams: params, fallbackError: 'Unable to fetch contributors');
   }
 
-  static Future<Map<String, dynamic>> getEventContributors(String eventId, {int page = 1, int limit = 1000}) {
+  static Future<Map<String, dynamic>> getEventContributors(String eventId, {int page = 1, int limit = 5000}) {
     final params = <String, String>{'page': '$page', 'limit': '$limit'};
     return ApiBase.get('/user-contributors/events/$eventId/contributors', queryParams: params, fallbackError: 'Unable to fetch event contributors');
   }
@@ -182,7 +182,7 @@ class EventContributorsService {
     String? customMessage,
   }) {
     return ApiBase.postRaw(
-      '/user-contributors/events/$eventId/contributors/$ecId/share-link/send-sms',
+      '/user-contributors/events/$eventId/contributors/$ecId/send-share-sms',
       customMessage == null ? <String, dynamic>{} : {'custom_message': customMessage},
     );
   }

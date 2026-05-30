@@ -2671,23 +2671,32 @@ class _EventContributionsTabState extends State<EventContributionsTab>
 
               final parsed = <Map<String, dynamic>>[];
               final parseErrors = <String>[];
+              final headers = rows.first.map((v) => v.toString().trim().toLowerCase()).toList();
+              int col(List<String> names, int fallback) {
+                final idx = headers.indexWhere((h) => names.any((n) => h.contains(n)));
+                return idx >= 0 ? idx : fallback;
+              }
+              final nameCol = col(['name', 'contributor'], 1);
+              final phoneCol = col(['phone', 'mobile', 'contact'], 2);
+              final amountCol = col(['amount', 'pledge', 'target', 'contribution', 'paid'], 3);
 
               for (int i = 1; i < rows.length; i++) {
                 final row = rows[i];
-                final name = row.length > 1 ? row[1].toString().trim() : '';
-                final phoneRaw = row.length > 2 ? row[2].toString().trim() : '';
-                final amountRaw = row.length > 3 ? row[3].toString().trim() : '0';
+                final name = row.length > nameCol ? row[nameCol].toString().trim() : '';
+                final phoneRaw = row.length > phoneCol ? row[phoneCol].toString().trim() : '';
+                final amountRaw = row.length > amountCol ? row[amountCol].toString().trim() : '0';
 
                 if (name.isEmpty && phoneRaw.isEmpty) continue;
                 if (name.isEmpty) { parseErrors.add('Row ${i + 1}: Name is missing'); continue; }
-                if (phoneRaw.isEmpty) { parseErrors.add('Row ${i + 1}: Phone is missing for $name'); continue; }
 
-                String phone;
-                try {
-                  phone = _formatTanzanianPhone(phoneRaw);
-                } catch (_) {
-                  parseErrors.add('Row ${i + 1}: Invalid phone "$phoneRaw" for $name');
-                  continue;
+                String phone = '';
+                if (phoneRaw.isNotEmpty) {
+                  try {
+                    phone = _formatTanzanianPhone(phoneRaw);
+                  } catch (_) {
+                    parseErrors.add('Row ${i + 1}: Invalid phone "$phoneRaw" for $name');
+                    continue;
+                  }
                 }
 
                 final amount = double.tryParse(amountRaw.replaceAll(',', '')) ?? 0;
@@ -2722,6 +2731,16 @@ class _EventContributionsTabState extends State<EventContributionsTab>
             }
             final data = res['data'] is Map ? (res['data'] as Map).cast<String, dynamic>() : <String, dynamic>{};
             final jobId = data['job_id']?.toString();
+            if (jobId != null && jobId.isNotEmpty) {
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (mounted) {
+                AppSnackbar.success(context, 'Upload accepted. Contributors are processing in the background.');
+                Future.delayed(const Duration(seconds: 3), () {
+                  if (mounted) _load();
+                });
+              }
+              return;
+            }
             if (jobId == null || jobId.isEmpty) {
               // Legacy sync response (no background worker available).
               if (ctx.mounted) {
@@ -2738,47 +2757,6 @@ class _EventContributionsTabState extends State<EventContributionsTab>
               return;
             }
 
-            // Poll the background job until it reaches a terminal status.
-            const terminal = {'completed', 'failed', 'partially_completed'};
-            Map<String, dynamic> last = {};
-            for (int i = 0; i < 300; i++) {
-              await Future.delayed(const Duration(seconds: 2));
-              if (!ctx.mounted) return;
-              final s = await EventContributorsService.getImportJobStatus(widget.eventId, jobId);
-              if (s['success'] == true && s['data'] is Map) {
-                last = (s['data'] as Map).cast<String, dynamic>();
-                final status = (last['status'] ?? '').toString();
-                setSheetState(() {});
-                if (terminal.contains(status)) break;
-              }
-            }
-
-            List<dynamic> errors = [];
-            try {
-              final er = await EventContributorsService.getImportJobErrors(widget.eventId, jobId);
-              if (er['success'] == true && er['data'] is Map) {
-                errors = ((er['data'] as Map)['errors'] as List?) ?? [];
-              }
-            } catch (_) {}
-
-            if (!ctx.mounted) return;
-            setSheetState(() {
-              bulkUploading = false;
-              bulkResult = {
-                'processed': last['successful_rows'] ?? 0,
-                'errors_count': last['failed_rows'] ?? (errors.length),
-                'status': last['status'] ?? 'completed',
-                'errors': errors,
-              };
-              bulkRows = [];
-              bulkFileName = '';
-              bulkErrors = errors
-                  .take(20)
-                  .map((e) => e is Map ? 'Row ${e['row']}: ${e['message']}' : e.toString())
-                  .toList();
-            });
-            AppSnackbar.success(context, '${bulkResult?['processed'] ?? 0} contributors processed');
-            _load();
           }
 
           return Container(

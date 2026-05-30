@@ -451,7 +451,7 @@ class EventsService {
   static Future<Map<String, dynamic>> getEventContributors(
     String eventId, {
     int page = 1,
-    int limit = 1000,
+    int limit = 5000,
   }) => EventContributorsService.getEventContributors(
     eventId,
     page: page,

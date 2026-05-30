@@ -1,4 +1,5 @@
 import '../../core/widgets/nuru_refresh_indicator.dart';
+import '../../core/widgets/nuru_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -236,7 +237,7 @@ class _MyMomentsScreenState extends State<MyMomentsScreen> {
         onRefresh: _load,
         color: AppColors.primary,
         child: _loading
-            ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+            ? const NuruSkeletonGrid(itemCount: 6, crossAxisCount: 2)
             : _posts.isEmpty
                 ? ListView(children: [
                     SizedBox(height: MediaQuery.of(context).size.height * 0.25),

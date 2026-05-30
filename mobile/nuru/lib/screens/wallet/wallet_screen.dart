@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/money_format.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
+import '../../core/widgets/nuru_skeleton.dart';
 import '../../providers/wallet_provider.dart';
 import '../bookings/bookings_screen.dart';
 import 'make_payment_screen.dart';
@@ -390,7 +391,7 @@ class _LedgerList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (loading && entries.isEmpty)
-      return const Center(child: CircularProgressIndicator());
+      return const NuruSkeletonList(itemCount: 6, showTrailing: true);
     if (entries.isEmpty)
       return const _EmptyState(text: 'No wallet activity yet.');
     return ListView.separated(
@@ -462,7 +463,7 @@ class _TransactionList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (loading && transactions.isEmpty)
-      return const Center(child: CircularProgressIndicator());
+      return const NuruSkeletonList(itemCount: 6, showTrailing: true);
     if (transactions.isEmpty)
       return const _EmptyState(text: 'No transactions yet.');
     return ListView.separated(

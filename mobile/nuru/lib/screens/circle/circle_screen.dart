@@ -9,6 +9,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../core/widgets/nuru_refresh_indicator.dart';
+import '../../core/widgets/nuru_skeleton.dart';
 import '../../core/services/social_service.dart';
 import '../../core/services/events_service.dart';
 import '../../core/services/event_extras_service.dart';
@@ -129,7 +130,7 @@ class _CircleScreenState extends State<CircleScreen> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? const NuruSkeletonList(itemCount: 7)
           : Column(children: [
               Expanded(
                 child: NuruRefreshIndicator(

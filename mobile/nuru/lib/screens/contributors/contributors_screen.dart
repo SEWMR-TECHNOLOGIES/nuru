@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../../core/services/secure_token_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
+import '../../core/widgets/nuru_skeleton.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/services/user_services_service.dart';
 import '../../core/services/social_service.dart';
@@ -214,7 +215,7 @@ class _ContributorsScreenState extends State<ContributorsScreen> {
               onRefresh: _load,
               color: AppColors.primary,
               child: _loading
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+                  ? const NuruSkeletonList(itemCount: 6, showTrailing: true)
                   : _contributors.isEmpty
                       ? ListView(children: [
                           SizedBox(height: MediaQuery.of(context).size.height * 0.25),

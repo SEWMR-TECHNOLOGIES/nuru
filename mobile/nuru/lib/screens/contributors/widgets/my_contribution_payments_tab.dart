@@ -1,10 +1,12 @@
 import '../../../core/widgets/nuru_refresh_indicator.dart';
+import '../../../core/widgets/nuru_pagination.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/received_payments_service.dart';
 import '../../../core/utils/money_format.dart';
 import '../../payments/payment_receipt_screen.dart';
+
 
 /// My Contribution Payments — receipts for every contribution the current
 /// user has paid towards events. Mirrors `MyTicketPaymentsTab` exactly.
@@ -109,17 +111,12 @@ class _MyContributionPaymentsTabState extends State<MyContributionPaymentsTab>
           ] else ...[
             for (final p in _payments) _row(p as Map<String, dynamic>),
           ],
-          if (_pagination != null && (_pagination!['total_pages'] ?? 1) > 1) ...[
-            const SizedBox(height: 12),
-            Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              IconButton(onPressed: (_pagination!['has_previous'] == true) ? () { _page--; _load(); } : null,
-                icon: const Icon(Icons.chevron_left_rounded)),
-              Text('Page ${_pagination!['page']} of ${_pagination!['total_pages']}',
-                style: _txt(size: 12, color: AppColors.textSecondary)),
-              IconButton(onPressed: (_pagination!['has_next'] == true) ? () { _page++; _load(); } : null,
-                icon: const Icon(Icons.chevron_right_rounded)),
-            ]),
-          ],
+          if (_pagination != null && (_pagination!['total_pages'] ?? 1) > 1)
+            NuruPagination.fromMap(
+              _pagination,
+              onChanged: (p) { setState(() => _page = p); _load(); },
+            ),
+
         ],
       ),
     );

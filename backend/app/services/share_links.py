@@ -40,17 +40,33 @@ def generate_token() -> str:
 def issue_share_token(db: Session, ec: EventContributor) -> str:
     """(Re)generate a share token for an event_contributor row.
 
-    Returns the *plain* token — caller must hand it to the user once and
-    never persist it. Persists only the hash + timestamps.
+    Returns the plain token. We also persist the plain token so repeated
+    "Share payment link" clicks return the same URL (see ``get_active_token``).
     """
     plain = generate_token()
     ec.share_token_hash = hash_token(plain)
+    ec.share_token_plain = plain
     ec.share_token_created_at = datetime.utcnow()
     ec.share_token_expires_at = ec.share_token_created_at + timedelta(
         days=SHARE_TOKEN_LIFETIME_DAYS
     )
     ec.share_token_revoked_at = None
     db.flush()
+    return plain
+
+
+def get_active_token(ec: EventContributor) -> Optional[str]:
+    """Return the existing plain token if it's still usable, else None.
+
+    Used to keep the share URL stable across re-opens of the share dialog.
+    """
+    plain = getattr(ec, "share_token_plain", None)
+    if not plain:
+        return None
+    if ec.share_token_revoked_at is not None:
+        return None
+    if ec.share_token_expires_at and ec.share_token_expires_at < datetime.utcnow():
+        return None
     return plain
 
 

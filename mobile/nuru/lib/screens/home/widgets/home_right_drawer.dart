@@ -50,7 +50,6 @@ class HomeRightDrawer extends StatelessWidget {
     this.isVerified = false,
   });
 
-
   List<Map<String, dynamic>> _mergeUpcomingEvents() {
     final now = DateTime.now();
     final items = <Map<String, dynamic>>[];
@@ -83,9 +82,12 @@ class HomeRightDrawer extends StatelessWidget {
 
   String _greeting() {
     final h = DateTime.now().hour;
-    if (h < 12) return 'Good Morning';
-    if (h < 17) return 'Good Afternoon';
-    return 'Good Evening';
+
+    if (h >= 5 && h < 12) return 'Good Morning';
+    if (h >= 12 && h < 17) return 'Good Afternoon';
+    if (h >= 17 && h < 21) return 'Good Evening';
+
+    return 'Good Night';
   }
 
   @override
@@ -108,9 +110,7 @@ class HomeRightDrawer extends StatelessWidget {
               right: 18,
               bottom: 22,
             ),
-            decoration: const BoxDecoration(
-              color: Color(0xFF080C16),
-            ),
+            decoration: const BoxDecoration(color: Color(0xFF080C16)),
             child: Row(
               children: [
                 // Avatar with golden ring + verified badge (only for verified users)
@@ -123,7 +123,10 @@ class HomeRightDrawer extends StatelessWidget {
                       padding: const EdgeInsets.all(2),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(color: AppColors.primary, width: 1.6),
+                        border: Border.all(
+                          color: AppColors.primary,
+                          width: 1.6,
+                        ),
                         boxShadow: [
                           BoxShadow(
                             color: AppColors.primary.withOpacity(0.35),
@@ -139,14 +142,20 @@ class HomeRightDrawer extends StatelessWidget {
                                 fit: BoxFit.cover,
                                 errorWidget: (_, __, ___) => Container(
                                   color: AppColors.primary.withOpacity(0.15),
-                                  child: const Icon(Icons.person,
-                                      color: AppColors.primary, size: 28),
+                                  child: const Icon(
+                                    Icons.person,
+                                    color: AppColors.primary,
+                                    size: 28,
+                                  ),
                                 ),
                               )
                             : Container(
                                 color: AppColors.primary.withOpacity(0.15),
-                                child: const Icon(Icons.person,
-                                    color: AppColors.primary, size: 28),
+                                child: const Icon(
+                                  Icons.person,
+                                  color: AppColors.primary,
+                                  size: 28,
+                                ),
                               ),
                       ),
                     ),
@@ -161,13 +170,15 @@ class HomeRightDrawer extends StatelessWidget {
                             color: const Color(0xFF0A1C40),
                             shape: BoxShape.circle,
                             border: Border.all(
-                                color: const Color(0xFF0A1C40), width: 2),
+                              color: const Color(0xFF0A1C40),
+                              width: 2,
+                            ),
                           ),
                           child: Center(
-                            child: SvgPicture.asset(
-                              'assets/icons/verified-icon.svg',
-                              width: 18,
-                              height: 18,
+                            child: Icon(
+                              Icons.verified_rounded,
+                              size: 18,
+                              color: AppColors.primary,
                             ),
                           ),
                         ),
@@ -222,8 +233,11 @@ class HomeRightDrawer extends StatelessWidget {
                       border: Border.all(color: Colors.white.withOpacity(0.09)),
                     ),
                     child: const Center(
-                      child: Icon(Icons.close_rounded,
-                          size: 18, color: Colors.white),
+                      child: Icon(
+                        Icons.close_rounded,
+                        size: 18,
+                        color: Colors.white,
+                      ),
                     ),
                   ),
                 ),
@@ -252,9 +266,7 @@ class HomeRightDrawer extends StatelessWidget {
                     Navigator.pop(context);
                     Navigator.push(
                       context,
-                      MaterialPageRoute(
-                        builder: (_) => const MyGroupsScreen(),
-                      ),
+                      MaterialPageRoute(builder: (_) => const MyGroupsScreen()),
                     );
                   },
                 ),
@@ -353,7 +365,12 @@ class HomeRightDrawer extends StatelessWidget {
                   action: 'See all',
                   onAction: () {
                     Navigator.pop(context);
-                    Navigator.push(context, MaterialPageRoute(builder: (_) => const FindServicesScreen()));
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const FindServicesScreen(),
+                      ),
+                    );
                   },
                 ),
                 const SizedBox(height: 12),
@@ -367,7 +384,10 @@ class HomeRightDrawer extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 if (followSuggestions.isNotEmpty)
-                  _SuggestedUsersRow(users: followSuggestions, onFollowChanged: onFollowChanged),
+                  _SuggestedUsersRow(
+                    users: followSuggestions,
+                    onFollowChanged: onFollowChanged,
+                  ),
 
                 // Empty state
                 if (upcomingEvents.isEmpty &&
@@ -498,11 +518,7 @@ class _SectionHeaderAction extends StatelessWidget {
                         BlendMode.srcIn,
                       ),
                     )
-                  : Icon(
-                      iconData,
-                      size: 15,
-                      color: AppColors.primary,
-                    ),
+                  : Icon(iconData, size: 15, color: AppColors.primary),
             ),
           ),
           const SizedBox(width: 10),
@@ -522,18 +538,25 @@ class _SectionHeaderAction extends StatelessWidget {
           onTap: onAction,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Text(
-                action,
-                style: GoogleFonts.inter(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: const Color(0xFFF4D68B),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  action,
+                  style: GoogleFonts.inter(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: const Color(0xFFF4D68B),
+                  ),
                 ),
-              ),
-              const SizedBox(width: 6),
-              const Icon(Icons.chevron_right_rounded, size: 16, color: Color(0xFFF4D68B)),
-            ]),
+                const SizedBox(width: 6),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 16,
+                  color: Color(0xFFF4D68B),
+                ),
+              ],
+            ),
           ),
         ),
       ],
@@ -678,7 +701,10 @@ class _UpcomingEventCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 5,
+                    ),
                     decoration: BoxDecoration(
                       color: role == 'creator'
                           ? AppColors.primary.withOpacity(0.16)
@@ -706,7 +732,11 @@ class _UpcomingEventCard extends StatelessWidget {
                       color: AppColors.primary.withOpacity(0.14),
                       border: Border.all(color: Colors.white.withOpacity(0.06)),
                     ),
-                    child: const Icon(Icons.arrow_forward_rounded, size: 17, color: AppColors.primary),
+                    child: const Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 17,
+                      color: AppColors.primary,
+                    ),
                   ),
                 ],
               ),
@@ -1000,74 +1030,99 @@ class _ServicesGrid extends StatelessWidget {
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (context, index) {
           final service = services[index];
-        final s = service is Map<String, dynamic>
-            ? service
-            : <String, dynamic>{};
-        final title =
-            s['title']?.toString() ?? s['name']?.toString() ?? 'Service';
-        final initials = title
-            .split(' ')
-            .map((w) => w.isNotEmpty ? w[0] : '')
-            .join('')
-            .toUpperCase();
-        final imgUrl = _extractServiceImage(s);
-        return GestureDetector(
-          onTap: () {
-            final svcId = s['id']?.toString();
-            Navigator.pop(context);
-            if (svcId != null && svcId.isNotEmpty) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => PublicServiceScreen(serviceId: svcId),
-                ),
-              );
-            }
-          },
-          child: Container(
-            width: 116,
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF111827).withOpacity(0.55),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.white.withOpacity(0.16), width: 1),
-              boxShadow: [
-                BoxShadow(color: Colors.black.withOpacity(0.25), blurRadius: 10, offset: const Offset(0, 4)),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Container(
-                    width: double.infinity,
-                    height: 82,
-                    color: const Color(0xFF1A3460),
-                    child: imgUrl != null
-                        ? CachedNetworkImage(
-                            imageUrl: imgUrl,
-                            fit: BoxFit.cover,
-                            errorWidget: (_, __, ___) => Center(
-                              child: Text(initials, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF8E9BB0))),
-                            ),
-                          )
-                        : Center(
-                            child: Text(initials, style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: const Color(0xFF8E9BB0))),
-                          ),
+          final s = service is Map<String, dynamic>
+              ? service
+              : <String, dynamic>{};
+          final title =
+              s['title']?.toString() ?? s['name']?.toString() ?? 'Service';
+          final initials = title
+              .split(' ')
+              .map((w) => w.isNotEmpty ? w[0] : '')
+              .join('')
+              .toUpperCase();
+          final imgUrl = _extractServiceImage(s);
+          return GestureDetector(
+            onTap: () {
+              final svcId = s['id']?.toString();
+              Navigator.pop(context);
+              if (svcId != null && svcId.isNotEmpty) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PublicServiceScreen(serviceId: svcId),
                   ),
+                );
+              }
+            },
+            child: Container(
+              width: 116,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: const Color(0xFF111827).withOpacity(0.55),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.16),
+                  width: 1,
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  title,
-                  style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: const Color(0xFFF5F5F7)),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.25),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      width: double.infinity,
+                      height: 82,
+                      color: const Color(0xFF1A3460),
+                      child: imgUrl != null
+                          ? CachedNetworkImage(
+                              imageUrl: imgUrl,
+                              fit: BoxFit.cover,
+                              errorWidget: (_, __, ___) => Center(
+                                child: Text(
+                                  initials,
+                                  style: GoogleFonts.inter(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w700,
+                                    color: const Color(0xFF8E9BB0),
+                                  ),
+                                ),
+                              ),
+                            )
+                          : Center(
+                              child: Text(
+                                initials,
+                                style: GoogleFonts.inter(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: const Color(0xFF8E9BB0),
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    title,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFFF5F5F7),
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
-          ),
-        );
+          );
         },
       ),
     );
@@ -1095,28 +1150,65 @@ class _MomentsPromoCard extends StatelessWidget {
           ],
         ),
       ),
-      child: Row(children: [
-        Expanded(
-          child: Text.rich(
-            TextSpan(children: [
-              const TextSpan(text: 'Everything you need\n'),
-              const TextSpan(text: 'to create '),
-              TextSpan(text: 'unforgettable\n', style: GoogleFonts.inter(color: const Color(0xFFCBB4FF), fontWeight: FontWeight.w600)),
-              const TextSpan(text: 'moments.'),
-            ]),
-            style: GoogleFonts.inter(fontSize: 13, height: 1.45, color: const Color(0xFFEDEBFF), fontWeight: FontWeight.w500),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  const TextSpan(text: 'Everything you need\n'),
+                  const TextSpan(text: 'to create '),
+                  TextSpan(
+                    text: 'unforgettable\n',
+                    style: GoogleFonts.inter(
+                      color: const Color(0xFFCBB4FF),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const TextSpan(text: 'moments.'),
+                ],
+              ),
+              style: GoogleFonts.inter(
+                fontSize: 13,
+                height: 1.45,
+                color: const Color(0xFFEDEBFF),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
-        ),
-        SizedBox(
-          width: 96,
-          child: Stack(alignment: Alignment.center, children: [
-            Container(width: 72, height: 52, decoration: BoxDecoration(color: const Color(0xFF7C55C7).withOpacity(0.35), borderRadius: BorderRadius.circular(32))),
-            Positioned(left: 12, top: 16, child: _Orb(size: 34, color: const Color(0xFFB998FF))),
-            Positioned(left: 42, top: 8, child: _Orb(size: 44, color: const Color(0xFF8D63DC))),
-            Positioned(right: 4, bottom: 14, child: _Orb(size: 18, color: const Color(0xFFD7B8FF))),
-          ]),
-        ),
-      ]),
+          SizedBox(
+            width: 96,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: 72,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF7C55C7).withOpacity(0.35),
+                    borderRadius: BorderRadius.circular(32),
+                  ),
+                ),
+                Positioned(
+                  left: 12,
+                  top: 16,
+                  child: _Orb(size: 34, color: const Color(0xFFB998FF)),
+                ),
+                Positioned(
+                  left: 42,
+                  top: 8,
+                  child: _Orb(size: 44, color: const Color(0xFF8D63DC)),
+                ),
+                Positioned(
+                  right: 4,
+                  bottom: 14,
+                  child: _Orb(size: 18, color: const Color(0xFFD7B8FF)),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1131,7 +1223,9 @@ class _Orb extends StatelessWidget {
     height: size,
     decoration: BoxDecoration(
       shape: BoxShape.circle,
-      gradient: RadialGradient(colors: [color.withOpacity(0.95), color.withOpacity(0.45)]),
+      gradient: RadialGradient(
+        colors: [color.withOpacity(0.95), color.withOpacity(0.45)],
+      ),
       boxShadow: [BoxShadow(color: color.withOpacity(0.35), blurRadius: 16)],
     ),
   );
@@ -1183,7 +1277,9 @@ class _SuggestionMiniCardState extends State<_SuggestionMiniCard> {
     final lastName = user['last_name']?.toString() ?? '';
     final fullName = '$firstName $lastName'.trim();
     final username = user['username']?.toString() ?? '';
-    final avatar = (user['avatar'] ?? user['profile_picture_url'] ?? user['avatar_url'])?.toString();
+    final avatar =
+        (user['avatar'] ?? user['profile_picture_url'] ?? user['avatar_url'])
+            ?.toString();
     final initial = (fullName.isNotEmpty ? fullName : username).isNotEmpty
         ? (fullName.isNotEmpty ? fullName : username)[0].toUpperCase()
         : '?';
@@ -1193,7 +1289,10 @@ class _SuggestionMiniCardState extends State<_SuggestionMiniCard> {
         final uid = user['id']?.toString() ?? '';
         if (uid.isEmpty) return;
         Navigator.pop(context);
-        Navigator.push(context, MaterialPageRoute(builder: (_) => PublicProfileScreen(userId: uid)));
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => PublicProfileScreen(userId: uid)),
+        );
       },
       child: Container(
         width: 136,
@@ -1210,7 +1309,11 @@ class _SuggestionMiniCardState extends State<_SuggestionMiniCard> {
           borderRadius: BorderRadius.circular(18),
           border: Border.all(color: Colors.white.withOpacity(0.14), width: 1),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.28), blurRadius: 12, offset: const Offset(0, 4)),
+            BoxShadow(
+              color: Colors.black.withOpacity(0.28),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
           ],
         ),
         child: Column(
@@ -1223,23 +1326,58 @@ class _SuggestionMiniCardState extends State<_SuggestionMiniCard> {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: const Color(0xFFF6F0DD),
-                border: Border.all(color: Colors.white.withOpacity(0.25), width: 2),
+                border: Border.all(
+                  color: Colors.white.withOpacity(0.25),
+                  width: 2,
+                ),
                 boxShadow: [
-                  BoxShadow(color: AppColors.primary.withOpacity(0.25), blurRadius: 14, offset: const Offset(0, 3)),
+                  BoxShadow(
+                    color: AppColors.primary.withOpacity(0.25),
+                    blurRadius: 14,
+                    offset: const Offset(0, 3),
+                  ),
                 ],
               ),
               clipBehavior: Clip.antiAlias,
               child: avatar != null && avatar.isNotEmpty
-                  ? CachedNetworkImage(imageUrl: avatar, fit: BoxFit.cover, errorWidget: (_, __, ___) => Center(child: Text(initial, style: GoogleFonts.inter(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.primary))))
-                  : Center(child: Text(initial, style: GoogleFonts.inter(fontSize: 24, fontWeight: FontWeight.w800, color: AppColors.primary))),
+                  ? CachedNetworkImage(
+                      imageUrl: avatar,
+                      fit: BoxFit.cover,
+                      errorWidget: (_, __, ___) => Center(
+                        child: Text(
+                          initial,
+                          style: GoogleFonts.inter(
+                            fontSize: 24,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                    )
+                  : Center(
+                      child: Text(
+                        initial,
+                        style: GoogleFonts.inter(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.primary,
+                        ),
+                      ),
+                    ),
             ),
             const SizedBox(height: 10),
             Text(
-              fullName.isNotEmpty ? fullName : (username.isNotEmpty ? '@$username' : '—'),
+              fullName.isNotEmpty
+                  ? fullName
+                  : (username.isNotEmpty ? '@$username' : '—'),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 12.5, fontWeight: FontWeight.w700, color: const Color(0xFFF5F5F7)),
+              style: GoogleFonts.inter(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFFF5F5F7),
+              ),
             ),
             const SizedBox(height: 2),
             Text(
@@ -1247,7 +1385,10 @@ class _SuggestionMiniCardState extends State<_SuggestionMiniCard> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
-              style: GoogleFonts.inter(fontSize: 10.5, color: const Color(0xFF8E9BB0)),
+              style: GoogleFonts.inter(
+                fontSize: 10.5,
+                color: const Color(0xFF8E9BB0),
+              ),
             ),
             const SizedBox(height: 10),
             GestureDetector(
@@ -1258,7 +1399,11 @@ class _SuggestionMiniCardState extends State<_SuggestionMiniCard> {
                       if (id.isEmpty) return;
                       setState(() => _loading = true);
                       await SocialService.followUser(id);
-                      if (mounted) setState(() { _loading = false; _followed = true; });
+                      if (mounted)
+                        setState(() {
+                          _loading = false;
+                          _followed = true;
+                        });
                       widget.onFollowChanged?.call();
                     },
               child: Container(
@@ -1267,17 +1412,39 @@ class _SuggestionMiniCardState extends State<_SuggestionMiniCard> {
                 decoration: BoxDecoration(
                   gradient: _followed
                       ? null
-                      : LinearGradient(colors: [AppColors.primary, AppColors.primary.withOpacity(0.85)]),
+                      : LinearGradient(
+                          colors: [
+                            AppColors.primary,
+                            AppColors.primary.withOpacity(0.85),
+                          ],
+                        ),
                   color: _followed ? Colors.white.withOpacity(0.06) : null,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: _followed ? Colors.white.withOpacity(0.18) : Colors.transparent),
+                  border: Border.all(
+                    color: _followed
+                        ? Colors.white.withOpacity(0.18)
+                        : Colors.transparent,
+                  ),
                 ),
                 child: Center(
                   child: _loading
-                      ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      ? const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
                       : Text(
-                          _followed ? context.trw('following') : '+ ${context.trw('follow')}',
-                          style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white),
+                          _followed
+                              ? context.trw('following')
+                              : '+ ${context.trw('follow')}',
+                          style: GoogleFonts.inter(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
                         ),
                 ),
               ),
@@ -1682,7 +1849,8 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
                       eventId: m['event_id']?.toString() ?? '',
                       meetingId: m['id']?.toString() ?? '',
                       roomId: m['room_id']?.toString() ?? '',
-                      eventName: m['event_name']?.toString() ??
+                      eventName:
+                          m['event_name']?.toString() ??
                           m['event_title']?.toString(),
                     ),
                   ),
@@ -1691,7 +1859,9 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
               child: Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: isLive ? const Color(0x0A22C55E) : const Color(0xFF12284F),
+                  color: isLive
+                      ? const Color(0x0A22C55E)
+                      : const Color(0xFF12284F),
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: isLive
@@ -1854,6 +2024,7 @@ class _Thumbnail extends StatelessWidget {
   final String fallbackSvg;
   final double size;
   final double radius;
+
   /// When true, missing/broken images render the branded Nuru event default
   /// asset instead of the SVG glyph.
   final bool useEventFallback;
@@ -2229,7 +2400,11 @@ class _QuickTile extends StatelessWidget {
   final String iconAsset;
   final String label;
   final VoidCallback onTap;
-  const _QuickTile({required this.iconAsset, required this.label, required this.onTap});
+  const _QuickTile({
+    required this.iconAsset,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {

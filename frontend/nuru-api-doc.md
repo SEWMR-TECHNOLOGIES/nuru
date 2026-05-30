@@ -1,4 +1,3 @@
-
 ---
 
 # 📘 NURU PLATFORM - COMPLETE API DOCUMENTATION
@@ -67,6 +66,7 @@ All paginated endpoints use the following query parameters and response structur
 ---
 
 ## 1.1 Sign Up
+
 Creates a new user account.
 
 ```
@@ -76,6 +76,7 @@ Authentication: None
 ```
 
 **Request Body:**
+
 ```json
 {
   "first_name": "John",
@@ -88,17 +89,18 @@ Authentication: None
 }
 ```
 
-| Field | Type | Required | Validation |
-|-------|------|----------|------------|
-| first_name | string | Yes | Min 2 chars, max 50 chars, letters only |
-| last_name | string | Yes | Min 2 chars, max 50 chars, letters only |
-| username | string | Yes | Min 3 chars, max 30 chars, alphanumeric and underscores only, must be unique |
-| email | string | Yes | Valid email format, must be unique |
-| phone | string | Yes | Valid phone format with country code, must be unique |
-| password | string | Yes | Min 8 chars, must contain uppercase, lowercase, number |
-| registered_by | string | No | Name of the person registering this user. When provided, a welcome SMS is sent to the new user with the registerer's name, login password, and the Nuru link (https://nuru.tz). Used for inline registration from committee/guest search. |
+| Field         | Type   | Required | Validation                                                                                                                                                                                                                                |
+| ------------- | ------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| first_name    | string | Yes      | Min 2 chars, max 50 chars, letters only                                                                                                                                                                                                   |
+| last_name     | string | Yes      | Min 2 chars, max 50 chars, letters only                                                                                                                                                                                                   |
+| username      | string | Yes      | Min 3 chars, max 30 chars, alphanumeric and underscores only, must be unique                                                                                                                                                              |
+| email         | string | Yes      | Valid email format, must be unique                                                                                                                                                                                                        |
+| phone         | string | Yes      | Valid phone format with country code, must be unique                                                                                                                                                                                      |
+| password      | string | Yes      | Min 8 chars, must contain uppercase, lowercase, number                                                                                                                                                                                    |
+| registered_by | string | No       | Name of the person registering this user. When provided, a welcome SMS is sent to the new user with the registerer's name, login password, and the Nuru link (https://nuru.tz). Used for inline registration from committee/guest search. |
 
 **Success Response (201 Created):**
+
 ```json
 {
   "success": true,
@@ -112,6 +114,7 @@ Authentication: None
 **Error Responses:**
 
 400 Bad Request - Validation Error:
+
 ```json
 {
   "success": false,
@@ -130,6 +133,7 @@ Authentication: None
 ```
 
 409 Conflict - Duplicate Entry:
+
 ```json
 {
   "success": false,
@@ -144,6 +148,7 @@ Authentication: None
 ```
 
 ## 1.1.1 Check Username Availability
+
 Checks if a username is available and returns smart suggestions based on the user's name if taken.
 
 ```
@@ -153,18 +158,20 @@ Authentication: None (public endpoint)
 
 **Query Parameters:**
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| username | string | Yes | The username to check (min 3 chars, alphanumeric + underscores) |
-| first_name | string | No | User's first name — used to generate smarter suggestions |
-| last_name | string | No | User's last name — used to generate smarter suggestions |
+| Parameter  | Type   | Required | Description                                                     |
+| ---------- | ------ | -------- | --------------------------------------------------------------- |
+| username   | string | Yes      | The username to check (min 3 chars, alphanumeric + underscores) |
+| first_name | string | No       | User's first name — used to generate smarter suggestions        |
+| last_name  | string | No       | User's last name — used to generate smarter suggestions         |
 
 **Example Request:**
+
 ```
 GET /users/check-username?username=johndoe&first_name=John&last_name=Doe
 ```
 
 **Success Response — Available:**
+
 ```json
 {
   "success": true,
@@ -177,6 +184,7 @@ GET /users/check-username?username=johndoe&first_name=John&last_name=Doe
 ```
 
 **Success Response — Taken (with suggestions):**
+
 ```json
 {
   "success": true,
@@ -192,6 +200,7 @@ GET /users/check-username?username=johndoe&first_name=John&last_name=Doe
 ---
 
 ## 1.2 Sign In
+
 Authenticates a user and returns access token.
 
 ```
@@ -201,6 +210,7 @@ Authentication: None
 ```
 
 **Request Body:**
+
 ```json
 {
   "credential": "john@example.com",
@@ -208,12 +218,13 @@ Authentication: None
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| credential | string | Yes | Can be email, phone number, or username |
-| password | string | Yes | User's password |
+| Field      | Type   | Required | Description                             |
+| ---------- | ------ | -------- | --------------------------------------- |
+| credential | string | Yes      | Can be email, phone number, or username |
+| password   | string | Yes      | User's password                         |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -245,6 +256,7 @@ Authentication: None
 **Error Responses:**
 
 401 Unauthorized - Invalid Credentials:
+
 ```json
 {
   "success": false,
@@ -253,6 +265,7 @@ Authentication: None
 ```
 
 403 Forbidden - Email Not Verified:
+
 ```json
 {
   "success": false,
@@ -265,6 +278,7 @@ Authentication: None
 ```
 
 403 Forbidden - Account Suspended:
+
 ```json
 {
   "success": false,
@@ -275,6 +289,7 @@ Authentication: None
 ---
 
 ## 1.3 Logout
+
 Invalidates the current access token.
 
 ```
@@ -286,6 +301,7 @@ Authorization: Bearer {access_token}
 **Request Body:** None
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -294,6 +310,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Error Response (401 Unauthorized):**
+
 ```json
 {
   "success": false,
@@ -304,6 +321,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 1.4 Refresh Token
+
 Refreshes an expired access token.
 
 ```
@@ -313,6 +331,7 @@ Authentication: None
 ```
 
 **Request Body:**
+
 ```json
 {
   "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
@@ -320,6 +339,7 @@ Authentication: None
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -334,6 +354,7 @@ Authentication: None
 ```
 
 **Error Response (401 Unauthorized):**
+
 ```json
 {
   "success": false,
@@ -344,6 +365,7 @@ Authentication: None
 ---
 
 ## 1.5 Get Current User
+
 Returns the authenticated user's profile.
 
 ```
@@ -352,6 +374,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -382,6 +405,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 1.6 Verify OTP
+
 Verifies email or phone using OTP code.
 
 ```
@@ -391,6 +415,7 @@ Authentication: None
 ```
 
 **Request Body:**
+
 ```json
 {
   "user_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -399,13 +424,14 @@ Authentication: None
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| user_id | uuid | Yes | User's unique identifier |
-| verification_type | string | Yes | Either "email" or "phone" |
-| otp_code | string | Yes | 6-digit OTP code |
+| Field             | Type   | Required | Description               |
+| ----------------- | ------ | -------- | ------------------------- |
+| user_id           | uuid   | Yes      | User's unique identifier  |
+| verification_type | string | Yes      | Either "email" or "phone" |
+| otp_code          | string | Yes      | 6-digit OTP code          |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -421,6 +447,7 @@ Authentication: None
 **Error Responses:**
 
 400 Bad Request - Invalid OTP:
+
 ```json
 {
   "success": false,
@@ -429,6 +456,7 @@ Authentication: None
 ```
 
 400 Bad Request - Expired OTP:
+
 ```json
 {
   "success": false,
@@ -437,6 +465,7 @@ Authentication: None
 ```
 
 404 Not Found:
+
 ```json
 {
   "success": false,
@@ -447,6 +476,7 @@ Authentication: None
 ---
 
 ## 1.7 Request OTP
+
 Sends a new OTP code to user's email or phone.
 
 ```
@@ -456,6 +486,7 @@ Authentication: None
 ```
 
 **Request Body:**
+
 ```json
 {
   "user_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -464,6 +495,7 @@ Authentication: None
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -480,6 +512,7 @@ Authentication: None
 **Error Responses:**
 
 404 Not Found:
+
 ```json
 {
   "success": false,
@@ -488,6 +521,7 @@ Authentication: None
 ```
 
 429 Too Many Requests:
+
 ```json
 {
   "success": false,
@@ -501,6 +535,7 @@ Authentication: None
 ---
 
 ## 1.8 Forgot Password
+
 Initiates password reset process.
 
 ```
@@ -510,6 +545,7 @@ Authentication: None
 ```
 
 **Request Body:**
+
 ```json
 {
   "email": "john@example.com"
@@ -517,6 +553,7 @@ Authentication: None
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -525,6 +562,7 @@ Authentication: None
 ```
 
 **Error Response (404 Not Found):**
+
 ```json
 {
   "success": false,
@@ -535,6 +573,7 @@ Authentication: None
 ---
 
 ## 1.9 Reset Password
+
 Resets password using reset token.
 
 ```
@@ -544,6 +583,7 @@ Authentication: None
 ```
 
 **Request Body:**
+
 ```json
 {
   "token": "abc123def456...",
@@ -552,13 +592,14 @@ Authentication: None
 }
 ```
 
-| Field | Type | Required | Validation |
-|-------|------|----------|------------|
-| token | string | Yes | Reset token from email link |
-| password | string | Yes | Min 8 chars, must contain uppercase, lowercase, number |
-| password_confirmation | string | Yes | Must match password |
+| Field                 | Type   | Required | Validation                                             |
+| --------------------- | ------ | -------- | ------------------------------------------------------ |
+| token                 | string | Yes      | Reset token from email link                            |
+| password              | string | Yes      | Min 8 chars, must contain uppercase, lowercase, number |
+| password_confirmation | string | Yes      | Must match password                                    |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -569,6 +610,7 @@ Authentication: None
 **Error Responses:**
 
 400 Bad Request - Invalid Token:
+
 ```json
 {
   "success": false,
@@ -577,6 +619,7 @@ Authentication: None
 ```
 
 400 Bad Request - Password Mismatch:
+
 ```json
 {
   "success": false,
@@ -591,6 +634,7 @@ Authentication: None
 ---
 
 ## 2.1 Get All Event Types
+
 Returns all available event types.
 
 ```
@@ -599,6 +643,7 @@ Authentication: None
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -711,6 +756,7 @@ Authentication: None
 ---
 
 ## 2.2 Get All Service Categories
+
 Returns all available service categories.
 
 ```
@@ -719,6 +765,7 @@ Authentication: None
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -863,6 +910,7 @@ Authentication: None
 ---
 
 ## 2.3 Get Service Types by Category
+
 Returns all service types within a specific category.
 
 ```
@@ -876,11 +924,13 @@ Authentication: None
 | categoryId | uuid | Yes | Service category ID |
 
 **Example Request:**
+
 ```
 GET /references/service-types/category/650e8400-e29b-41d4-a716-446655440001
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -941,6 +991,7 @@ GET /references/service-types/category/650e8400-e29b-41d4-a716-446655440001
 ```
 
 **Error Response (404 Not Found):**
+
 ```json
 {
   "success": false,
@@ -951,6 +1002,7 @@ GET /references/service-types/category/650e8400-e29b-41d4-a716-446655440001
 ---
 
 ## 2.4 Get KYC Requirements for Service Type
+
 Returns all KYC requirements for a specific service type.
 
 ```
@@ -964,11 +1016,13 @@ Authentication: None
 | serviceTypeId | uuid | Yes | Service type ID |
 
 **Example Request:**
+
 ```
 GET /references/service-types/750e8400-e29b-41d4-a716-446655440001/kyc
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -1041,6 +1095,7 @@ GET /references/service-types/750e8400-e29b-41d4-a716-446655440001/kyc
 ---
 
 ## 2.5 Get All Currencies
+
 Returns all supported currencies.
 
 ```
@@ -1049,6 +1104,7 @@ Authentication: None
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -1109,6 +1165,7 @@ Authentication: None
 ---
 
 ## 2.6 Get All Countries
+
 Returns all supported countries.
 
 ```
@@ -1117,6 +1174,7 @@ Authentication: None
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -1181,6 +1239,7 @@ Authentication: None
 ---
 
 ## 3.1 Get All User Events
+
 Returns all events created by the authenticated user.
 
 ```
@@ -1202,16 +1261,26 @@ Authorization: Bearer {access_token}
 **Query Parameters:** `page` (int, default 1), `limit` (int, default 20)
 
 **Success Response:**
+
 ```json
 {
   "success": true,
   "data": {
     "events": [
       {
-        "id": "uuid", "title": "Wedding", "event_type": {"id": "uuid", "name": "Wedding"},
-        "start_date": "2025-08-15", "start_time": "14:00", "location": "Dar es Salaam",
-        "organizer": {"name": "Jane Doe"},
-        "invitation": {"id": "uuid", "rsvp_status": "pending", "invitation_code": "ABC123", "invited_at": "2025-06-01T10:00:00"},
+        "id": "uuid",
+        "title": "Wedding",
+        "event_type": { "id": "uuid", "name": "Wedding" },
+        "start_date": "2025-08-15",
+        "start_time": "14:00",
+        "location": "Dar es Salaam",
+        "organizer": { "name": "Jane Doe" },
+        "invitation": {
+          "id": "uuid",
+          "rsvp_status": "pending",
+          "invitation_code": "ABC123",
+          "invited_at": "2025-06-01T10:00:00"
+        },
         "attendee_id": "uuid"
       }
     ],
@@ -1234,20 +1303,31 @@ Authorization: Bearer {access_token}
 **Query Parameters:** `page` (int, default 1), `limit` (int, default 20)
 
 **Success Response:**
+
 ```json
 {
   "success": true,
   "data": {
     "events": [
       {
-        "id": "uuid", "title": "Corporate Gala", "event_type": {"id": "uuid", "name": "Corporate"},
-        "start_date": "2025-09-20", "location": "Arusha",
-        "organizer": {"name": "John Doe"},
+        "id": "uuid",
+        "title": "Corporate Gala",
+        "event_type": { "id": "uuid", "name": "Corporate" },
+        "start_date": "2025-09-20",
+        "location": "Arusha",
+        "organizer": { "name": "John Doe" },
         "committee_membership": {
-          "id": "uuid", "role": "Coordinator", "role_description": "Manages logistics",
-          "permissions": {"can_view_guests": true, "can_manage_guests": true, "can_edit_event": false}
+          "id": "uuid",
+          "role": "Coordinator",
+          "role_description": "Manages logistics",
+          "permissions": {
+            "can_view_guests": true,
+            "can_manage_guests": true,
+            "can_edit_event": false
+          }
         },
-        "guest_count": 150, "confirmed_guest_count": 80
+        "guest_count": 150,
+        "confirmed_guest_count": 80
       }
     ],
     "pagination": { "page": 1, "limit": 20, "total_items": 1, "total_pages": 1 }
@@ -1267,13 +1347,28 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response:**
+
 ```json
 {
   "success": true,
   "data": {
-    "event": {"id": "uuid", "title": "Wedding", "event_type": "Wedding", "start_date": "2025-08-15", "start_time": "14:00", "location": "Dar es Salaam", "venue": "Serena Hotel", "theme_color": "#FF6B6B", "dress_code": "Formal"},
-    "guest": {"name": "Alice Smith", "attendee_id": "uuid", "rsvp_status": "confirmed"},
-    "organizer": {"name": "Jane Doe"},
+    "event": {
+      "id": "uuid",
+      "title": "Wedding",
+      "event_type": "Wedding",
+      "start_date": "2025-08-15",
+      "start_time": "14:00",
+      "location": "Dar es Salaam",
+      "venue": "Serena Hotel",
+      "theme_color": "#FF6B6B",
+      "dress_code": "Formal"
+    },
+    "guest": {
+      "name": "Alice Smith",
+      "attendee_id": "uuid",
+      "rsvp_status": "confirmed"
+    },
+    "organizer": { "name": "Jane Doe" },
     "invitation_code": "ABC123",
     "qr_code_data": "nuru://event/uuid/checkin/uuid",
     "rsvp_deadline": "2025-08-01T23:59:59"
@@ -1292,6 +1387,7 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "rsvp_status": "confirmed",
@@ -1301,14 +1397,15 @@ Content-Type: application/json
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| rsvp_status | string | Yes | Response status: confirmed, declined, pending |
-| meal_preference | string | No | Guest's meal preference |
-| dietary_restrictions | string | No | Dietary restrictions |
-| special_requests | string | No | Special requests or notes |
+| Field                | Type   | Required | Description                                   |
+| -------------------- | ------ | -------- | --------------------------------------------- |
+| rsvp_status          | string | Yes      | Response status: confirmed, declined, pending |
+| meal_preference      | string | No       | Guest's meal preference                       |
+| dietary_restrictions | string | No       | Dietary restrictions                          |
+| special_requests     | string | No       | Special requests or notes                     |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -1325,6 +1422,7 @@ Content-Type: application/json
 **Error Responses:**
 
 400 Bad Request - Invalid Status:
+
 ```json
 {
   "success": false,
@@ -1333,6 +1431,7 @@ Content-Type: application/json
 ```
 
 404 Not Found - No Invitation:
+
 ```json
 {
   "success": false,
@@ -1341,6 +1440,7 @@ Content-Type: application/json
 ```
 
 ## 1.1.1 Check Username Availability
+
 Checks if a username is available and returns smart suggestions based on the user's name if taken.
 
 ```
@@ -1350,18 +1450,20 @@ Authentication: None (public endpoint)
 
 **Query Parameters:**
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| username | string | Yes | The username to check (min 3 chars, alphanumeric + underscores) |
-| first_name | string | No | User's first name — used to generate smarter suggestions |
-| last_name | string | No | User's last name — used to generate smarter suggestions |
+| Parameter  | Type   | Required | Description                                                     |
+| ---------- | ------ | -------- | --------------------------------------------------------------- |
+| username   | string | Yes      | The username to check (min 3 chars, alphanumeric + underscores) |
+| first_name | string | No       | User's first name — used to generate smarter suggestions        |
+| last_name  | string | No       | User's last name — used to generate smarter suggestions         |
 
 **Example Request:**
+
 ```
 GET /users/check-username?username=johndoe&first_name=John&last_name=Doe
 ```
 
 **Success Response — Available:**
+
 ```json
 {
   "success": true,
@@ -1374,6 +1476,7 @@ GET /users/check-username?username=johndoe&first_name=John&last_name=Doe
 ```
 
 **Success Response — Taken (with suggestions):**
+
 ```json
 {
   "success": true,
@@ -1381,18 +1484,13 @@ GET /users/check-username?username=johndoe&first_name=John&last_name=Doe
   "data": {
     "available": false,
     "username": "johndoe",
-    "suggestions": [
-      "john_doe",
-      "johnd",
-      "johndoe42",
-      "john_doe3",
-      "johndoe_tz"
-    ]
+    "suggestions": ["john_doe", "johnd", "johndoe42", "john_doe3", "johndoe_tz"]
   }
 }
 ```
 
 **Error Response — Invalid username:**
+
 ```json
 {
   "success": false,
@@ -1401,6 +1499,7 @@ GET /users/check-username?username=johndoe&first_name=John&last_name=Doe
 ```
 
 ## 1.1.1 Check Username Availability
+
 Checks if a username is available and returns smart suggestions based on the user's name if taken.
 
 ```
@@ -1410,18 +1509,20 @@ Authentication: None (public endpoint)
 
 **Query Parameters:**
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| username | string | Yes | The username to check (min 3 chars, alphanumeric + underscores) |
-| first_name | string | No | User's first name — used to generate smarter suggestions |
-| last_name | string | No | User's last name — used to generate smarter suggestions |
+| Parameter  | Type   | Required | Description                                                     |
+| ---------- | ------ | -------- | --------------------------------------------------------------- |
+| username   | string | Yes      | The username to check (min 3 chars, alphanumeric + underscores) |
+| first_name | string | No       | User's first name — used to generate smarter suggestions        |
+| last_name  | string | No       | User's last name — used to generate smarter suggestions         |
 
 **Example Request:**
+
 ```
 GET /users/check-username?username=johndoe&first_name=John&last_name=Doe
 ```
 
 **Success Response — Available:**
+
 ```json
 {
   "success": true,
@@ -1434,6 +1535,7 @@ GET /users/check-username?username=johndoe&first_name=John&last_name=Doe
 ```
 
 **Success Response — Taken (with suggestions):**
+
 ```json
 {
   "success": true,
@@ -1441,18 +1543,13 @@ GET /users/check-username?username=johndoe&first_name=John&last_name=Doe
   "data": {
     "available": false,
     "username": "johndoe",
-    "suggestions": [
-      "john_doe",
-      "johnd",
-      "johndoe42",
-      "john_doe3",
-      "johndoe_tz"
-    ]
+    "suggestions": ["john_doe", "johnd", "johndoe42", "john_doe3", "johndoe_tz"]
   }
 }
 ```
 
 **Error Response — Invalid username:**
+
 ```json
 {
   "success": false,
@@ -1461,7 +1558,6 @@ GET /users/check-username?username=johndoe&first_name=John&last_name=Doe
 ```
 
 ---
-
 
 **Query Parameters:**
 | Parameter | Type | Required | Default | Description |
@@ -1473,6 +1569,7 @@ GET /users/check-username?username=johndoe&first_name=John&last_name=Doe
 | sort_order | string | No | desc | Sort order: asc, desc |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -1520,7 +1617,7 @@ GET /users/check-username?username=johndoe&first_name=John&last_name=Doe
         "theme_color": "#FF6B6B",
         "is_public": true,
         "status": "published",
-        "budget": 500000.00,
+        "budget": 500000.0,
         "currency": "KES",
         "expected_guests": 200,
         "guest_count": 150,
@@ -1528,8 +1625,8 @@ GET /users/check-username?username=johndoe&first_name=John&last_name=Doe
         "pending_guest_count": 45,
         "declined_guest_count": 16,
         "checked_in_count": 0,
-        "contribution_target": 1000000.00,
-        "contribution_total": 456000.00,
+        "contribution_target": 1000000.0,
+        "contribution_total": 456000.0,
         "contribution_count": 34,
         "committee_count": 5,
         "service_booking_count": 8,
@@ -1562,7 +1659,7 @@ GET /users/check-username?username=johndoe&first_name=John&last_name=Doe
         "theme_color": "#4ECDC4",
         "is_public": false,
         "status": "draft",
-        "budget": 150000.00,
+        "budget": 150000.0,
         "currency": "KES",
         "expected_guests": 60,
         "guest_count": 50,
@@ -1594,6 +1691,7 @@ GET /users/check-username?username=johndoe&first_name=John&last_name=Doe
 ---
 
 ## 3.2 Get Single Event
+
 Returns detailed information about a specific event.
 
 ```
@@ -1607,6 +1705,7 @@ Authorization: Bearer {access_token}
 | eventId | uuid | Yes | Event unique identifier |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -1664,13 +1763,13 @@ Authorization: Bearer {access_token}
     "theme_color": "#FF6B6B",
     "is_public": true,
     "status": "published",
-    "budget": 500000.00,
+    "budget": 500000.0,
     "currency": "KES",
     "dress_code": "Formal - Black tie optional",
     "special_instructions": "Please arrive 30 minutes before the ceremony starts. Parking is available at the venue.",
     "rsvp_deadline": "2025-06-01T23:59:59Z",
     "contribution_enabled": true,
-    "contribution_target": 1000000.00,
+    "contribution_target": 1000000.0,
     "contribution_description": "Help us start our new life together. Your generous contributions will go towards our honeymoon fund.",
     "expected_guests": 200,
     "guest_count": 150,
@@ -1678,7 +1777,7 @@ Authorization: Bearer {access_token}
     "pending_guest_count": 45,
     "declined_guest_count": 16,
     "checked_in_count": 0,
-    "contribution_total": 456000.00,
+    "contribution_total": 456000.0,
     "contribution_count": 34,
     "guests": [
       {
@@ -1764,7 +1863,7 @@ Authorization: Bearer {access_token}
         "contributor_email": "james@example.com",
         "contributor_phone": "+254712345683",
         "contributor_user_id": "550e8400-e29b-41d4-a716-446655440020",
-        "amount": 50000.00,
+        "amount": 50000.0,
         "currency": "KES",
         "payment_method": "mpesa",
         "payment_reference": "QK7JH8L9M2",
@@ -1781,7 +1880,7 @@ Authorization: Bearer {access_token}
         "contributor_email": null,
         "contributor_phone": null,
         "contributor_user_id": null,
-        "amount": 25000.00,
+        "amount": 25000.0,
         "currency": "KES",
         "payment_method": "bank_transfer",
         "payment_reference": "TRF123456789",
@@ -1808,7 +1907,7 @@ Authorization: Bearer {access_token}
         },
         "package_id": "h50e8400-e29b-41d4-a716-446655440001",
         "package_name": "Platinum Package",
-        "quoted_price": 150000.00,
+        "quoted_price": 150000.0,
         "currency": "KES",
         "status": "confirmed",
         "notes": "Full day coverage with 2 photographers",
@@ -1830,7 +1929,7 @@ Authorization: Bearer {access_token}
         },
         "package_id": null,
         "package_name": null,
-        "quoted_price": 200000.00,
+        "quoted_price": 200000.0,
         "currency": "KES",
         "status": "pending",
         "notes": "150 guests, buffet style",
@@ -1896,8 +1995,8 @@ Authorization: Bearer {access_token}
         "event_id": "b50e8400-e29b-41d4-a716-446655440001",
         "category": "Venue",
         "item_name": "Venue Rental",
-        "estimated_cost": 100000.00,
-        "actual_cost": 95000.00,
+        "estimated_cost": 100000.0,
+        "actual_cost": 95000.0,
         "vendor_name": "The Great Rift Valley Lodge",
         "status": "paid",
         "notes": "Includes setup and cleanup",
@@ -1908,8 +2007,8 @@ Authorization: Bearer {access_token}
         "event_id": "b50e8400-e29b-41d4-a716-446655440001",
         "category": "Photography",
         "item_name": "Wedding Photography",
-        "estimated_cost": 150000.00,
-        "actual_cost": 150000.00,
+        "estimated_cost": 150000.0,
+        "actual_cost": 150000.0,
         "vendor_name": "David Mwangi Photography",
         "status": "deposit_paid",
         "notes": "50% deposit paid",
@@ -1920,7 +2019,7 @@ Authorization: Bearer {access_token}
         "event_id": "b50e8400-e29b-41d4-a716-446655440001",
         "category": "Catering",
         "item_name": "Food & Beverages",
-        "estimated_cost": 200000.00,
+        "estimated_cost": 200000.0,
         "actual_cost": null,
         "vendor_name": "Taste of Africa",
         "status": "pending",
@@ -1935,6 +2034,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Error Response (404 Not Found):**
+
 ```json
 {
   "success": false,
@@ -1943,6 +2043,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Error Response (403 Forbidden):**
+
 ```json
 {
   "success": false,
@@ -1953,6 +2054,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 3.3 Create Event
+
 Creates a new event.
 
 ```
@@ -1988,6 +2090,7 @@ Content-Type: multipart/form-data
 | expected_guests | integer | No | Expected number of guests |
 
 **Success Response (201 Created):**
+
 ```json
 {
   "success": true,
@@ -2017,7 +2120,7 @@ Content-Type: multipart/form-data
     "theme_color": "#45B7D1",
     "is_public": false,
     "status": "draft",
-    "budget": 1000000.00,
+    "budget": 1000000.0,
     "currency": "KES",
     "dress_code": "Business Formal",
     "special_instructions": null,
@@ -2042,6 +2145,7 @@ Content-Type: multipart/form-data
 ```
 
 **Error Response (400 Bad Request):**
+
 ```json
 {
   "success": false,
@@ -2062,6 +2166,7 @@ Content-Type: multipart/form-data
 ---
 
 ## 3.4 Update Event
+
 Updates an existing event.
 
 ```
@@ -2103,6 +2208,7 @@ Content-Type: multipart/form-data
 | contribution_description | string | No | Contribution description |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -2132,13 +2238,13 @@ Content-Type: multipart/form-data
     "theme_color": "#FF6B6B",
     "is_public": true,
     "status": "published",
-    "budget": 550000.00,
+    "budget": 550000.0,
     "currency": "KES",
     "dress_code": "Formal - Black tie optional",
     "special_instructions": "Please arrive 30 minutes before the ceremony.",
     "rsvp_deadline": "2025-06-01T23:59:59Z",
     "contribution_enabled": true,
-    "contribution_target": 1000000.00,
+    "contribution_target": 1000000.0,
     "contribution_description": "Help us start our new life together.",
     "expected_guests": 200,
     "guest_count": 150,
@@ -2146,7 +2252,7 @@ Content-Type: multipart/form-data
     "pending_guest_count": 45,
     "declined_guest_count": 16,
     "checked_in_count": 0,
-    "contribution_total": 456000.00,
+    "contribution_total": 456000.0,
     "contribution_count": 34,
     "committee_count": 5,
     "service_booking_count": 8,
@@ -2159,6 +2265,7 @@ Content-Type: multipart/form-data
 ---
 
 ## 3.5 Delete Event
+
 Deletes an event.
 
 ```
@@ -2172,6 +2279,7 @@ Authorization: Bearer {access_token}
 | eventId | uuid | Yes | Event unique identifier |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -2180,6 +2288,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Error Response (404 Not Found):**
+
 ```json
 {
   "success": false,
@@ -2188,6 +2297,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Error Response (403 Forbidden):**
+
 ```json
 {
   "success": false,
@@ -2196,6 +2306,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Error Response (409 Conflict):**
+
 ```json
 {
   "success": false,
@@ -2206,6 +2317,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 3.6 Publish Event
+
 Publishes a draft event.
 
 ```
@@ -2214,6 +2326,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -2230,6 +2343,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 3.7 Cancel Event
+
 Cancels a published event.
 
 ```
@@ -2238,6 +2352,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Request Body:**
+
 ```json
 {
   "reason": "Due to unforeseen circumstances, we have to postpone the event.",
@@ -2247,6 +2362,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -2269,6 +2385,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 4.1 Get Event Guests
+
 Returns all guests for an event.
 
 ```
@@ -2295,6 +2412,7 @@ Authorization: Bearer {access_token}
 | sort_order | string | No | asc | Sort order: asc, desc |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -2414,6 +2532,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 4.2 Get Single Guest
+
 Returns details of a specific guest.
 
 ```
@@ -2422,6 +2541,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -2493,6 +2613,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 4.3 Add Guest
+
 Adds a new guest to an event. Supports two guest types: `user` (registered Nuru user) and `contributor` (from user's address book).
 
 ```
@@ -2502,6 +2623,7 @@ Content-Type: application/json
 ```
 
 **Request Body (User Guest):**
+
 ```json
 {
   "name": "Robert Brown",
@@ -2518,6 +2640,7 @@ Content-Type: application/json
 ```
 
 **Request Body (Contributor Guest):**
+
 ```json
 {
   "name": "Jane Doe",
@@ -2529,21 +2652,22 @@ Content-Type: application/json
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| name | string | Yes | Guest full name (max 100 chars) |
-| guest_type | string | No | `"user"` (default) or `"contributor"` |
-| user_id | uuid | No | For user guests: link to registered Nuru user |
-| contributor_id | uuid | Cond. | Required when `guest_type` is `"contributor"` |
-| email | string | No | Guest email (used for user lookup if no user_id) |
-| phone | string | No | Guest phone (used for user lookup if no user_id) |
-| dietary_requirements | string | No | Dietary requirements |
-| meal_preference | string | No | Meal preference |
-| special_requests | string | No | Special requests |
-| plus_one_names | array[string] | No | Names of plus ones |
-| notes | string | No | Internal notes (max 500 chars) |
+| Field                | Type          | Required | Description                                      |
+| -------------------- | ------------- | -------- | ------------------------------------------------ |
+| name                 | string        | Yes      | Guest full name (max 100 chars)                  |
+| guest_type           | string        | No       | `"user"` (default) or `"contributor"`            |
+| user_id              | uuid          | No       | For user guests: link to registered Nuru user    |
+| contributor_id       | uuid          | Cond.    | Required when `guest_type` is `"contributor"`    |
+| email                | string        | No       | Guest email (used for user lookup if no user_id) |
+| phone                | string        | No       | Guest phone (used for user lookup if no user_id) |
+| dietary_requirements | string        | No       | Dietary requirements                             |
+| meal_preference      | string        | No       | Meal preference                                  |
+| special_requests     | string        | No       | Special requests                                 |
+| plus_one_names       | array[string] | No       | Names of plus ones                               |
+| notes                | string        | No       | Internal notes (max 500 chars)                   |
 
 **Success Response (201 Created):**
+
 ```json
 {
   "success": true,
@@ -2573,6 +2697,7 @@ Content-Type: application/json
 ```
 
 **Duplicate Error (400):**
+
 ```json
 {
   "success": false,
@@ -2583,6 +2708,7 @@ Content-Type: application/json
 ---
 
 ## 4.4 Add Multiple Guests (Bulk Import)
+
 Adds multiple guests at once.
 
 ```
@@ -2592,6 +2718,7 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "guests": [
@@ -2624,6 +2751,7 @@ Content-Type: application/json
 ```
 
 **Success Response (201 Created):**
+
 ```json
 {
   "success": true,
@@ -2657,6 +2785,7 @@ Content-Type: application/json
 ```
 
 **Partial Success Response (201 Created with errors):**
+
 ```json
 {
   "success": true,
@@ -2692,6 +2821,7 @@ Content-Type: application/json
 ---
 
 ## 4.5 Import Guests from CSV
+
 Imports guests from a CSV file.
 
 ```
@@ -2709,6 +2839,7 @@ Content-Type: multipart/form-data
 | default_tags | string | No | Comma-separated default tags |
 
 **CSV Format:**
+
 ```csv
 Name,Email,Phone,Plus Ones,Dietary Requirements,Notes,Tags
 Michael Johnson,michael@example.com,+254712345679,1,Vegetarian,Best friend,VIP;Family
@@ -2716,6 +2847,7 @@ Emily Davis,emily@example.com,+254712345680,0,,College friend,Friends
 ```
 
 **Success Response (201 Created):**
+
 ```json
 {
   "success": true,
@@ -2740,6 +2872,7 @@ Emily Davis,emily@example.com,+254712345680,0,,College friend,Friends
 ---
 
 ## 4.6 Update Guest
+
 Updates a guest's information.
 
 ```
@@ -2749,6 +2882,7 @@ Content-Type: application/json
 ```
 
 **Request Body:** (All fields optional)
+
 ```json
 {
   "name": "Michael J. Johnson",
@@ -2766,6 +2900,7 @@ Content-Type: application/json
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -2797,6 +2932,7 @@ Content-Type: application/json
 ---
 
 ## 4.7 Delete Guest
+
 Removes a guest from the event.
 
 ```
@@ -2805,6 +2941,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -2815,6 +2952,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 4.8 Delete Multiple Guests
+
 Removes multiple guests at once.
 
 ```
@@ -2824,6 +2962,7 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "guest_ids": [
@@ -2835,6 +2974,7 @@ Content-Type: application/json
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -2848,6 +2988,7 @@ Content-Type: application/json
 ---
 
 ## 4.9 Send Invitation to Guest
+
 Sends an invitation to a specific guest.
 
 ```
@@ -2857,6 +2998,7 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "method": "email",
@@ -2866,14 +3008,15 @@ Content-Type: application/json
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| method | string | Yes | Delivery method: email, sms, whatsapp |
-| custom_message | string | No | Custom message to include (max 500 chars) |
-| include_calendar | boolean | No | Include calendar invite (default: true) |
-| include_map | boolean | No | Include venue map link (default: true) |
+| Field            | Type    | Required | Description                               |
+| ---------------- | ------- | -------- | ----------------------------------------- |
+| method           | string  | Yes      | Delivery method: email, sms, whatsapp     |
+| custom_message   | string  | No       | Custom message to include (max 500 chars) |
+| include_calendar | boolean | No       | Include calendar invite (default: true)   |
+| include_map      | boolean | No       | Include venue map link (default: true)    |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -2888,6 +3031,7 @@ Content-Type: application/json
 ```
 
 **Error Response (400 Bad Request):**
+
 ```json
 {
   "success": false,
@@ -2904,6 +3048,7 @@ Content-Type: application/json
 ---
 
 ## 4.10 Send Bulk Invitations
+
 Sends invitations to multiple guests.
 
 ```
@@ -2913,6 +3058,7 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "method": "email",
@@ -2930,19 +3076,20 @@ Content-Type: application/json
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| method | string | Yes | Delivery method: email, sms, whatsapp |
-| guest_ids | array[uuid] | No | Specific guest IDs (if empty, uses filter) |
-| filter | object | No | Filter criteria for guests |
-| filter.rsvp_status | string | No | Filter by RSVP status |
-| filter.invitation_sent | boolean | No | Filter by invitation sent status |
-| filter.tags | array[string] | No | Filter by guest tags |
-| custom_message | string | No | Custom message (max 500 chars) |
-| include_calendar | boolean | No | Include calendar invite |
-| include_map | boolean | No | Include venue map |
+| Field                  | Type          | Required | Description                                |
+| ---------------------- | ------------- | -------- | ------------------------------------------ |
+| method                 | string        | Yes      | Delivery method: email, sms, whatsapp      |
+| guest_ids              | array[uuid]   | No       | Specific guest IDs (if empty, uses filter) |
+| filter                 | object        | No       | Filter criteria for guests                 |
+| filter.rsvp_status     | string        | No       | Filter by RSVP status                      |
+| filter.invitation_sent | boolean       | No       | Filter by invitation sent status           |
+| filter.tags            | array[string] | No       | Filter by guest tags                       |
+| custom_message         | string        | No       | Custom message (max 500 chars)             |
+| include_calendar       | boolean       | No       | Include calendar invite                    |
+| include_map            | boolean       | No       | Include venue map                          |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -2970,6 +3117,7 @@ Content-Type: application/json
 ---
 
 ## 4.11 Resend Invitation
+
 Resends an invitation to a guest who hasn't responded.
 
 ```
@@ -2979,6 +3127,7 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "method": "whatsapp",
@@ -2987,6 +3136,7 @@ Content-Type: application/json
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -3003,6 +3153,7 @@ Content-Type: application/json
 ---
 
 ## 4.12 Check-in Guest
+
 Checks in a guest at the event.
 
 ```
@@ -3012,6 +3163,7 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "plus_ones_checked_in": 1,
@@ -3019,12 +3171,13 @@ Content-Type: application/json
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| plus_ones_checked_in | integer | No | Number of plus ones checking in |
-| notes | string | No | Check-in notes |
+| Field                | Type    | Required | Description                     |
+| -------------------- | ------- | -------- | ------------------------------- |
+| plus_ones_checked_in | integer | No       | Number of plus ones checking in |
+| notes                | string  | No       | Check-in notes                  |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -3045,6 +3198,7 @@ Content-Type: application/json
 ---
 
 ## 4.13 Check-in Guest by QR Code
+
 Checks in a guest using their QR code.
 
 ```
@@ -3054,6 +3208,7 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "qr_code": "NURU-G-c50e8400-e29b-41d4-a716-446655440001",
@@ -3062,6 +3217,7 @@ Content-Type: application/json
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -3081,6 +3237,7 @@ Content-Type: application/json
 ```
 
 **Error Response (400 Bad Request):**
+
 ```json
 {
   "success": false,
@@ -3095,6 +3252,7 @@ Content-Type: application/json
 ---
 
 ## 4.14 Undo Check-in
+
 Reverts a guest's check-in status.
 
 ```
@@ -3103,6 +3261,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -3117,6 +3276,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 4.15 Public RSVP (No Authentication Required)
+
 Allows guests to respond to their invitation.
 
 ```
@@ -3126,6 +3286,7 @@ Authentication: None (uses token from invitation link)
 ```
 
 **Request Body:**
+
 ```json
 {
   "guest_id": "c50e8400-e29b-41d4-a716-446655440001",
@@ -3146,19 +3307,20 @@ Authentication: None (uses token from invitation link)
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| guest_id | uuid | Yes | Guest unique identifier |
-| token | string | Yes | RSVP token from invitation link |
-| rsvp_status | string | Yes | Response: confirmed, declined, maybe |
-| plus_ones | integer | No | Number of plus ones attending |
-| plus_one_names | array[string] | No | Names of plus ones |
-| plus_one_details | array[object] | No | Details for each plus one |
-| dietary_requirements | string | No | Guest's dietary requirements |
-| allergies | string | No | Guest's food allergies |
-| message | string | No | Message to the host (max 500 chars) |
+| Field                | Type          | Required | Description                          |
+| -------------------- | ------------- | -------- | ------------------------------------ |
+| guest_id             | uuid          | Yes      | Guest unique identifier              |
+| token                | string        | Yes      | RSVP token from invitation link      |
+| rsvp_status          | string        | Yes      | Response: confirmed, declined, maybe |
+| plus_ones            | integer       | No       | Number of plus ones attending        |
+| plus_one_names       | array[string] | No       | Names of plus ones                   |
+| plus_one_details     | array[object] | No       | Details for each plus one            |
+| dietary_requirements | string        | No       | Guest's dietary requirements         |
+| allergies            | string        | No       | Guest's food allergies               |
+| message              | string        | No       | Message to the host (max 500 chars)  |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -3179,6 +3341,7 @@ Authentication: None (uses token from invitation link)
 ```
 
 **Error Response (400 Bad Request):**
+
 ```json
 {
   "success": false,
@@ -3187,6 +3350,7 @@ Authentication: None (uses token from invitation link)
 ```
 
 **Error Response (410 Gone):**
+
 ```json
 {
   "success": false,
@@ -3197,6 +3361,7 @@ Authentication: None (uses token from invitation link)
 ---
 
 ## 4.16 Get RSVP Page (Public)
+
 Returns event details for the public RSVP page.
 
 ```
@@ -3210,6 +3375,7 @@ Authentication: None
 | token | string | Yes | RSVP token from invitation link |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -3249,6 +3415,7 @@ Authentication: None
 ---
 
 ## 4.17 Export Guests
+
 Exports guest list in various formats.
 
 ```
@@ -3267,6 +3434,7 @@ Authorization: Bearer {access_token}
 Returns file download with appropriate Content-Type header.
 
 For CSV:
+
 ```
 Content-Type: text/csv
 Content-Disposition: attachment; filename="guests-wedding-2025-02-05.csv"
@@ -3283,6 +3451,7 @@ Emily Davis,emily@example.com,+254712345680,Pending,0,,None,No
 Allows users to upload custom PDF invitation card templates. The system overlays guest name and QR code onto the PDF when generating invitation cards. Each event can optionally be assigned a custom card template — if none is set, the default Nuru digital card is used.
 
 **How it works:**
+
 - Users upload PDF card designs with predefined placeholder areas for guest name and QR code
 - When uploading, users specify the X/Y coordinates (as % of page) and styling for name and QR placeholders
 - When a guest downloads their invitation card, the system fills in their name and QR code on the PDF
@@ -3298,6 +3467,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -3333,10 +3503,11 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
-  "data": { "id": "uuid", "name": "Elegant Wedding Card", "..." : "..." }
+  "data": { "id": "uuid", "name": "Elegant Wedding Card", "...": "..." }
 }
 ```
 
@@ -3352,25 +3523,31 @@ Content-Type: multipart/form-data
 
 **Form Fields:**
 
-| Field | Type | Required | Default | Description |
-|-------|------|----------|---------|-------------|
-| pdf | file | Yes | — | PDF file of the card design (max 10MB) |
-| name | string | Yes | — | Template name |
-| description | string | No | — | Description of the design |
-| name_placeholder_x | number | No | 50 | X position of guest name (% from left) |
-| name_placeholder_y | number | No | 35 | Y position of guest name (% from top) |
-| name_font_size | number | No | 16 | Font size for guest name (pt) |
-| name_font_color | string | No | #000000 | Color for guest name text |
-| qr_placeholder_x | number | No | 50 | X position of QR code (% from left) |
-| qr_placeholder_y | number | No | 75 | Y position of QR code (% from top) |
-| qr_size | number | No | 80 | QR code size in pixels |
+| Field              | Type   | Required | Default | Description                            |
+| ------------------ | ------ | -------- | ------- | -------------------------------------- |
+| pdf                | file   | Yes      | —       | PDF file of the card design (max 10MB) |
+| name               | string | Yes      | —       | Template name                          |
+| description        | string | No       | —       | Description of the design              |
+| name_placeholder_x | number | No       | 50      | X position of guest name (% from left) |
+| name_placeholder_y | number | No       | 35      | Y position of guest name (% from top)  |
+| name_font_size     | number | No       | 16      | Font size for guest name (pt)          |
+| name_font_color    | string | No       | #000000 | Color for guest name text              |
+| qr_placeholder_x   | number | No       | 50      | X position of QR code (% from left)    |
+| qr_placeholder_y   | number | No       | 75      | Y position of QR code (% from top)     |
+| qr_size            | number | No       | 80      | QR code size in pixels                 |
 
 **Success Response (201 Created):**
+
 ```json
 {
   "success": true,
   "message": "Card template uploaded successfully",
-  "data": { "id": "uuid", "name": "Elegant Wedding Card", "pdf_url": "...", "..." : "..." }
+  "data": {
+    "id": "uuid",
+    "name": "Elegant Wedding Card",
+    "pdf_url": "...",
+    "...": "..."
+  }
 }
 ```
 
@@ -3385,6 +3562,7 @@ Content-Type: application/json
 ```
 
 **Request Body (all fields optional):**
+
 ```json
 {
   "name": "Updated Name",
@@ -3410,6 +3588,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 { "success": true, "message": "Card template deleted successfully" }
 ```
@@ -3427,11 +3606,13 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 { "card_template_id": "uuid-or-null" }
 ```
 
 **Success Response (200 OK):**
+
 ```json
 { "success": true, "message": "Card template assigned to event" }
 ```
@@ -3446,10 +3627,16 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
-  "data": { "id": "uuid", "name": "Elegant Wedding Card", "pdf_url": "...", "..." : "..." }
+  "data": {
+    "id": "uuid",
+    "name": "Elegant Wedding Card",
+    "pdf_url": "...",
+    "...": "..."
+  }
 }
 ```
 
@@ -3467,6 +3654,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -3486,9 +3674,9 @@ Now includes `card_template` field in the response when a custom template is ass
 {
   "success": true,
   "data": {
-    "event": { "..." : "..." },
-    "guest": { "..." : "..." },
-    "organizer": { "..." : "..." },
+    "event": { "...": "..." },
+    "guest": { "...": "..." },
+    "organizer": { "...": "..." },
     "invitation_code": "ABC123",
     "qr_code_data": "nuru://event/uuid/checkin/uuid",
     "rsvp_deadline": "2025-08-01T23:59:59",
@@ -3517,23 +3705,24 @@ When `card_template` is `null`, the frontend renders the default Nuru themed car
 
 All event management endpoints enforce committee permissions. Committee members can **view all event details** (event info, guests, contributions, vendors, budget, schedule), but **write/action endpoints** require the specific permission:
 
-| Permission | Grants Access To |
-|---|---|
-| `can_view_guests` | View guest list, export guests |
-| `can_manage_guests` | Add, update, remove guests (single & bulk) |
-| `can_send_invitations` | Send invitations (single & bulk) |
-| `can_check_in_guests` | Check in guests (manual, QR, undo) |
-| `can_view_budget` | View budget items and summary |
-| `can_manage_budget` | Add, update, delete budget items |
-| `can_view_contributions` | View contributions list |
+| Permission                 | Grants Access To                                              |
+| -------------------------- | ------------------------------------------------------------- |
+| `can_view_guests`          | View guest list, export guests                                |
+| `can_manage_guests`        | Add, update, remove guests (single & bulk)                    |
+| `can_send_invitations`     | Send invitations (single & bulk)                              |
+| `can_check_in_guests`      | Check in guests (manual, QR, undo)                            |
+| `can_view_budget`          | View budget items and summary                                 |
+| `can_manage_budget`        | Add, update, delete budget items                              |
+| `can_view_contributions`   | View contributions list                                       |
 | `can_manage_contributions` | Record payments (pending status), view recorded contributions |
-| `can_view_vendors` | View event service providers |
-| `can_manage_vendors` | Add, update, remove service providers |
-| `can_approve_bookings` | Record service payments |
-| `can_edit_event` | Edit event details, settings, images, schedule |
-| `can_manage_committee` | Add, update, remove committee members |
+| `can_view_vendors`         | View event service providers                                  |
+| `can_manage_vendors`       | Add, update, remove service providers                         |
+| `can_approve_bookings`     | Record service payments                                       |
+| `can_edit_event`           | Edit event details, settings, images, schedule                |
+| `can_manage_committee`     | Add, update, remove committee members                         |
 
 **Important rules:**
+
 - Event **creator** always has full access to all operations
 - Bulk upload of contribution targets/contributions is **creator-only**
 - Contributions recorded by committee members start as **"pending"** and require creator confirmation
@@ -3542,6 +3731,7 @@ All event management endpoints enforce committee permissions. Committee members 
 ---
 
 ## 5.1 Get Committee Members
+
 Returns all committee members for an event.
 
 ```
@@ -3550,6 +3740,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -3629,6 +3820,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 5.2 Add Committee Member
+
 Adds a new committee member to the event.
 
 ```
@@ -3638,6 +3830,7 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "name": "Jane Wilson",
@@ -3659,18 +3852,19 @@ Content-Type: application/json
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| name | string | Yes | Member's full name |
-| email | string | Conditional | Email address (required if send_invitation is true) |
-| phone | string | No | Phone number with country code |
-| role | string | Yes | Role title (max 50 chars) |
-| role_description | string | No | Role description (max 200 chars) |
-| permissions | array[string] | Yes | List of permissions |
-| send_invitation | boolean | No | Send email invitation (default: true) |
-| invitation_message | string | No | Custom invitation message |
+| Field              | Type          | Required    | Description                                         |
+| ------------------ | ------------- | ----------- | --------------------------------------------------- |
+| name               | string        | Yes         | Member's full name                                  |
+| email              | string        | Conditional | Email address (required if send_invitation is true) |
+| phone              | string        | No          | Phone number with country code                      |
+| role               | string        | Yes         | Role title (max 50 chars)                           |
+| role_description   | string        | No          | Role description (max 200 chars)                    |
+| permissions        | array[string] | Yes         | List of permissions                                 |
+| send_invitation    | boolean       | No          | Send email invitation (default: true)               |
+| invitation_message | string        | No          | Custom invitation message                           |
 
 **Available Permissions:**
+
 - `view_guests` - View guest list
 - `manage_guests` - Add, edit, remove guests
 - `send_invitations` - Send invitations to guests
@@ -3687,6 +3881,7 @@ Content-Type: application/json
 - `manage_expenses` - Record, edit, and delete expenses (auto-grants view_expenses)
 
 **Success Response (201 Created):**
+
 ```json
 {
   "success": true,
@@ -3722,6 +3917,7 @@ Content-Type: application/json
 ---
 
 ## 5.3 Update Committee Member
+
 Updates a committee member's information and permissions.
 
 ```
@@ -3731,6 +3927,7 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "role": "Head Coordinator",
@@ -3750,6 +3947,7 @@ Content-Type: application/json
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -3781,6 +3979,7 @@ Content-Type: application/json
 ---
 
 ## 5.4 Remove Committee Member
+
 Removes a committee member from the event.
 
 ```
@@ -3789,6 +3988,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -3799,6 +3999,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 5.5 Resend Committee Invitation
+
 Resends invitation to a pending committee member.
 
 ```
@@ -3807,6 +4008,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -3821,6 +4023,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 5.6 Accept Committee Invitation (Public)
+
 Allows invited member to accept the invitation.
 
 ```
@@ -3830,6 +4033,7 @@ Authentication: None (uses invitation token)
 ```
 
 **Request Body:**
+
 ```json
 {
   "token": "xyz789abc123",
@@ -3837,12 +4041,13 @@ Authentication: None (uses invitation token)
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| token | string | Yes | Invitation token from email link |
-| user_id | uuid | No | If logged in, link to existing account |
+| Field   | Type   | Required | Description                            |
+| ------- | ------ | -------- | -------------------------------------- |
+| token   | string | Yes      | Invitation token from email link       |
+| user_id | uuid   | No       | If logged in, link to existing account |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -3868,8 +4073,11 @@ Contributors are NOT registered Nuru users. They are stored in a personal addres
 ---
 
 ## 6A.1 `GET /user-contributors/` — List user's contributors (search, paginate)
+
 ## 6A.2 `POST /user-contributors/` — Create contributor `{ name, email?, phone?, notes? }`
+
 ## 6A.3 `PUT /user-contributors/{id}` — Update contributor
+
 ## 6A.4 `DELETE /user-contributors/{id}` — Delete contributor
 
 ---
@@ -3881,17 +4089,25 @@ Event contributors link a `user_contributor` to a specific event with a pledge. 
 ---
 
 ## 6B.1 `GET /user-contributors/events/{eventId}/contributors` — List event contributors with pledge/paid/balance summary
+
 ## 6B.2 `POST /user-contributors/events/{eventId}/contributors` — Add contributor (existing `contributor_id` or inline `name/email/phone` + `pledge_amount`)
+
 ## 6B.3 `PUT /user-contributors/events/{eventId}/contributors/{ecId}` — Update pledge `{ pledge_amount }`
+
 ## 6B.4 `DELETE /user-contributors/events/{eventId}/contributors/{ecId}` — Remove from event
+
 ## 6B.5 `POST /user-contributors/events/{eventId}/contributors/{ecId}/payments` — Record payment `{ amount, payment_method, payment_reference }`
+
 ## 6B.6 `GET /user-contributors/events/{eventId}/contributors/{ecId}/payments` — Payment history
+
 ## 6B.7 `POST /user-contributors/events/{eventId}/contributors/{ecId}/thank-you` — Send thank you SMS `{ custom_message? }`
+
 ## 6B.8 `POST /user-contributors/events/{eventId}/contributors/bulk` — Bulk add/update contributors
 
 ### 6B.8 Bulk Contributors
 
 **Request Body:**
+
 ```json
 {
   "contributors": [
@@ -3905,12 +4121,14 @@ Event contributors link a `user_contributor` to a specific event with a pledge. 
 ```
 
 **Fields:**
+
 - `contributors` (required): Array of objects with `name`, `phone`, `amount`
 - `send_sms` (optional, default: false): Whether to send SMS notifications to each contributor
 - `mode` (optional, default: "targets"): `"targets"` to set/update pledge amounts, `"contributions"` to record actual payments
 - `payment_method` (optional, default: "other"): Payment method for contributions mode
 
 **Behavior:**
+
 - Phone numbers are validated and formatted to Tanzanian format (255...)
 - Existing contributors are matched by phone number first, then by name
 - New contributors are created automatically in the user's address book
@@ -3919,6 +4137,7 @@ Event contributors link a `user_contributor` to a specific event with a pledge. 
 - Maximum 500 contributors per upload
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -3938,6 +4157,7 @@ Event contributors link a `user_contributor` to a specific event with a pledge. 
 ---
 
 ## 6.1 Get Event Contributions
+
 Returns all contributions for an event.
 
 ```
@@ -3955,6 +4175,7 @@ Authorization: Bearer {access_token}
 | sort_order | string | No | desc | Sort order: asc, desc |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -3969,7 +4190,7 @@ Authorization: Bearer {access_token}
         "contributor_phone": "+254712345683",
         "contributor_user_id": "550e8400-e29b-41d4-a716-446655440020",
         "contributor_avatar": "https://storage.nuru.com/avatars/james.jpg",
-        "amount": 50000.00,
+        "amount": 50000.0,
         "currency": "KES",
         "payment_method": "mpesa",
         "payment_reference": "QK7JH8L9M2",
@@ -3990,7 +4211,7 @@ Authorization: Bearer {access_token}
         "contributor_phone": null,
         "contributor_user_id": null,
         "contributor_avatar": null,
-        "amount": 25000.00,
+        "amount": 25000.0,
         "currency": "KES",
         "payment_method": "bank_transfer",
         "payment_reference": "TRF123456789",
@@ -4011,7 +4232,7 @@ Authorization: Bearer {access_token}
         "contributor_phone": "+254712345685",
         "contributor_user_id": null,
         "contributor_avatar": null,
-        "amount": 10000.00,
+        "amount": 10000.0,
         "currency": "KES",
         "payment_method": "mpesa",
         "payment_reference": null,
@@ -4027,15 +4248,15 @@ Authorization: Bearer {access_token}
     ],
     "summary": {
       "total_contributions": 34,
-      "total_amount": 456000.00,
-      "target_amount": 1000000.00,
+      "total_amount": 456000.0,
+      "target_amount": 1000000.0,
       "progress_percentage": 45.6,
       "confirmed_count": 32,
       "pending_count": 2,
       "currency": "KES",
-      "average_contribution": 14250.00,
-      "largest_contribution": 100000.00,
-      "smallest_contribution": 1000.00
+      "average_contribution": 14250.0,
+      "largest_contribution": 100000.0,
+      "smallest_contribution": 1000.0
     },
     "pagination": {
       "page": 1,
@@ -4052,6 +4273,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 6.2 Record Contribution or Pledge
+
 Records a contribution (confirmed payment) or pledge (pending commitment) for an event.
 Contributors do NOT need to be registered Nuru users — manual entry with name/email/phone is supported.
 
@@ -4065,31 +4287,33 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "contributor_name": "John Smith",
   "contributor_email": "john.smith@example.com",
   "contributor_phone": "+254712345686",
   "contributor_user_id": null,
-  "amount": 30000.00,
+  "amount": 30000.0,
   "payment_method": "cash",
   "payment_reference": "CASH-001",
   "status": "confirmed"
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| contributor_name | string | Yes | Contributor's name |
-| contributor_email | string | No | Contributor's email |
-| contributor_phone | string | No | Contributor's phone |
-| contributor_user_id | uuid | No | Link to Nuru user (optional, contributors need not be users) |
-| amount | number | Yes | Amount (positive number) |
-| payment_method | string | No | Method: cash, bank_transfer, mobile, card (default: mobile) |
-| payment_reference | string | No | Payment reference number |
-| status | string | No | "pending" for pledge, "confirmed" for payment (default: confirmed) |
+| Field               | Type   | Required | Description                                                        |
+| ------------------- | ------ | -------- | ------------------------------------------------------------------ |
+| contributor_name    | string | Yes      | Contributor's name                                                 |
+| contributor_email   | string | No       | Contributor's email                                                |
+| contributor_phone   | string | No       | Contributor's phone                                                |
+| contributor_user_id | uuid   | No       | Link to Nuru user (optional, contributors need not be users)       |
+| amount              | number | Yes      | Amount (positive number)                                           |
+| payment_method      | string | No       | Method: cash, bank_transfer, mobile, card (default: mobile)        |
+| payment_reference   | string | No       | Payment reference number                                           |
+| status              | string | No       | "pending" for pledge, "confirmed" for payment (default: confirmed) |
 
 **Success Response (201 Created):**
+
 ```json
 {
   "success": true,
@@ -4101,7 +4325,7 @@ Content-Type: application/json
     "contributor_email": "john.smith@example.com",
     "contributor_phone": "+254712345686",
     "contributor_user_id": null,
-    "amount": 30000.00,
+    "amount": 30000.0,
     "currency": "TZS",
     "payment_method": "cash",
     "payment_reference": "CASH-001",
@@ -4118,6 +4342,7 @@ Content-Type: application/json
 ---
 
 ## 6.3 Update Contribution
+
 Updates a contribution record.
 
 ```
@@ -4127,6 +4352,7 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "status": "confirmed",
@@ -4136,6 +4362,7 @@ Content-Type: application/json
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -4154,6 +4381,7 @@ Content-Type: application/json
 ---
 
 ## 6.4 Delete Contribution
+
 Deletes a contribution record.
 
 ```
@@ -4162,6 +4390,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -4172,6 +4401,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 6.5 Send Thank You
+
 Sends a thank you message to a contributor.
 
 ```
@@ -4181,6 +4411,7 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "method": "email",
@@ -4189,6 +4420,7 @@ Content-Type: application/json
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -4205,6 +4437,7 @@ Content-Type: application/json
 ---
 
 ## 6.6 Send Bulk Thank You
+
 Sends thank you messages to multiple contributors.
 
 ```
@@ -4214,6 +4447,7 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "contribution_ids": [
@@ -4230,6 +4464,7 @@ Content-Type: application/json
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -4250,6 +4485,7 @@ Content-Type: application/json
 ---
 
 ## 6.7 Public Contribution Page (No Auth)
+
 Returns the public contribution page for an event.
 
 ```
@@ -4258,6 +4494,7 @@ Authentication: None
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -4273,8 +4510,8 @@ Authentication: None
     "contribution_info": {
       "enabled": true,
       "description": "Help us start our new life together. Your generous contributions will go towards our honeymoon fund.",
-      "target_amount": 1000000.00,
-      "current_amount": 456000.00,
+      "target_amount": 1000000.0,
+      "current_amount": 456000.0,
       "progress_percentage": 45.6,
       "contributor_count": 34,
       "currency": "KES",
@@ -4299,13 +4536,13 @@ Authentication: None
     "recent_contributions": [
       {
         "contributor_name": "James W.",
-        "amount": 50000.00,
+        "amount": 50000.0,
         "message": "Congratulations!",
         "created_at": "2025-02-01T15:30:00Z"
       },
       {
         "contributor_name": "Anonymous",
-        "amount": 25000.00,
+        "amount": 25000.0,
         "message": "Best wishes!",
         "created_at": "2025-02-02T09:00:00Z"
       }
@@ -4317,6 +4554,7 @@ Authentication: None
 ---
 
 ## 6.8 Submit Public Contribution
+
 Initiates a contribution from the public page.
 
 ```
@@ -4326,12 +4564,13 @@ Authentication: None
 ```
 
 **Request Body:**
+
 ```json
 {
   "contributor_name": "Peter Kamau",
   "contributor_email": "peter@example.com",
   "contributor_phone": "+254712345687",
-  "amount": 20000.00,
+  "amount": 20000.0,
   "payment_method": "mpesa",
   "message": "Congratulations to the happy couple!",
   "is_anonymous": false
@@ -4339,6 +4578,7 @@ Authentication: None
 ```
 
 **Success Response (200 OK) - M-PESA:**
+
 ```json
 {
   "success": true,
@@ -4358,6 +4598,7 @@ Authentication: None
 ```
 
 **Success Response (200 OK) - Bank Transfer:**
+
 ```json
 {
   "success": true,
@@ -4381,6 +4622,7 @@ Authentication: None
 ---
 
 ## 6.9 Export Contributions
+
 Exports contribution data.
 
 ```
@@ -4403,6 +4645,7 @@ Continuing with the complete API documentation for all remaining modules.
 ---
 
 ## 6.10 Get Pending Contributions (Creator Only)
+
 Retrieves all pending contributions awaiting creator confirmation. Contributions recorded by committee members are initially set to "pending" status.
 
 ```
@@ -4411,6 +4654,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -4421,7 +4665,7 @@ Authorization: Bearer {access_token}
         "id": "e50e8400-e29b-41d4-a716-446655440005",
         "contributor_name": "Jane Smith",
         "contributor_phone": "+254712345687",
-        "amount": 25000.00,
+        "amount": 25000.0,
         "payment_method": "mobile",
         "transaction_ref": "TXN-2025-001",
         "recorded_by": "David Johnson",
@@ -4431,7 +4675,7 @@ Authorization: Bearer {access_token}
         "id": "e50e8400-e29b-41d4-a716-446655440006",
         "contributor_name": "James Brown",
         "contributor_phone": "+254712345688",
-        "amount": 15000.00,
+        "amount": 15000.0,
         "payment_method": "cash",
         "transaction_ref": null,
         "recorded_by": "Sarah Wilson",
@@ -4458,6 +4702,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 6.11 Confirm Pending Contributions (Creator Only)
+
 Confirms one or more pending contributions, moving them from "pending" to "confirmed" status. Multiple contributions can be confirmed in a single request.
 
 ```
@@ -4467,6 +4712,7 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "contribution_ids": [
@@ -4476,11 +4722,12 @@ Content-Type: application/json
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| contribution_ids | array | Yes | Array of contribution UUIDs to confirm |
+| Field            | Type  | Required | Description                            |
+| ---------------- | ----- | -------- | -------------------------------------- |
+| contribution_ids | array | Yes      | Array of contribution UUIDs to confirm |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -4494,6 +4741,7 @@ Content-Type: application/json
 ---
 
 ## 6.12 Get My Recorded Contributions (Committee Member Only)
+
 Retrieves all contributions recorded by the current committee member, including their confirmation status. Committee members can only use this if they have the "can_manage_contributions" permission.
 
 ```
@@ -4502,6 +4750,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -4512,7 +4761,7 @@ Authorization: Bearer {access_token}
         "id": "e50e8400-e29b-41d4-a716-446655440005",
         "contributor_name": "Jane Smith",
         "contributor_phone": "+254712345687",
-        "amount": 25000.00,
+        "amount": 25000.0,
         "payment_method": "mobile",
         "transaction_ref": "TXN-2025-001",
         "confirmation_status": "pending",
@@ -4523,7 +4772,7 @@ Authorization: Bearer {access_token}
         "id": "e50e8400-e29b-41d4-a716-446655440007",
         "contributor_name": "Alice Green",
         "contributor_phone": "+254712345689",
-        "amount": 35000.00,
+        "amount": 35000.0,
         "payment_method": "bank_transfer",
         "transaction_ref": "BANK-2025-042",
         "confirmation_status": "confirmed",
@@ -4552,6 +4801,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 6.13 Get Contribution Report (Date-Filtered)
+
 Returns contributor payment totals optionally filtered by date range. Only confirmed payments within the date range are summed. Pledges are shown as-is for context. When a date range is applied, the report focuses on showing collections within that period — overall balances reflect only the filtered payments and may differ from full event totals.
 
 ```
@@ -4566,11 +4816,13 @@ Authorization: Bearer {access_token}
 | date_to | string | No | End date filter (YYYY-MM-DD). Payments on or before this date. |
 
 **Example Request:**
+
 ```
 GET /user-contributors/events/{eventId}/contribution-report?date_from=2026-02-01&date_to=2026-02-15
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -4621,14 +4873,13 @@ GET /user-contributors/events/{eventId}/contribution-report?date_from=2026-02-01
 | is_filtered | boolean | Whether date filters were applied |
 
 **Notes:**
+
 - `full_summary` always reflects all-time totals regardless of date filters — use for report header cards
 - `contributors` table rows show payments filtered by date range when `is_filtered` is `true`
 - Pledges are always shown in full regardless of date filters
 - Contributors with zero payments in the range but non-zero pledges are still included
 
 ---
-
-
 
 ---
 
@@ -4637,6 +4888,7 @@ GET /user-contributors/events/{eventId}/contribution-report?date_from=2026-02-01
 ---
 
 ## 7.1 Get All My Services
+
 Returns all services created by the authenticated vendor.
 
 ```
@@ -4656,6 +4908,7 @@ Authorization: Bearer {access_token}
 | sort_order | string | No | desc | Sort order: asc, desc |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -4679,8 +4932,8 @@ Authorization: Bearer {access_token}
           "name": "Wedding Photography",
           "category_id": "650e8400-e29b-41d4-a716-446655440001"
         },
-        "min_price": 50000.00,
-        "max_price": 250000.00,
+        "min_price": 50000.0,
+        "max_price": 250000.0,
         "currency": "KES",
         "price_type": "range",
         "price_unit": "per_event",
@@ -4751,8 +5004,8 @@ Authorization: Bearer {access_token}
           "name": "Drone Photography",
           "category_id": "650e8400-e29b-41d4-a716-446655440001"
         },
-        "min_price": 30000.00,
-        "max_price": 80000.00,
+        "min_price": 30000.0,
+        "max_price": 80000.0,
         "currency": "KES",
         "price_type": "range",
         "price_unit": "per_event",
@@ -4815,6 +5068,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 7.2 Get Single Service
+
 Returns detailed information about a specific service.
 
 ```
@@ -4828,6 +5082,7 @@ Authorization: Bearer {access_token}
 | serviceId | uuid | Yes | Service unique identifier |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -4850,15 +5105,22 @@ Authorization: Bearer {access_token}
       "name": "Wedding Photography",
       "category_id": "650e8400-e29b-41d4-a716-446655440001"
     },
-    "min_price": 50000.00,
-    "max_price": 250000.00,
+    "min_price": 50000.0,
+    "max_price": 250000.0,
     "currency": "KES",
     "price_type": "range",
     "price_unit": "per_event",
     "price_notes": "Prices vary based on coverage duration and package selected",
     "location": "Nairobi, Kenya",
     "full_address": "Westlands, Nairobi, Kenya",
-    "service_areas": ["Nairobi", "Mombasa", "Nakuru", "Kisumu", "Naivasha", "Nanyuki"],
+    "service_areas": [
+      "Nairobi",
+      "Mombasa",
+      "Nakuru",
+      "Kisumu",
+      "Naivasha",
+      "Nanyuki"
+    ],
     "travel_fee_info": "Travel fee applies for locations outside Nairobi (KES 5,000 - 15,000)",
     "status": "active",
     "verification_status": "verified",
@@ -4995,7 +5257,7 @@ Authorization: Bearer {access_token}
         "service_id": "g50e8400-e29b-41d4-a716-446655440001",
         "name": "Essential Package",
         "description": "Perfect for intimate weddings",
-        "price": 50000.00,
+        "price": 50000.0,
         "currency": "KES",
         "duration_hours": 4,
         "photographers_count": 1,
@@ -5022,7 +5284,7 @@ Authorization: Bearer {access_token}
         "service_id": "g50e8400-e29b-41d4-a716-446655440001",
         "name": "Premium Package",
         "description": "Our most popular wedding package",
-        "price": 120000.00,
+        "price": 120000.0,
         "currency": "KES",
         "duration_hours": 8,
         "photographers_count": 2,
@@ -5052,7 +5314,7 @@ Authorization: Bearer {access_token}
         "service_id": "g50e8400-e29b-41d4-a716-446655440001",
         "name": "Platinum Package",
         "description": "The ultimate wedding photography experience",
-        "price": 250000.00,
+        "price": 250000.0,
         "currency": "KES",
         "duration_hours": 12,
         "photographers_count": 3,
@@ -5179,7 +5441,7 @@ Authorization: Bearer {access_token}
         "event_type": "Wedding",
         "event_date": "2025-03-15",
         "package_name": "Premium Package",
-        "quoted_price": 120000.00,
+        "quoted_price": 120000.0,
         "status": "confirmed",
         "created_at": "2025-01-28T10:00:00Z"
       },
@@ -5240,6 +5502,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 7.3 Create Service
+
 Creates a new service listing.
 
 ```
@@ -5276,6 +5539,7 @@ Content-Type: multipart/form-data
 | images | file[] | No | Service images (max 10, each max 10MB) |
 
 **Success Response (201 Created):**
+
 ```json
 {
   "success": true,
@@ -5297,8 +5561,8 @@ Content-Type: multipart/form-data
       "name": "DJ Services",
       "category_id": "650e8400-e29b-41d4-a716-446655440005"
     },
-    "min_price": 25000.00,
-    "max_price": 80000.00,
+    "min_price": 25000.0,
+    "max_price": 80000.0,
     "currency": "KES",
     "price_type": "range",
     "price_unit": "per_event",
@@ -5329,6 +5593,7 @@ Content-Type: multipart/form-data
 ---
 
 ## 7.4 Update Service
+
 Updates an existing service.
 
 ```
@@ -5352,6 +5617,7 @@ Content-Type: multipart/form-data
 | primary_image_id | string | No | ID of image to set as primary |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -5359,8 +5625,8 @@ Content-Type: multipart/form-data
   "data": {
     "id": "g50e8400-e29b-41d4-a716-446655440001",
     "title": "Premium Wedding Photography - Updated",
-    "min_price": 55000.00,
-    "max_price": 280000.00,
+    "min_price": 55000.0,
+    "max_price": 280000.0,
     "status": "active",
     "updated_at": "2025-02-05T20:30:00Z"
   }
@@ -5370,6 +5636,7 @@ Content-Type: multipart/form-data
 ---
 
 ## 7.5 Delete Service
+
 Deletes a service listing.
 
 ```
@@ -5378,6 +5645,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -5386,6 +5654,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Error Response (409 Conflict):**
+
 ```json
 {
   "success": false,
@@ -5399,6 +5668,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 7.6 Get Service KYC Status
+
 Returns KYC verification status for a service.
 
 ```
@@ -5407,6 +5677,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -5499,6 +5770,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 7.7 Upload KYC Document
+
 Uploads a KYC document for verification.
 
 ```
@@ -5515,6 +5787,7 @@ Content-Type: multipart/form-data
 | notes | string | No | Additional notes for reviewer |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -5532,6 +5805,7 @@ Content-Type: multipart/form-data
 ```
 
 **Error Response (400 Bad Request):**
+
 ```json
 {
   "success": false,
@@ -5548,6 +5822,7 @@ Content-Type: multipart/form-data
 ---
 
 ## 7.8 Delete KYC Document
+
 Removes a submitted KYC document.
 
 ```
@@ -5556,6 +5831,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -5564,6 +5840,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Error Response (400 Bad Request):**
+
 ```json
 {
   "success": false,
@@ -5574,6 +5851,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 7.9 Resubmit KYC Document
+
 Resubmits a rejected KYC document.
 
 ```
@@ -5589,6 +5867,7 @@ Content-Type: multipart/form-data
 | notes | string | No | Notes addressing rejection reason |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -5610,6 +5889,7 @@ Content-Type: multipart/form-data
 ---
 
 ## 8.1 Get Service Packages
+
 Returns all packages for a service.
 
 ```
@@ -5618,6 +5898,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -5628,7 +5909,7 @@ Authorization: Bearer {access_token}
       "service_id": "g50e8400-e29b-41d4-a716-446655440001",
       "name": "Essential Package",
       "description": "Perfect for intimate weddings with core coverage essentials.",
-      "price": 50000.00,
+      "price": 50000.0,
       "currency": "KES",
       "compare_at_price": null,
       "duration_hours": 4,
@@ -5659,9 +5940,9 @@ Authorization: Bearer {access_token}
       "service_id": "g50e8400-e29b-41d4-a716-446655440001",
       "name": "Premium Package",
       "description": "Our most popular wedding package with comprehensive coverage.",
-      "price": 120000.00,
+      "price": 120000.0,
       "currency": "KES",
-      "compare_at_price": 150000.00,
+      "compare_at_price": 150000.0,
       "duration_hours": 8,
       "photographers_count": 2,
       "features": [
@@ -5693,7 +5974,7 @@ Authorization: Bearer {access_token}
       "service_id": "g50e8400-e29b-41d4-a716-446655440001",
       "name": "Platinum Package",
       "description": "The ultimate wedding photography experience with all premium features.",
-      "price": 250000.00,
+      "price": 250000.0,
       "currency": "KES",
       "compare_at_price": null,
       "duration_hours": 12,
@@ -5733,6 +6014,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 8.2 Create Package
+
 Creates a new service package.
 
 ```
@@ -5742,12 +6024,13 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "name": "Budget Package",
   "description": "Affordable option for small events and gatherings.",
-  "price": 30000.00,
-  "compare_at_price": 40000.00,
+  "price": 30000.0,
+  "compare_at_price": 40000.0,
   "duration_hours": 2,
   "photographers_count": 1,
   "features": [
@@ -5756,10 +6039,7 @@ Content-Type: application/json
     "100+ edited photos",
     "Digital delivery"
   ],
-  "deliverables": [
-    "High-resolution digital images",
-    "Online gallery link"
-  ],
+  "deliverables": ["High-resolution digital images", "Online gallery link"],
   "turnaround_days": 45,
   "max_revisions": 1,
   "is_popular": false,
@@ -5768,23 +6048,24 @@ Content-Type: application/json
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| name | string | Yes | Package name (max 50 chars) |
-| description | string | No | Package description (max 500 chars) |
-| price | number | Yes | Package price (positive number) |
-| compare_at_price | number | No | Original/compare price for discounts |
-| duration_hours | number | No | Service duration in hours |
-| photographers_count | number | No | Number of photographers/staff |
-| features | array[string] | Yes | List of included features (min 1) |
-| deliverables | array[string] | No | List of deliverables |
-| turnaround_days | integer | No | Delivery time in days |
-| max_revisions | integer | No | Number of included revisions |
-| is_popular | boolean | No | Mark as popular/recommended |
-| is_active | boolean | No | Package availability (default: true) |
-| display_order | integer | No | Display order (lower = first) |
+| Field               | Type          | Required | Description                          |
+| ------------------- | ------------- | -------- | ------------------------------------ |
+| name                | string        | Yes      | Package name (max 50 chars)          |
+| description         | string        | No       | Package description (max 500 chars)  |
+| price               | number        | Yes      | Package price (positive number)      |
+| compare_at_price    | number        | No       | Original/compare price for discounts |
+| duration_hours      | number        | No       | Service duration in hours            |
+| photographers_count | number        | No       | Number of photographers/staff        |
+| features            | array[string] | Yes      | List of included features (min 1)    |
+| deliverables        | array[string] | No       | List of deliverables                 |
+| turnaround_days     | integer       | No       | Delivery time in days                |
+| max_revisions       | integer       | No       | Number of included revisions         |
+| is_popular          | boolean       | No       | Mark as popular/recommended          |
+| is_active           | boolean       | No       | Package availability (default: true) |
+| display_order       | integer       | No       | Display order (lower = first)        |
 
 **Success Response (201 Created):**
+
 ```json
 {
   "success": true,
@@ -5794,8 +6075,8 @@ Content-Type: application/json
     "service_id": "g50e8400-e29b-41d4-a716-446655440001",
     "name": "Budget Package",
     "description": "Affordable option for small events and gatherings.",
-    "price": 30000.00,
-    "compare_at_price": 40000.00,
+    "price": 30000.0,
+    "compare_at_price": 40000.0,
     "features": [
       "2 hours of coverage",
       "1 photographer",
@@ -5812,6 +6093,7 @@ Content-Type: application/json
 ---
 
 ## 8.3 Update Package
+
 Updates an existing package.
 
 ```
@@ -5821,15 +6103,17 @@ Content-Type: application/json
 ```
 
 **Request Body:** (All fields optional)
+
 ```json
 {
   "name": "Budget Package - Updated",
-  "price": 35000.00,
+  "price": 35000.0,
   "is_popular": true
 }
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -5837,7 +6121,7 @@ Content-Type: application/json
   "data": {
     "id": "h50e8400-e29b-41d4-a716-446655440004",
     "name": "Budget Package - Updated",
-    "price": 35000.00,
+    "price": 35000.0,
     "is_popular": true,
     "updated_at": "2025-02-05T22:30:00Z"
   }
@@ -5847,6 +6131,7 @@ Content-Type: application/json
 ---
 
 ## 8.4 Delete Package
+
 Deletes a service package.
 
 ```
@@ -5855,6 +6140,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -5863,6 +6149,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Error Response (409 Conflict):**
+
 ```json
 {
   "success": false,
@@ -5873,6 +6160,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 8.5 Reorder Packages
+
 Updates the display order of packages.
 
 ```
@@ -5882,6 +6170,7 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "order": [
@@ -5906,6 +6195,7 @@ Content-Type: application/json
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -5920,6 +6210,7 @@ Content-Type: application/json
 ---
 
 ## 9.1 Search Services
+
 Searches and filters public service listings.
 
 ```
@@ -5948,6 +6239,7 @@ Authentication: Optional (provides personalization if authenticated)
 | radius_km | number | No | 50 | Search radius in kilometers |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -5974,8 +6266,8 @@ Authentication: Optional (provides personalization if authenticated)
           "id": "750e8400-e29b-41d4-a716-446655440001",
           "name": "Wedding Photography"
         },
-        "min_price": 50000.00,
-        "max_price": 250000.00,
+        "min_price": 50000.0,
+        "max_price": 250000.0,
         "currency": "KES",
         "price_display": "KES 50,000 - 250,000",
         "location": "Nairobi, Kenya",
@@ -6017,8 +6309,8 @@ Authentication: Optional (provides personalization if authenticated)
           "id": "750e8400-e29b-41d4-a716-446655440002",
           "name": "Event Photography"
         },
-        "min_price": 25000.00,
-        "max_price": 100000.00,
+        "min_price": 25000.0,
+        "max_price": 100000.0,
         "currency": "KES",
         "price_display": "KES 25,000 - 100,000",
         "location": "Nairobi, Kenya",
@@ -6060,8 +6352,8 @@ Authentication: Optional (provides personalization if authenticated)
           "id": "750e8400-e29b-41d4-a716-446655440002",
           "name": "Event Photography"
         },
-        "min_price": 10000.00,
-        "max_price": 40000.00,
+        "min_price": 10000.0,
+        "max_price": 40000.0,
         "currency": "KES",
         "price_display": "From KES 10,000",
         "location": "Nakuru, Kenya",
@@ -6132,9 +6424,11 @@ Authentication: Optional (provides personalization if authenticated)
 ---
 
 ## 9.1.1 Event Service Recommendations
+
 Returns service providers recommended for a specific event type. This is a convenience use of the Search Services endpoint (`GET /services`) with event-specific filters pre-applied.
 
 **Usage Pattern:**
+
 ```
 GET /services?event_type_id={eventTypeId}&sort_by=rating&limit=6&available=true
 GET /services?event_type_id={eventTypeId}&location={location}&max_price={budget}&sort_by=rating&limit=6&available=true
@@ -6157,6 +6451,7 @@ Used during event creation to suggest top-rated, available service providers tha
 **Response:** Same as 9.1 Search Services response format.
 
 **Example Request:**
+
 ```
 GET /services?event_type_id=abc123&sort_by=rating&limit=6&available=true&location=Nairobi&max_price=500000
 ```
@@ -6173,6 +6468,7 @@ The Create Event page includes a "Service Recommendations" section that calls th
 ---
 
 ## 21.1 Submit Identity Verification
+
 Submit documents for identity verification.
 
 ```
@@ -6189,6 +6485,7 @@ Authorization: Bearer {access_token}
 | selfie | file | No | Clear selfie photo for face matching |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -6201,6 +6498,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Error Response (400 Bad Request):**
+
 ```json
 {
   "success": false,
@@ -6211,6 +6509,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 21.2 Get Verification Status
+
 Returns the current identity verification status.
 
 ```
@@ -6219,6 +6518,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -6236,7 +6536,6 @@ Authorization: Bearer {access_token}
 
 ---
 
-
 Returns detailed information about a public service.
 
 ```
@@ -6245,6 +6544,7 @@ Authentication: Optional (tracks view if authenticated)
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -6278,15 +6578,22 @@ Authentication: Optional (tracks view if authenticated)
       "id": "750e8400-e29b-41d4-a716-446655440001",
       "name": "Wedding Photography"
     },
-    "min_price": 50000.00,
-    "max_price": 250000.00,
+    "min_price": 50000.0,
+    "max_price": 250000.0,
     "currency": "KES",
     "price_display": "KES 50,000 - 250,000",
     "price_type": "range",
     "price_unit": "per_event",
     "price_notes": "Prices vary based on coverage duration and package selected",
     "location": "Nairobi, Kenya",
-    "service_areas": ["Nairobi", "Mombasa", "Nakuru", "Kisumu", "Naivasha", "Nanyuki"],
+    "service_areas": [
+      "Nairobi",
+      "Mombasa",
+      "Nakuru",
+      "Kisumu",
+      "Naivasha",
+      "Nanyuki"
+    ],
     "travel_fee_info": "Travel fee applies for locations outside Nairobi (KES 5,000 - 15,000)",
     "images": [
       {
@@ -6387,7 +6694,7 @@ Authentication: Optional (tracks view if authenticated)
         "id": "h50e8400-e29b-41d4-a716-446655440001",
         "name": "Essential Package",
         "description": "Perfect for intimate weddings",
-        "price": 50000.00,
+        "price": 50000.0,
         "currency": "KES",
         "duration_hours": 4,
         "features": [
@@ -6403,9 +6710,9 @@ Authentication: Optional (tracks view if authenticated)
         "id": "h50e8400-e29b-41d4-a716-446655440002",
         "name": "Premium Package",
         "description": "Our most popular wedding package",
-        "price": 120000.00,
+        "price": 120000.0,
         "currency": "KES",
-        "compare_at_price": 150000.00,
+        "compare_at_price": 150000.0,
         "duration_hours": 8,
         "features": [
           "8 hours of coverage",
@@ -6422,7 +6729,7 @@ Authentication: Optional (tracks view if authenticated)
         "id": "h50e8400-e29b-41d4-a716-446655440003",
         "name": "Platinum Package",
         "description": "The ultimate wedding photography experience",
-        "price": 250000.00,
+        "price": 250000.0,
         "currency": "KES",
         "duration_hours": 12,
         "features": [
@@ -6476,7 +6783,7 @@ Authentication: Optional (tracks view if authenticated)
         "id": "g50e8400-e29b-41d4-a716-446655440010",
         "title": "Creative Event Photography",
         "provider_name": "Jane Kamau",
-        "min_price": 25000.00,
+        "min_price": 25000.0,
         "rating": 4.7,
         "review_count": 89,
         "primary_image": "https://storage.nuru.com/services/g50e8400-010-img1-thumb.jpg"
@@ -6485,7 +6792,7 @@ Authentication: Optional (tracks view if authenticated)
         "id": "g50e8400-e29b-41d4-a716-446655440011",
         "title": "Cinematic Wedding Films",
         "provider_name": "FilmCraft Studios",
-        "min_price": 80000.00,
+        "min_price": 80000.0,
         "rating": 4.8,
         "review_count": 67,
         "primary_image": "https://storage.nuru.com/services/g50e8400-011-img1-thumb.jpg"
@@ -6502,6 +6809,7 @@ Authentication: Optional (tracks view if authenticated)
 ---
 
 ## 9.3 Get Service Reviews
+
 Returns reviews for a service with pagination.
 
 ```
@@ -6519,6 +6827,7 @@ Authentication: None
 | with_photos | boolean | No | null | Only reviews with photos |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -6644,6 +6953,7 @@ Authentication: None
 ---
 
 ## 9.4 Submit Review
+
 Submits a review for a service.
 
 ```
@@ -6665,6 +6975,7 @@ Content-Type: multipart/form-data
 | photos | file[] | No | Review photos (max 5, each max 5MB) |
 
 **Success Response (201 Created):**
+
 ```json
 {
   "success": true,
@@ -6692,6 +7003,7 @@ Content-Type: multipart/form-data
 ```
 
 **Error Response (400 Bad Request):**
+
 ```json
 {
   "success": false,
@@ -6708,6 +7020,7 @@ Content-Type: multipart/form-data
 ---
 
 ## 9.5 Mark Review Helpful
+
 Marks a review as helpful or not helpful.
 
 ```
@@ -6717,6 +7030,7 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "helpful": true
@@ -6724,6 +7038,7 @@ Content-Type: application/json
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -6739,6 +7054,7 @@ Content-Type: application/json
 ---
 
 ## 9.6 Save/Unsave Service
+
 Saves or removes a service from user's saved list.
 
 ```
@@ -6747,6 +7063,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK) - Saved:**
+
 ```json
 {
   "success": true,
@@ -6759,6 +7076,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK) - Unsaved:**
+
 ```json
 {
   "success": true,
@@ -6773,6 +7091,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 9.7 Get Saved Services
+
 Returns user's saved services.
 
 ```
@@ -6787,6 +7106,7 @@ Authorization: Bearer {access_token}
 | limit | integer | No | 20 | Items per page |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -6797,8 +7117,8 @@ Authorization: Bearer {access_token}
         "id": "g50e8400-e29b-41d4-a716-446655440001",
         "title": "Premium Wedding Photography",
         "provider_name": "David Mwangi",
-        "min_price": 50000.00,
-        "max_price": 250000.00,
+        "min_price": 50000.0,
+        "max_price": 250000.0,
         "currency": "KES",
         "rating": 4.9,
         "review_count": 156,
@@ -6809,8 +7129,8 @@ Authorization: Bearer {access_token}
         "id": "g50e8400-e29b-41d4-a716-446655440015",
         "title": "Elegant Catering Services",
         "provider_name": "Taste of Africa",
-        "min_price": 100000.00,
-        "max_price": 500000.00,
+        "min_price": 100000.0,
+        "max_price": 500000.0,
         "currency": "KES",
         "rating": 4.7,
         "review_count": 89,
@@ -6837,6 +7157,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 10.1 Request Service Booking
+
 Requests a booking from a service provider.
 
 ```
@@ -6846,6 +7167,7 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "event_id": "b50e8400-e29b-41d4-a716-446655440001",
@@ -6860,31 +7182,32 @@ Content-Type: application/json
   "guest_count": 150,
   "message": "Hi David, we love your work and would like to book you for our wedding. We're particularly interested in the Premium Package with the engagement session. Please let us know your availability.",
   "special_requirements": "We would like drone coverage for outdoor shots",
-  "budget": 150000.00,
+  "budget": 150000.0,
   "flexible_date": false,
   "alternate_dates": []
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| event_id | uuid | No | Link to existing event |
-| package_id | uuid | No | Selected package ID |
-| event_date | date | Yes | Date of the event |
-| event_type | string | Yes | Type of event |
-| event_name | string | No | Name of the event |
-| location | string | Yes | Event location |
-| venue | string | No | Venue name |
-| start_time | string | No | Event start time (HH:MM) |
-| end_time | string | No | Event end time (HH:MM) |
-| guest_count | integer | No | Expected number of guests |
-| message | string | Yes | Message to the provider (max 1000 chars) |
-| special_requirements | string | No | Special requirements (max 500 chars) |
-| budget | number | No | Budget amount |
-| flexible_date | boolean | No | Whether date is flexible |
-| alternate_dates | array[date] | No | Alternative dates if flexible |
+| Field                | Type        | Required | Description                              |
+| -------------------- | ----------- | -------- | ---------------------------------------- |
+| event_id             | uuid        | No       | Link to existing event                   |
+| package_id           | uuid        | No       | Selected package ID                      |
+| event_date           | date        | Yes      | Date of the event                        |
+| event_type           | string      | Yes      | Type of event                            |
+| event_name           | string      | No       | Name of the event                        |
+| location             | string      | Yes      | Event location                           |
+| venue                | string      | No       | Venue name                               |
+| start_time           | string      | No       | Event start time (HH:MM)                 |
+| end_time             | string      | No       | Event end time (HH:MM)                   |
+| guest_count          | integer     | No       | Expected number of guests                |
+| message              | string      | Yes      | Message to the provider (max 1000 chars) |
+| special_requirements | string      | No       | Special requirements (max 500 chars)     |
+| budget               | number      | No       | Budget amount                            |
+| flexible_date        | boolean     | No       | Whether date is flexible                 |
+| alternate_dates      | array[date] | No       | Alternative dates if flexible            |
 
 **Success Response (201 Created):**
+
 ```json
 {
   "success": true,
@@ -6917,6 +7240,7 @@ Content-Type: application/json
 ---
 
 ## 10.2 Get My Booking Requests (as Client)
+
 Returns booking requests sent by the authenticated user.
 
 ```
@@ -6932,6 +7256,7 @@ Authorization: Bearer {access_token}
 | status | string | No | all | Filter: pending, accepted, rejected, cancelled, completed, all |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -6982,7 +7307,7 @@ Authorization: Bearer {access_token}
         "event_date": "2025-06-15",
         "location": "Naivasha, Kenya",
         "status": "accepted",
-        "quoted_price": 200000.00,
+        "quoted_price": 200000.0,
         "currency": "KES",
         "provider_message": "We'd be delighted to cater your wedding! Here's our quote for 150 guests.",
         "conversation_id": "conv-001-060",
@@ -7014,6 +7339,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 10.3 Get Booking Requests (as Vendor)
+
 Returns booking requests received by the authenticated vendor.
 
 ```
@@ -7030,6 +7356,7 @@ Authorization: Bearer {access_token}
 | service_id | uuid | No | null | Filter by specific service |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -7051,7 +7378,7 @@ Authorization: Bearer {access_token}
         },
         "event_name": "John & Jane's Wedding",
         "package_name": "Premium Package",
-        "package_price": 120000.00,
+        "package_price": 120000.0,
         "event_date": "2025-06-15",
         "event_type": "Wedding",
         "location": "Naivasha, Kenya",
@@ -7059,7 +7386,7 @@ Authorization: Bearer {access_token}
         "guest_count": 150,
         "message": "Hi David, we love your work and would like to book you for our wedding...",
         "special_requirements": "We would like drone coverage for outdoor shots",
-        "budget": 150000.00,
+        "budget": 150000.0,
         "status": "pending",
         "quoted_price": null,
         "conversation_id": "conv-080-001",
@@ -7124,6 +7451,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 10.4 Get Booking Detail
+
 Returns detailed information about a specific booking.
 
 ```
@@ -7132,6 +7460,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -7174,7 +7503,7 @@ Authorization: Bearer {access_token}
     "package": {
       "id": "h50e8400-e29b-41d4-a716-446655440002",
       "name": "Premium Package",
-      "price": 120000.00,
+      "price": 120000.0,
       "features": [
         "8 hours of coverage",
         "2 professional photographers",
@@ -7184,7 +7513,7 @@ Authorization: Bearer {access_token}
     "booking_details": {
       "message": "Hi David, we love your work and would like to book you for our wedding. We're particularly interested in the Premium Package with the engagement session. Please let us know your availability.",
       "special_requirements": "We would like drone coverage for outdoor shots",
-      "budget": 150000.00,
+      "budget": 150000.0,
       "flexible_date": false,
       "alternate_dates": []
     },
@@ -7220,6 +7549,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 10.5 Respond to Booking (Vendor)
+
 Accepts or rejects a booking request.
 
 ```
@@ -7229,18 +7559,20 @@ Content-Type: application/json
 ```
 
 **Request Body - Accept:**
+
 ```json
 {
   "status": "accepted",
-  "quoted_price": 140000.00,
+  "quoted_price": 140000.0,
   "message": "Thank you for choosing us for your special day! I'm excited to work with you. The quoted price includes the Premium Package plus drone coverage as requested. A 30% deposit (KES 42,000) is required to confirm the booking.",
-  "deposit_required": 42000.00,
+  "deposit_required": 42000.0,
   "deposit_deadline": "2025-02-20",
   "notes": "Will include extra photographer for drone shots"
 }
 ```
 
 **Request Body - Reject:**
+
 ```json
 {
   "status": "rejected",
@@ -7249,17 +7581,18 @@ Content-Type: application/json
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| status | string | Yes | Response: accepted, rejected |
-| quoted_price | number | Conditional | Required if accepting |
-| message | string | Yes | Message to client (max 1000 chars) |
-| deposit_required | number | No | Deposit amount required |
-| deposit_deadline | date | No | Deadline for deposit payment |
-| notes | string | No | Internal notes |
-| reason | string | Conditional | Rejection reason (if rejecting) |
+| Field            | Type   | Required    | Description                        |
+| ---------------- | ------ | ----------- | ---------------------------------- |
+| status           | string | Yes         | Response: accepted, rejected       |
+| quoted_price     | number | Conditional | Required if accepting              |
+| message          | string | Yes         | Message to client (max 1000 chars) |
+| deposit_required | number | No          | Deposit amount required            |
+| deposit_deadline | date   | No          | Deadline for deposit payment       |
+| notes            | string | No          | Internal notes                     |
+| reason           | string | Conditional | Rejection reason (if rejecting)    |
 
 **Rejection Reasons:**
+
 - `date_unavailable` - Already booked for that date
 - `outside_service_area` - Location not serviced
 - `budget_mismatch` - Budget too low
@@ -7267,6 +7600,7 @@ Content-Type: application/json
 - `other` - Other reason (explain in message)
 
 **Success Response (200 OK) - Accepted:**
+
 ```json
 {
   "success": true,
@@ -7274,8 +7608,8 @@ Content-Type: application/json
   "data": {
     "id": "f50e8400-e29b-41d4-a716-446655440020",
     "status": "accepted",
-    "quoted_price": 140000.00,
-    "deposit_required": 42000.00,
+    "quoted_price": 140000.0,
+    "deposit_required": 42000.0,
     "deposit_deadline": "2025-02-20",
     "updated_at": "2025-02-06T10:00:00Z"
   }
@@ -7285,6 +7619,7 @@ Content-Type: application/json
 ---
 
 ## 10.6 Cancel Booking
+
 Cancels a booking request.
 
 ```
@@ -7294,6 +7629,7 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "reason": "Event has been postponed",
@@ -7302,6 +7638,7 @@ Content-Type: application/json
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -7311,7 +7648,7 @@ Content-Type: application/json
     "status": "cancelled",
     "cancelled_at": "2025-02-06T11:00:00Z",
     "cancelled_by": "client",
-    "refund_amount": 42000.00,
+    "refund_amount": 42000.0,
     "refund_status": "processing"
   }
 }
@@ -7320,6 +7657,7 @@ Content-Type: application/json
 ---
 
 ## 10.7 Mark Booking Complete
+
 Marks a booking as completed after the event.
 
 ```
@@ -7329,14 +7667,16 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "completion_notes": "Event went smoothly. Delivered 450 photos.",
-  "final_amount": 140000.00
+  "final_amount": 140000.0
 }
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -7358,6 +7698,7 @@ Content-Type: application/json
 ---
 
 ## 11.1 Get Conversations
+
 Returns all conversations for the authenticated user. Each conversation includes a `type` field (`user_to_user` or `user_to_service`). The `participant` display is **perspective-aware**: service owners see the customer's name/avatar, while customers see the service's branding (title and image). The `service` object (when present) always includes `provider_id` for reference.
 
 ```
@@ -7373,6 +7714,7 @@ Authorization: Bearer {access_token}
 | filter | string | No | all | Filter: all, unread, service, event |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -7493,6 +7835,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 11.2 Get Messages
+
 Returns messages in a conversation.
 
 ```
@@ -7509,6 +7852,7 @@ Authorization: Bearer {access_token}
 | after | string | No | null | Get messages after this message ID |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -7619,6 +7963,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 11.3 Send Message
+
 Sends a message in a conversation.
 
 ```
@@ -7635,6 +7980,7 @@ Content-Type: multipart/form-data
 | reply_to | uuid | No | ID of message being replied to |
 
 **Success Response (201 Created):**
+
 ```json
 {
   "success": true,
@@ -7659,6 +8005,7 @@ Content-Type: multipart/form-data
 ---
 
 ## 11.4 Start Conversation
+
 Starts a new conversation with a user.
 
 ```
@@ -7668,6 +8015,7 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "recipient_id": "550e8400-e29b-41d4-a716-446655440095",
@@ -7679,15 +8027,16 @@ Content-Type: application/json
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| recipient_id | uuid | Yes | User ID to message |
-| content | string | Yes | Initial message (max 5000 chars) |
-| context | object | No | Context for the conversation |
-| context.type | string | No | Context type: service, event, general |
-| context.id | uuid | No | ID of the service or event |
+| Field        | Type   | Required | Description                           |
+| ------------ | ------ | -------- | ------------------------------------- |
+| recipient_id | uuid   | Yes      | User ID to message                    |
+| content      | string | Yes      | Initial message (max 5000 chars)      |
+| context      | object | No       | Context for the conversation          |
+| context.type | string | No       | Context type: service, event, general |
+| context.id   | uuid   | No       | ID of the service or event            |
 
 **Success Response (201 Created):**
+
 ```json
 {
   "success": true,
@@ -7706,6 +8055,7 @@ Content-Type: application/json
 ---
 
 ## 11.5 Mark Messages as Read
+
 Marks messages in a conversation as read.
 
 ```
@@ -7715,6 +8065,7 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "message_ids": ["msg-050", "msg-049"]
@@ -7722,6 +8073,7 @@ Content-Type: application/json
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -7735,6 +8087,7 @@ Content-Type: application/json
 ---
 
 ## 11.6 Delete Message
+
 Deletes a message (soft delete - marks as deleted).
 
 ```
@@ -7743,6 +8096,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -7753,6 +8107,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 11.7 Archive Conversation
+
 Archives a conversation.
 
 ```
@@ -7761,6 +8116,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -7771,6 +8127,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 11.8 Mute/Unmute Conversation
+
 Mutes or unmutes notifications for a conversation.
 
 ```
@@ -7780,6 +8137,7 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "muted": true,
@@ -7787,12 +8145,13 @@ Content-Type: application/json
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| muted | boolean | Yes | Whether to mute |
-| duration | string | No | Mute duration: 1h, 8h, 24h, 7d, forever |
+| Field    | Type    | Required | Description                             |
+| -------- | ------- | -------- | --------------------------------------- |
+| muted    | boolean | Yes      | Whether to mute                         |
+| duration | string  | No       | Mute duration: 1h, 8h, 24h, 7d, forever |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -7811,6 +8170,7 @@ Content-Type: application/json
 ---
 
 ## 12.1 Get Notifications
+
 Returns notifications for the authenticated user.
 
 ```
@@ -7827,6 +8187,7 @@ Authorization: Bearer {access_token}
 | type | string | No | all | Filter by type |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -7970,20 +8331,21 @@ Notifications in Nuru are **referential** — clicking a notification navigates 
 
 **Navigation Mapping:**
 
-| Notification Type | reference_type | Navigates To |
-|---|---|---|
-| `event_invite`, `committee_invite`, `rsvp_received`, `contribution_received`, `expense_recorded` | `event` | `/event/{reference_id}` |
-| `booking_request`, `booking_accepted`, `booking_rejected` | `booking` | `/bookings/{reference_id}` |
-| `glow`, `comment`, `echo`, `mention` | `post` | `/post/{reference_id}` |
-| `follow`, `circle_add` | `user` | `/u/{actor.username}` |
-| `content_removed`, `post_removed`, `moment_removed` | — | `/removed-content` |
-| `service_approved`, `service_rejected`, `kyc_approved` | `service` | `/service/{reference_id}` |
-| `identity_verified` | — | `/profile` |
-| `password_changed`, `password_reset` | — | `/settings` |
-| `moment_view`, `moment_reaction` | — | `/u/{actor.username}` |
-| `broadcast`, `system`, `general` | — | Non-navigable |
+| Notification Type                                                                                | reference_type | Navigates To               |
+| ------------------------------------------------------------------------------------------------ | -------------- | -------------------------- |
+| `event_invite`, `committee_invite`, `rsvp_received`, `contribution_received`, `expense_recorded` | `event`        | `/event/{reference_id}`    |
+| `booking_request`, `booking_accepted`, `booking_rejected`                                        | `booking`      | `/bookings/{reference_id}` |
+| `glow`, `comment`, `echo`, `mention`                                                             | `post`         | `/post/{reference_id}`     |
+| `follow`, `circle_add`                                                                           | `user`         | `/u/{actor.username}`      |
+| `content_removed`, `post_removed`, `moment_removed`                                              | —              | `/removed-content`         |
+| `service_approved`, `service_rejected`, `kyc_approved`                                           | `service`      | `/service/{reference_id}`  |
+| `identity_verified`                                                                              | —              | `/profile`                 |
+| `password_changed`, `password_reset`                                                             | —              | `/settings`                |
+| `moment_view`, `moment_reaction`                                                                 | —              | `/u/{actor.username}`      |
+| `broadcast`, `system`, `general`                                                                 | —              | Non-navigable              |
 
 **Actor Object (returned in each notification):**
+
 ```json
 {
   "id": "uuid",
@@ -8002,6 +8364,7 @@ System notifications (broadcast, system) use the Nuru logo avatar and "Nuru" as 
 ---
 
 ## 12.2 Mark Notification as Read
+
 Marks a specific notification as read.
 
 ```
@@ -8010,6 +8373,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -8025,6 +8389,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 12.3 Mark All Notifications as Read
+
 Marks all unread notifications as read.
 
 ```
@@ -8033,6 +8398,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -8046,6 +8412,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 12.4 Delete Notification
+
 Deletes a notification.
 
 ```
@@ -8054,6 +8421,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -8064,6 +8432,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 12.5 Get Notification Preferences
+
 Returns user's notification preferences.
 
 ```
@@ -8072,6 +8441,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -8113,6 +8483,7 @@ Authorization: Bearer {access_token}
 ---
 
 ## 12.6 Update Notification Preferences
+
 Updates user's notification preferences.
 
 ```
@@ -8122,6 +8493,7 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "email": {
@@ -8141,6 +8513,7 @@ Content-Type: application/json
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -8149,6 +8522,7 @@ Content-Type: application/json
 ```
 
 ---
+
 Continuing with the complete API documentation for all remaining modules.
 
 ---
@@ -8156,6 +8530,7 @@ Continuing with the complete API documentation for all remaining modules.
 ## MODULE 13: USER PROFILE
 
 ### 13.1 Get Current User Profile
+
 ```
 GET /users/profile
 Authorization: Bearer {token}
@@ -8202,6 +8577,7 @@ Response 200:
 ```
 
 ### 13.2 Get User Profile by ID (Public)
+
 ```
 GET /users/:userId
 Authorization: Bearer {token} (optional)
@@ -8266,6 +8642,7 @@ Response 404:
 ```
 
 ### 13.3 Update User Profile
+
 ```
 PUT /users/profile
 Authorization: Bearer {token}
@@ -8334,6 +8711,7 @@ Response 400:
 ```
 
 ### 13.4 Change Password
+
 ```
 POST /users/change-password
 Authorization: Bearer {token}
@@ -8379,6 +8757,7 @@ Response 422:
 ```
 
 ### 13.5 Update Email
+
 ```
 PUT /users/email
 Authorization: Bearer {token}
@@ -8409,6 +8788,7 @@ Response 400:
 ```
 
 ### 13.6 Update Phone
+
 ```
 PUT /users/phone
 Authorization: Bearer {token}
@@ -8432,6 +8812,7 @@ Response 200:
 ```
 
 ### 13.7 Follow User
+
 ```
 POST /users/:userId/follow
 Authorization: Bearer {token}
@@ -8467,6 +8848,7 @@ Response 400:
 ```
 
 ### 13.8 Unfollow User
+
 ```
 DELETE /users/:userId/follow
 Authorization: Bearer {token}
@@ -8490,6 +8872,7 @@ Response 400:
 ```
 
 ### 13.9 Get User Followers
+
 ```
 GET /users/:userId/followers
 Authorization: Bearer {token} (optional)
@@ -8544,6 +8927,7 @@ Response 200:
 ```
 
 ### 13.10 Get User Following
+
 ```
 GET /users/:userId/following
 Authorization: Bearer {token} (optional)
@@ -8588,6 +8972,7 @@ Response 200:
 ```
 
 ### 13.11 Get User's Public Events
+
 ```
 GET /users/:userId/events
 Authorization: Bearer {token} (optional)
@@ -8640,6 +9025,7 @@ Response 200:
 ```
 
 ### 13.12 Get User's Posts
+
 ```
 GET /users/:userId/posts
 Authorization: Bearer {token} (optional)
@@ -8695,6 +9081,7 @@ Response 200:
 ```
 
 ### 13.13 Get User's Services (Vendor)
+
 ```
 GET /users/:userId/services
 Authorization: Bearer {token} (optional)
@@ -8758,6 +9145,7 @@ Response 400:
 ```
 
 ### 13.14 Block User
+
 ```
 POST /users/:userId/block
 Authorization: Bearer {token}
@@ -8785,6 +9173,7 @@ Response 400:
 ```
 
 ### 13.15 Unblock User
+
 ```
 DELETE /users/:userId/block
 Authorization: Bearer {token}
@@ -8801,6 +9190,7 @@ Response 200:
 ```
 
 ### 13.16 Get Blocked Users
+
 ```
 GET /users/blocked
 Authorization: Bearer {token}
@@ -8837,6 +9227,7 @@ Response 200:
 ```
 
 ### 13.17 Delete Account
+
 ```
 DELETE /users/account
 Authorization: Bearer {token}
@@ -8872,6 +9263,7 @@ Response 400:
 ## MODULE 14: FEED / POSTS
 
 ### 14.1 Get Feed
+
 ```
 GET /feed
 Authorization: Bearer {token}
@@ -9006,6 +9398,7 @@ Response 200:
 ```
 
 ### 14.2 Get Single Post
+
 ```
 GET /posts/:postId
 Authorization: Bearer {token} (optional for public posts)
@@ -9095,6 +9488,7 @@ Response 403:
 ```
 
 ### 14.3 Create Post
+
 ```
 POST /posts
 Authorization: Bearer {token}
@@ -9152,6 +9546,7 @@ Response 400:
 ```
 
 ### 14.4 Update Post
+
 ```
 PUT /posts/:postId
 Authorization: Bearer {token}
@@ -9192,6 +9587,7 @@ Response 404:
 ```
 
 ### 14.5 Delete Post
+
 ```
 DELETE /posts/:postId
 Authorization: Bearer {token}
@@ -9215,6 +9611,7 @@ Response 403:
 ```
 
 ### 14.6 Glow (Like) Post
+
 ```
 POST /posts/:postId/glow
 Authorization: Bearer {token}
@@ -9243,6 +9640,7 @@ Response 400:
 ```
 
 ### 14.7 Remove Glow from Post
+
 ```
 DELETE /posts/:postId/glow
 Authorization: Bearer {token}
@@ -9259,6 +9657,7 @@ Response 200:
 ```
 
 ### 14.8 Get Post Glows
+
 ```
 GET /posts/:postId/glows
 Authorization: Bearer {token} (optional)
@@ -9302,6 +9701,7 @@ Response 200:
 ```
 
 ### 14.9 Echo (Repost) Post
+
 ```
 POST /posts/:postId/echo
 Authorization: Bearer {token}
@@ -9342,6 +9742,7 @@ Response 400:
 ```
 
 ### 14.10 Remove Echo
+
 ```
 DELETE /posts/:postId/echo
 Authorization: Bearer {token}
@@ -9358,6 +9759,7 @@ Response 200:
 ```
 
 ### 14.11 Get Post Comments
+
 ```
 GET /posts/:postId/comments
 Authorization: Bearer {token} (optional)
@@ -9435,6 +9837,7 @@ Notes:
 ```
 
 ### 14.12 Create Comment
+
 ```
 POST /posts/:postId/comments
 Authorization: Bearer {token}
@@ -9478,6 +9881,7 @@ Response 201:
 ```
 
 ### 14.13 Update Comment
+
 ```
 PUT /posts/:postId/comments/:commentId
 Authorization: Bearer {token}
@@ -9506,6 +9910,7 @@ Response 200:
 ```
 
 ### 14.14 Delete Comment
+
 ```
 DELETE /posts/:postId/comments/:commentId
 Authorization: Bearer {token}
@@ -9523,6 +9928,7 @@ Response 200:
 ```
 
 ### 14.15 Glow Comment
+
 ```
 POST /posts/:postId/comments/:commentId/glow
 Authorization: Bearer {token}
@@ -9543,6 +9949,7 @@ Response 200:
 ```
 
 ### 14.16 Remove Comment Glow
+
 ```
 DELETE /posts/:postId/comments/:commentId/glow
 Authorization: Bearer {token}
@@ -9560,6 +9967,7 @@ Response 200:
 ```
 
 ### 14.17 Get Comment Replies (Threaded Echoes)
+
 ```
 GET /posts/:postId/comments/:commentId/replies
 Authorization: Bearer {token}
@@ -9615,6 +10023,7 @@ Notes:
 ```
 
 ### 14.18 Save Post
+
 ```
 POST /posts/:postId/save
 Authorization: Bearer {token}
@@ -9641,6 +10050,7 @@ Response 200:
 ```
 
 ### 14.18 Unsave Post
+
 ```
 DELETE /posts/:postId/save
 Authorization: Bearer {token}
@@ -9657,6 +10067,7 @@ Response 200:
 ```
 
 ### 14.19 Get Saved Posts
+
 ```
 GET /posts/saved
 Authorization: Bearer {token}
@@ -9709,10 +10120,12 @@ Response 200:
 ```
 
 > **Database Note:** The saved posts feature uses the `user_feed_saved` table with columns:
+>
 > - `id` (UUID, PK), `user_id` (UUID, FK → users.id), `feed_id` (UUID, FK → user_feeds.id), `created_at` (timestamp)
 > - Unique constraint on `(user_id, feed_id)` named `uq_feed_saved`
-> 
+>
 > **CREATE TABLE SQL:**
+>
 > ```sql
 > CREATE TABLE IF NOT EXISTS user_feed_saved (
 >   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -9723,8 +10136,8 @@ Response 200:
 > );
 > ```
 
-
 ### 14.20 Report Post
+
 ```
 POST /posts/:postId/report
 Authorization: Bearer {token}
@@ -9762,6 +10175,7 @@ Response 200:
 ```
 
 ### 14.21 Pin Post (on own profile)
+
 ```
 POST /posts/:postId/pin
 Authorization: Bearer {token}
@@ -9788,6 +10202,7 @@ Response 400:
 ```
 
 ### 14.22 Unpin Post
+
 ```
 DELETE /posts/:postId/pin
 Authorization: Bearer {token}
@@ -9808,6 +10223,7 @@ Response 200:
 ## MODULE 15: MOMENTS (Stories)
 
 ### 15.1 Get Moments Feed
+
 ```
 GET /moments
 Authorization: Bearer {token}
@@ -9892,6 +10308,7 @@ Response 200:
 ```
 
 ### 15.2 Get User Moments
+
 ```
 GET /moments/user/:userId
 Authorization: Bearer {token}
@@ -10007,6 +10424,7 @@ Response 200:
 ```
 
 ### 15.3 Get My Moments
+
 ```
 GET /moments/me
 Authorization: Bearer {token}
@@ -10046,6 +10464,7 @@ Response 200:
 ```
 
 ### 15.4 Create Moment
+
 ```
 POST /moments
 Authorization: Bearer {token}
@@ -10113,6 +10532,7 @@ Response 201:
 ```
 
 ### 15.5 Delete Moment
+
 ```
 DELETE /moments/:momentId
 Authorization: Bearer {token}
@@ -10129,6 +10549,7 @@ Response 200:
 ```
 
 ### 15.6 Mark Moment as Seen
+
 ```
 POST /moments/:momentId/seen
 Authorization: Bearer {token}
@@ -10148,6 +10569,7 @@ Response 200:
 ```
 
 ### 15.7 Get Moment Viewers
+
 ```
 GET /moments/:momentId/viewers
 Authorization: Bearer {token}
@@ -10195,6 +10617,7 @@ Response 403:
 ```
 
 ### 15.8 Reply to Moment
+
 ```
 POST /moments/:momentId/replies
 Authorization: Bearer {token}
@@ -10233,6 +10656,7 @@ Response 403:
 ```
 
 ### 15.9 Get Moment Replies (for moment owner)
+
 ```
 GET /moments/:momentId/replies
 Authorization: Bearer {token}
@@ -10277,6 +10701,7 @@ Response 200:
 ```
 
 ### 15.10 Vote on Poll Sticker
+
 ```
 POST /moments/:momentId/poll/:stickerId/vote
 Authorization: Bearer {token}
@@ -10319,6 +10744,7 @@ Response 200:
 ```
 
 ### 15.11 Highlight Moment
+
 ```
 POST /moments/:momentId/highlight
 Authorization: Bearer {token}
@@ -10346,6 +10772,7 @@ Response 200:
 ```
 
 ### 15.12 Get Highlights
+
 ```
 GET /users/:userId/highlights
 Authorization: Bearer {token} (optional)
@@ -10381,6 +10808,7 @@ Response 200:
 ```
 
 ### 15.13 Create Highlight
+
 ```
 POST /highlights
 Authorization: Bearer {token}
@@ -10406,6 +10834,7 @@ Response 201:
 ```
 
 ### 15.14 Update Highlight
+
 ```
 PUT /highlights/:highlightId
 Authorization: Bearer {token}
@@ -10432,6 +10861,7 @@ Response 200:
 ```
 
 ### 15.15 Delete Highlight
+
 ```
 DELETE /highlights/:highlightId
 Authorization: Bearer {token}
@@ -10448,6 +10878,7 @@ Response 200:
 ```
 
 ### 15.16 Get Highlight Moments
+
 ```
 GET /highlights/:highlightId/moments
 Authorization: Bearer {token} (optional)
@@ -10484,6 +10915,7 @@ Response 200:
 ```
 
 ### 15.17 Remove Moment from Highlight
+
 ```
 DELETE /highlights/:highlightId/moments/:momentId
 Authorization: Bearer {token}
@@ -10505,6 +10937,7 @@ Response 200:
 ## MODULE 16: SOCIAL / CIRCLES
 
 ### 16.1 Get My Circles
+
 ```
 GET /circles
 Authorization: Bearer {token}
@@ -10582,6 +11015,7 @@ Response 200:
 ```
 
 ### 16.2 Get Circle Details
+
 ```
 GET /circles/:circleId
 Authorization: Bearer {token}
@@ -10632,6 +11066,7 @@ Response 403:
 ```
 
 ### 16.3 Create Circle
+
 ```
 POST /circles
 Authorization: Bearer {token}
@@ -10667,6 +11102,7 @@ Response 201:
 ```
 
 ### 16.4 Update Circle
+
 ```
 PUT /circles/:circleId
 Authorization: Bearer {token}
@@ -10707,6 +11143,7 @@ Response 403:
 ```
 
 ### 16.5 Delete Circle
+
 ```
 DELETE /circles/:circleId
 Authorization: Bearer {token}
@@ -10730,6 +11167,7 @@ Response 403:
 ```
 
 ### 16.6 Get Circle Members
+
 ```
 GET /circles/:circleId/members
 Authorization: Bearer {token}
@@ -10802,6 +11240,7 @@ Response 200:
 ```
 
 ### 16.7 Invite Members to Circle
+
 ```
 POST /circles/:circleId/invite
 Authorization: Bearer {token}
@@ -10859,6 +11298,7 @@ Response 403:
 ```
 
 ### 16.8 Get Circle Invitations (Pending)
+
 ```
 GET /circles/:circleId/invitations
 Authorization: Bearer {token}
@@ -10909,6 +11349,7 @@ Response 200:
 ```
 
 ### 16.9 Get My Circle Invitations
+
 ```
 GET /circles/invitations
 Authorization: Bearer {token}
@@ -10956,6 +11397,7 @@ Response 200:
 ```
 
 ### 16.10 Respond to Circle Invitation
+
 ```
 PUT /circles/invitations/:invitationId
 Authorization: Bearer {token}
@@ -10992,6 +11434,7 @@ Response 200 (decline):
 ```
 
 ### 16.11 Cancel Circle Invitation
+
 ```
 DELETE /circles/:circleId/invitations/:invitationId
 Authorization: Bearer {token}
@@ -11009,6 +11452,7 @@ Response 200:
 ```
 
 ### 16.12 Update Member Role
+
 ```
 PUT /circles/:circleId/members/:memberId/role
 Authorization: Bearer {token}
@@ -11046,6 +11490,7 @@ Response 403:
 ```
 
 ### 16.13 Remove Member from Circle
+
 ```
 DELETE /circles/:circleId/members/:memberId
 Authorization: Bearer {token}
@@ -11070,6 +11515,7 @@ Response 403:
 ```
 
 ### 16.14 Leave Circle
+
 ```
 DELETE /circles/:circleId/leave
 Authorization: Bearer {token}
@@ -11093,6 +11539,7 @@ Response 400:
 ```
 
 ### 16.15 Transfer Circle Ownership
+
 ```
 PUT /circles/:circleId/transfer-ownership
 Authorization: Bearer {token}
@@ -11128,6 +11575,7 @@ Response 400:
 ```
 
 ### 16.16 Get Circle Feed/Posts
+
 ```
 GET /circles/:circleId/posts
 Authorization: Bearer {token}
@@ -11184,6 +11632,7 @@ Response 200:
 ```
 
 ### 16.17 Create Circle Post
+
 ```
 POST /circles/:circleId/posts
 Authorization: Bearer {token}
@@ -11219,6 +11668,7 @@ Response 403:
 ```
 
 ### 16.18 Pin Circle Post
+
 ```
 POST /circles/:circleId/posts/:postId/pin
 Authorization: Bearer {token}
@@ -11246,6 +11696,7 @@ Response 400:
 ```
 
 ### 16.19 Get Circle Events
+
 ```
 GET /circles/:circleId/events
 Authorization: Bearer {token}
@@ -11300,6 +11751,7 @@ Response 200:
 ```
 
 ### 16.20 Create Circle Event
+
 ```
 POST /circles/:circleId/events
 Authorization: Bearer {token}
@@ -11337,6 +11789,7 @@ Response 201:
 ## MODULE 17: NURU CARDS
 
 ### 17.1 Get My Nuru Cards
+
 ```
 GET /nuru-cards
 Authorization: Bearer {token}
@@ -11365,6 +11818,7 @@ Card Types (enum): "standard", "premium", "custom"
 ```
 
 ### 17.1b Get My Card Orders
+
 ```
 GET /nuru-cards/my-orders
 Authorization: Bearer {token}
@@ -11391,6 +11845,7 @@ Order Statuses (enum): "pending", "processing", "shipped", "delivered", "cancell
 ```
 
 ### 17.2 Get Single Nuru Card
+
 ```
 GET /nuru-cards/:cardId
 Authorization: Bearer {token}
@@ -11451,6 +11906,7 @@ Response 200:
 ```
 
 ### 17.3 Order New Nuru Card
+
 ```
 POST /nuru-cards/order
 Authorization: Bearer {token}
@@ -11520,6 +11976,7 @@ Response 201:
 ```
 
 ### 17.4 Get Card Order Status
+
 ```
 GET /nuru-cards/orders/:orderId
 Authorization: Bearer {token}
@@ -11574,6 +12031,7 @@ Response 200:
 ```
 
 ### 17.5 Activate Nuru Card
+
 ```
 POST /nuru-cards/:cardId/activate
 Authorization: Bearer {token}
@@ -11608,6 +12066,7 @@ Response 400:
 ```
 
 ### 17.6 Suspend Nuru Card
+
 ```
 POST /nuru-cards/:cardId/suspend
 Authorization: Bearer {token}
@@ -11641,6 +12100,7 @@ Response 200:
 ```
 
 ### 17.7 Reactivate Nuru Card
+
 ```
 POST /nuru-cards/:cardId/reactivate
 Authorization: Bearer {token}
@@ -11668,6 +12128,7 @@ Response 400:
 ```
 
 ### 17.8 Order Replacement Card
+
 ```
 POST /nuru-cards/:cardId/replace
 Authorization: Bearer {token}
@@ -11707,6 +12168,7 @@ Response 201:
 ```
 
 ### 17.9 Verify Card for Check-in (Event Organizer)
+
 ```
 POST /nuru-cards/verify
 Authorization: Bearer {token}
@@ -11775,6 +12237,7 @@ Response 404:
 ```
 
 ### 17.10 Check-in with Nuru Card
+
 ```
 POST /nuru-cards/check-in
 Authorization: Bearer {token}
@@ -11815,6 +12278,7 @@ Response 400:
 ```
 
 ### 17.11 Get Card Check-in History
+
 ```
 GET /nuru-cards/:cardId/check-ins
 Authorization: Bearer {token}
@@ -11859,6 +12323,7 @@ Response 200:
 ```
 
 ### 17.12 Update Card Design
+
 ```
 PUT /nuru-cards/:cardId/design
 Authorization: Bearer {token}
@@ -11893,6 +12358,7 @@ Response 200:
 ## MODULE 18: SUPPORT
 
 ### 18.1 Get Support Tickets
+
 ```
 GET /support/tickets
 Authorization: Bearer {token}
@@ -11938,6 +12404,7 @@ Response 200:
 ```
 
 ### 18.2 Get Single Support Ticket
+
 ```
 GET /support/tickets/:ticketId
 Authorization: Bearer {token}
@@ -12003,6 +12470,7 @@ Response 200:
 ```
 
 ### 18.3 Create Support Ticket
+
 ```
 POST /support/tickets
 Authorization: Bearer {token}
@@ -12042,6 +12510,7 @@ Response 201:
 ```
 
 ### 18.4 Reply to Support Ticket
+
 ```
 POST /support/tickets/:ticketId/messages
 Authorization: Bearer {token}
@@ -12082,6 +12551,7 @@ Response 400:
 ```
 
 ### 18.5 Close Support Ticket
+
 ```
 PUT /support/tickets/:ticketId/close
 Authorization: Bearer {token}
@@ -12114,6 +12584,7 @@ Response 200:
 ```
 
 ### 18.6 Reopen Support Ticket
+
 ```
 PUT /support/tickets/:ticketId/reopen
 Authorization: Bearer {token}
@@ -12147,6 +12618,7 @@ Response 400:
 ```
 
 ### 18.7 Get FAQ Categories
+
 ```
 GET /support/faqs/categories
 Authorization: Not required
@@ -12205,6 +12677,7 @@ Response 200:
 ```
 
 ### 18.8 Get FAQs
+
 ```
 GET /support/faqs
 Authorization: Not required
@@ -12248,6 +12721,7 @@ Response 200:
 ```
 
 ### 18.9 Mark FAQ as Helpful
+
 ```
 POST /support/faqs/:faqId/helpful
 Authorization: Bearer {token} (optional)
@@ -12276,6 +12750,7 @@ Response 200:
 ```
 
 ### 18.10 Get Live Chat Status
+
 ```
 GET /support/chat/status
 Authorization: Bearer {token}
@@ -12305,6 +12780,7 @@ Response 200:
 ```
 
 ### 18.11 Start Live Chat
+
 ```
 POST /support/chat/start
 Authorization: Bearer {token}
@@ -12340,6 +12816,7 @@ Response 400:
 ```
 
 ### 18.12 End Live Chat
+
 ```
 POST /support/chat/:chatId/end
 Authorization: Bearer {token}
@@ -12367,6 +12844,7 @@ Response 200:
 ```
 
 ### 18.13 Get Chat Transcript
+
 ```
 GET /support/chat/:chatId/transcript
 Authorization: Bearer {token}
@@ -12414,6 +12892,7 @@ Response 200:
 ## MODULE 19: SETTINGS
 
 ### 19.1 Get All Settings
+
 ```
 GET /settings
 Authorization: Bearer {token}
@@ -12526,6 +13005,7 @@ Response 200:
 ```
 
 ### 19.2 Update Notification Settings
+
 ```
 PUT /settings/notifications
 Authorization: Bearer {token}
@@ -12594,6 +13074,7 @@ Response 200:
 ```
 
 ### 19.3 Update Privacy Settings
+
 ```
 PUT /settings/privacy
 Authorization: Bearer {token}
@@ -12630,6 +13111,7 @@ Response 200:
 ```
 
 ### 19.4 Update Preferences
+
 ```
 PUT /settings/preferences
 Authorization: Bearer {token}
@@ -12673,6 +13155,7 @@ Response 200:
 ```
 
 ### 19.5 Enable Two-Factor Authentication
+
 ```
 POST /settings/security/2fa/enable
 Authorization: Bearer {token}
@@ -12723,6 +13206,7 @@ Response 200 (sms):
 ```
 
 ### 19.6 Verify and Complete 2FA Setup
+
 ```
 POST /settings/security/2fa/verify
 Authorization: Bearer {token}
@@ -12753,6 +13237,7 @@ Response 400:
 ```
 
 ### 19.7 Disable Two-Factor Authentication
+
 ```
 POST /settings/security/2fa/disable
 Authorization: Bearer {token}
@@ -12776,6 +13261,7 @@ Response 200:
 ```
 
 ### 19.8 Get Active Sessions
+
 ```
 GET /settings/security/sessions
 Authorization: Bearer {token}
@@ -12827,6 +13313,7 @@ Response 200:
 ```
 
 ### 19.9 Revoke Session
+
 ```
 DELETE /settings/security/sessions/:sessionId
 Authorization: Bearer {token}
@@ -12850,6 +13337,7 @@ Response 400:
 ```
 
 ### 19.10 Revoke All Other Sessions
+
 ```
 DELETE /settings/security/sessions
 Authorization: Bearer {token}
@@ -12871,6 +13359,7 @@ Response 200:
 ```
 
 ### 19.11 Connect Social Account
+
 ```
 POST /settings/accounts/connect/:provider
 Authorization: Bearer {token}
@@ -12889,6 +13378,7 @@ Response 200:
 ```
 
 ### 19.12 Disconnect Social Account
+
 ```
 DELETE /settings/accounts/disconnect/:provider
 Authorization: Bearer {token}
@@ -12921,6 +13411,7 @@ Response 400:
 ```
 
 ### 19.13 Add Payment Method - M-PESA
+
 ```
 POST /settings/payments/mpesa
 Authorization: Bearer {token}
@@ -12943,6 +13434,7 @@ Response 200:
 ```
 
 ### 19.14 Verify M-PESA Number
+
 ```
 POST /settings/payments/mpesa/verify
 Authorization: Bearer {token}
@@ -12970,6 +13462,7 @@ Response 200:
 ```
 
 ### 19.15 Add Payment Method - Card
+
 ```
 POST /settings/payments/card
 Authorization: Bearer {token}
@@ -13002,6 +13495,7 @@ Response 200:
 ```
 
 ### 19.16 Remove Payment Method
+
 ```
 DELETE /settings/payments/:type/:id
 Authorization: Bearer {token}
@@ -13026,6 +13520,7 @@ Response 400:
 ```
 
 ### 19.17 Set Default Payment Method
+
 ```
 PUT /settings/payments/default
 Authorization: Bearer {token}
@@ -13053,6 +13548,7 @@ Response 200:
 ```
 
 ### 19.18 Export User Data
+
 ```
 POST /settings/data/export
 Authorization: Bearer {token}
@@ -13092,6 +13588,7 @@ Response 200:
 ```
 
 ### 19.19 Get Data Export Status
+
 ```
 GET /settings/data/export/:exportId
 Authorization: Bearer {token}
@@ -13121,6 +13618,7 @@ Response 200:
 ## MODULE 20: FILE UPLOAD
 
 ### 20.1 Request Upload URL
+
 ```
 POST /uploads/request
 Authorization: Bearer {token}
@@ -13177,6 +13675,7 @@ Response 400:
 ```
 
 ### 20.2 Confirm Upload
+
 ```
 POST /uploads/:uploadId/confirm
 Authorization: Bearer {token}
@@ -13211,6 +13710,7 @@ Response 400:
 ```
 
 ### 20.3 Direct Upload (for smaller files)
+
 ```
 POST /uploads/direct
 Authorization: Bearer {token}
@@ -13241,6 +13741,7 @@ Response 200:
 ```
 
 ### 20.4 Get Upload Status
+
 ```
 GET /uploads/:uploadId
 Authorization: Bearer {token}
@@ -13271,6 +13772,7 @@ Status Values:
 ```
 
 ### 20.5 Delete Upload
+
 ```
 DELETE /uploads/:uploadId
 Authorization: Bearer {token}
@@ -13309,6 +13811,7 @@ Response 400:
 ```
 
 ### 20.6 Get My Uploads
+
 ```
 GET /uploads
 Authorization: Bearer {token}
@@ -13356,16 +13859,16 @@ Response 200:
 
 ## ERROR CODES REFERENCE
 
-| HTTP Code | Error Type | Description |
-|-----------|------------|-------------|
-| 400 | Bad Request | Invalid request body, missing required fields, validation errors |
-| 401 | Unauthorized | Missing or invalid authentication token |
-| 403 | Forbidden | Valid token but insufficient permissions |
-| 404 | Not Found | Resource does not exist |
-| 409 | Conflict | Resource already exists (duplicate) |
-| 422 | Unprocessable Entity | Request understood but cannot be processed |
-| 429 | Too Many Requests | Rate limit exceeded |
-| 500 | Internal Server Error | Server-side error |
+| HTTP Code | Error Type            | Description                                                      |
+| --------- | --------------------- | ---------------------------------------------------------------- |
+| 400       | Bad Request           | Invalid request body, missing required fields, validation errors |
+| 401       | Unauthorized          | Missing or invalid authentication token                          |
+| 403       | Forbidden             | Valid token but insufficient permissions                         |
+| 404       | Not Found             | Resource does not exist                                          |
+| 409       | Conflict              | Resource already exists (duplicate)                              |
+| 422       | Unprocessable Entity  | Request understood but cannot be processed                       |
+| 429       | Too Many Requests     | Rate limit exceeded                                              |
+| 500       | Internal Server Error | Server-side error                                                |
 
 ---
 
@@ -13374,62 +13877,76 @@ Response 200:
 ## Backend Changes
 
 ### New Enum: `feed_visibility_enum`
+
 - Values: `public`, `circle`
 - Used by `user_feeds.visibility` column
 
 ### New Column: `user_feeds.visibility`
+
 - Type: `feed_visibility_enum`, default `public`
 - Controls post audience: `public` (everyone) or `circle` (close friends only)
 - **SQL migration required:**
+
 ```sql
 CREATE TYPE feed_visibility_enum AS ENUM ('public', 'circle');
 ALTER TABLE user_feeds ADD COLUMN visibility feed_visibility_enum DEFAULT 'public';
 ```
 
 ### SMS Notification Integration
+
 - `backend/utils/sms.py` — Fire-and-forget SMS helpers using `SewmrSmsClient`
 - Wired into guest additions, committee invites, contributions, target updates, thank-you messages, and provider bookings in `/user-events/` routes
 
 ### Community Posts Endpoint
+
 - `GET /communities/{id}/posts` — Returns community posts created by the community creator
 - `POST /communities/{id}/posts` — Creator-only: create a community post (multipart: `content`, `images[]`)
 - `POST /communities/{id}/posts/{post_id}/glow` — Glow a community post
 - `DELETE /communities/{id}/posts/{post_id}/glow` — Remove glow from a community post
 
 ### Public Post Guest View
+
 - `GET /posts/{id}/public` — Public endpoint (no auth) returns post data for public posts only
 - Frontend route: `/shared/post/:id` — Guest view with sign-in prompt, interactions disabled
 
 ### Password Reset
+
 - `POST /auth/forgot-password` — Sends reset email via API
 - `POST /auth/reset-password` — Accepts token + new password
 - Frontend `ResetPassword` page wired to these endpoints
 
 ### Post Visibility
+
 - `POST /posts` now accepts `visibility` form field (`public` | `circle`)
 - `GET /posts/feed` and `GET /posts/{id}` return `visibility` in response
 
 ### Default Currency
+
 - All service and event endpoints default to `TZS` instead of `KES`
 
 ## Frontend Changes
 
 ### Feed Image Fix
+
 - Fixed image extraction: handles both string URLs and `{image_url}` objects from backend
 - `Moment.tsx` now supports multi-image grid display
 
 ### Event Edit Fixes
+
 - Service providers now re-fetch when event type changes on edit
 - Event images now load from `images[]` array (not just `gallery_images`)
 
 ### OTP Input Consistency
+
 - VerifyEmail and VerifyPhone pages use `InputOTP` component with 6 box slots
 
 ### Dark Mode
+
 - Theme toggle in Settings persists to `localStorage('nuru-ui-theme')`
 - Applied via `document.documentElement.classList.toggle('dark')`
 
 ### Autocomplete Prevention
+
 - `autoComplete="off"` default on shared `Input` component
 
 # 📋 CHANGELOG (2026-02-11)
@@ -13437,63 +13954,76 @@ ALTER TABLE user_feeds ADD COLUMN visibility feed_visibility_enum DEFAULT 'publi
 ## Backend Changes
 
 ### Community Member Management
+
 - `POST /communities/{id}/members` — Creator can add a member by `user_id`
 - `DELETE /communities/{id}/members/{user_id}` — Creator can remove a member
 
 ### Service Booking Notification
+
 - When a service provider is assigned to an event, an in-app notification + SMS is sent to the provider
 
 ## Frontend Changes
 
 ### Avatar Two-Initials Consistency
+
 - All avatar fallbacks (MomentDetail, BookingList, BookingDetail, CommunityDetail) now use two-letter initials (e.g., "JD" for John Doe) instead of a single letter
 
 ### Feed Silent Refetch
+
 - Returning from MomentDetail no longer triggers skeleton loaders; data is refetched silently in the background
 
 ### Booking Page Fixes
+
 - Invalid dates handled gracefully (shows "TBD" when event_date is null/invalid)
 - Service image fallback: shows initials when no image available
 - My Bookings tab defaults to showing "Accepted" status bookings
 - Incoming Requests tab defaults to showing "Pending" status bookings
 
 ### Community Members Fix
+
 - Members count now reads from actual fetched members array instead of stale `member_count` field
 - Creator can add members via user search dialog (name, phone, email lookup)
 - Creator can remove members (hover to reveal remove button)
 - Community post author avatars use two-letter initials
 
 ### Booking API Response Enrichment (2026-02-11)
+
 - `_booking_dict` now returns full service data: `primary_image` (resolved from images relation, cover_image_url fallbacks), `category`
 - `client` and `provider` objects now include `avatar` (from user profile `profile_picture_url`), `phone`, and `email`
 - `event` object now includes `date`, `start_time`, `end_time`, `location`, `venue`, `guest_count`
 - Top-level `event_name`, `event_date`, `location`, `venue`, `guest_count` fields populated from event relation
 
 ### Booking Respond → Calendar Price Sync (2026-02-11)
+
 - When vendor accepts a booking via `POST /bookings/{bookingId}/respond`, the `quoted_price` is synced to `EventService.agreed_price`
 - `EventService.service_status` is also updated to `confirmed` on acceptance
 - This ensures the service calendar (`GET /services/{id}/calendar`) shows the actual quoted price, not the service min_price
 
 ### Public Service Detail Page (2026-02-11)
+
 - New frontend page `PublicServiceDetail` at route `/services/view/:id` — any authenticated user can view service details in read-only mode
 - Calendar shows booked/available dates without event names, locations, or agreed prices (those are owner-only in the existing `/service/:id` page)
 - Reviews section displays all client reviews with pagination
 - Review submission form: star rating + comment (min 10 chars, max 2000 chars)
 
 ### Submit Service Review Endpoint (2026-02-11)
+
 - `POST /services/{service_id}/reviews` — Authenticated endpoint
 - **Eligibility**: Only users whose events had this service provider assigned (confirmed/completed/accepted status) can review
 - **Once only**: Each user can review a service only once
 - **Cannot review own service**
 - **Validation**: rating (1-5 integer, required), comment (10-2000 chars, required)
 - **Request Body:**
+
 ```json
 {
   "rating": 5,
   "comment": "Excellent service, very professional and timely."
 }
 ```
+
 - **Success Response:**
+
 ```json
 {
   "success": true,
@@ -13507,6 +14037,7 @@ ALTER TABLE user_feeds ADD COLUMN visibility feed_visibility_enum DEFAULT 'publi
   }
 }
 ```
+
 - **Error responses**: "You cannot review your own service", "You can only review services that were assigned to your events", "You have already reviewed this service", validation errors for rating/comment
 
 ---
@@ -13514,11 +14045,13 @@ ALTER TABLE user_feeds ADD COLUMN visibility feed_visibility_enum DEFAULT 'publi
 # 📋 MODULE: EVENT TEMPLATES & CHECKLISTS
 
 ## Overview
+
 Pre-built planning templates per event type with default tasks, timelines, and budget suggestions. Users can browse templates, apply them to events, and manage checklists with custom tasks.
 
 ---
 
 ## List Templates
+
 ```
 GET /templates
 Authentication: None
@@ -13526,6 +14059,7 @@ Query: ?event_type_id={uuid}
 ```
 
 **Success Response (200):**
+
 ```json
 {
   "success": true,
@@ -13562,6 +14096,7 @@ Query: ?event_type_id={uuid}
 ---
 
 ## Get Template Detail
+
 ```
 GET /templates/{template_id}
 Authentication: None
@@ -13570,12 +14105,14 @@ Authentication: None
 ---
 
 ## Get Event Checklist
+
 ```
 GET /user-events/{event_id}/checklist
 Authorization: Bearer {token}
 ```
 
 **Success Response (200):**
+
 ```json
 {
   "success": true,
@@ -13613,12 +14150,14 @@ Authorization: Bearer {token}
 ---
 
 ## Add Checklist Item
+
 ```
 POST /user-events/{event_id}/checklist
 Authorization: Bearer {token}
 ```
 
 **Request Body:**
+
 ```json
 {
   "title": "Book photographer",
@@ -13631,19 +14170,20 @@ Authorization: Bearer {token}
 }
 ```
 
-| Field | Type | Required |
-|-------|------|----------|
-| title | string | Yes |
-| description | string | No |
-| category | string | No |
-| priority | enum(high,medium,low) | No (default: medium) |
-| due_date | ISO date | No |
-| assigned_to | string | No |
-| notes | string | No |
+| Field       | Type                  | Required             |
+| ----------- | --------------------- | -------------------- |
+| title       | string                | Yes                  |
+| description | string                | No                   |
+| category    | string                | No                   |
+| priority    | enum(high,medium,low) | No (default: medium) |
+| due_date    | ISO date              | No                   |
+| assigned_to | string                | No                   |
+| notes       | string                | No                   |
 
 ---
 
 ## Update Checklist Item
+
 ```
 PUT /user-events/{event_id}/checklist/{item_id}
 Authorization: Bearer {token}
@@ -13654,6 +14194,7 @@ Authorization: Bearer {token}
 ---
 
 ## Delete Checklist Item
+
 ```
 DELETE /user-events/{event_id}/checklist/{item_id}
 Authorization: Bearer {token}
@@ -13662,12 +14203,14 @@ Authorization: Bearer {token}
 ---
 
 ## Apply Template to Event
+
 ```
 POST /user-events/{event_id}/checklist/from-template
 Authorization: Bearer {token}
 ```
 
 **Request Body:**
+
 ```json
 {
   "template_id": "uuid",
@@ -13676,6 +14219,7 @@ Authorization: Bearer {token}
 ```
 
 **Success Response:**
+
 ```json
 {
   "success": true,
@@ -13687,12 +14231,14 @@ Authorization: Bearer {token}
 ---
 
 ## Reorder Checklist Items
+
 ```
 PUT /user-events/{event_id}/checklist/reorder
 Authorization: Bearer {token}
 ```
 
 **Request Body:**
+
 ```json
 {
   "items": [
@@ -13709,6 +14255,7 @@ Authorization: Bearer {token}
 ---
 
 ## Reject Pending Contributions
+
 Rejects one or more pending contributions. Deletes the records and sends SMS notification to each contributor informing them the payment record was removed because the amount could not be verified.
 
 ```
@@ -13717,6 +14264,7 @@ Authorization: Bearer {token}
 ```
 
 **Request Body:**
+
 ```json
 {
   "contribution_ids": ["uuid", "uuid"]
@@ -13724,6 +14272,7 @@ Authorization: Bearer {token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -13735,11 +14284,13 @@ Authorization: Bearer {token}
 **Access:** Event creator only.
 
 **SMS Notification:** Each rejected contributor receives:
+
 > "Hello {name}, your contribution record of {currency} {amount} for {event} recorded by {recorder} has been removed by the event organizer because the amount could not be verified. If you believe this is an error, please contact the organizer directly."
 
 ---
 
 ## Delete a Specific Transaction
+
 Permanently deletes a specific payment/transaction from a contributor's history. Creator only.
 
 ```
@@ -13748,6 +14299,7 @@ Authorization: Bearer {token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -13760,6 +14312,7 @@ Authorization: Bearer {token}
 ---
 
 ## Contribution Report — Date Filtering Behavior
+
 When a date range is specified (`date_from`, `date_to`), the report only includes contributors who have **paid > 0** within the selected period. Contributors with pledges but no payments in that range are excluded from the filtered report. All-time summary totals remain unchanged in `full_summary`.
 
 ---
@@ -13794,6 +14347,7 @@ Authorization: Bearer {access_token}
 | search | string | — | Search description, vendor, or category |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -13827,7 +14381,14 @@ Authorization: Bearer {access_token}
         { "category": "Venue", "total": 2000000, "count": 4 }
       ]
     },
-    "pagination": { "page": 1, "limit": 100, "total_items": 5, "total_pages": 1, "has_next": false, "has_previous": false }
+    "pagination": {
+      "page": 1,
+      "limit": 100,
+      "total_items": 5,
+      "total_pages": 1,
+      "has_next": false,
+      "has_previous": false
+    }
   }
 }
 ```
@@ -13845,6 +14406,7 @@ Content-Type: application/json
 ```
 
 **Request Body:**
+
 ```json
 {
   "category": "Catering",
@@ -13859,19 +14421,20 @@ Content-Type: application/json
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| category | string | Yes | Expense category (e.g., Venue, Catering, Decorations) |
-| description | string | Yes | What the expense was for |
-| amount | number | Yes | Amount spent |
-| payment_method | string | No | cash, mobile, bank_transfer, card, cheque, other |
-| payment_reference | string | No | Receipt or reference number |
-| vendor_name | string | No | Vendor or supplier name |
-| expense_date | string | No | Date of expense (YYYY-MM-DD), defaults to today |
-| notes | string | No | Additional notes |
-| notify_committee | boolean | No | Send notification to committee members with expense permissions (default: false) |
+| Field             | Type    | Required | Description                                                                      |
+| ----------------- | ------- | -------- | -------------------------------------------------------------------------------- |
+| category          | string  | Yes      | Expense category (e.g., Venue, Catering, Decorations)                            |
+| description       | string  | Yes      | What the expense was for                                                         |
+| amount            | number  | Yes      | Amount spent                                                                     |
+| payment_method    | string  | No       | cash, mobile, bank_transfer, card, cheque, other                                 |
+| payment_reference | string  | No       | Receipt or reference number                                                      |
+| vendor_name       | string  | No       | Vendor or supplier name                                                          |
+| expense_date      | string  | No       | Date of expense (YYYY-MM-DD), defaults to today                                  |
+| notes             | string  | No       | Additional notes                                                                 |
+| notify_committee  | boolean | No       | Send notification to committee members with expense permissions (default: false) |
 
 **Success Response (201):**
+
 ```json
 {
   "success": true,
@@ -13895,6 +14458,7 @@ Content-Type: application/json
 ```
 
 **Request Body:** (all fields optional)
+
 ```json
 {
   "category": "Venue",
@@ -13919,6 +14483,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -13946,6 +14511,7 @@ Authorization: Bearer {access_token}
 | date_to | string | End date (YYYY-MM-DD) |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -13981,6 +14547,7 @@ Authorization: Bearer {access_token}
 ## Expense Categories (Frontend Standard)
 
 The following categories are used in the UI:
+
 - Venue
 - Catering
 - Decorations
@@ -14010,6 +14577,7 @@ Authentication: Required (Admin)
 ```
 
 **Response 200:**
+
 ```json
 {
   "success": true,
@@ -14035,6 +14603,7 @@ Authentication: Required (Admin)
 ```
 
 **Response 200:**
+
 ```json
 {
   "success": true,
@@ -14054,6 +14623,7 @@ Authentication: Required (Admin)
 ## 20.3 User Management
 
 ### List Users
+
 ```
 GET /admin/users
 Authentication: Required (Admin)
@@ -14065,6 +14635,7 @@ Query Parameters:
 ```
 
 **Response 200:**
+
 ```json
 {
   "success": true,
@@ -14088,18 +14659,21 @@ Query Parameters:
 ```
 
 ### Get User Detail
+
 ```
 GET /admin/users/{user_id}
 Authentication: Required (Admin)
 ```
 
 ### Activate User
+
 ```
 PUT /admin/users/{user_id}/activate
 Authentication: Required (Admin)
 ```
 
 ### Deactivate User
+
 ```
 PUT /admin/users/{user_id}/deactivate
 Authentication: Required (Admin)
@@ -14110,6 +14684,7 @@ Authentication: Required (Admin)
 ## 20.4 KYC / Service Verification
 
 ### List KYC Submissions
+
 ```
 GET /admin/kyc
 Authentication: Required (Admin)
@@ -14119,6 +14694,7 @@ Query Parameters:
 ```
 
 **Response 200:**
+
 ```json
 {
   "success": true,
@@ -14142,12 +14718,14 @@ Query Parameters:
 ```
 
 ### Get KYC Detail
+
 ```
 GET /admin/kyc/{verification_id}
 Authentication: Required (Admin)
 ```
 
 **Response 200:**
+
 ```json
 {
   "success": true,
@@ -14171,23 +14749,27 @@ Authentication: Required (Admin)
 ```
 
 ### Approve KYC
+
 ```
 PUT /admin/kyc/{verification_id}/approve
 Authentication: Required (Admin)
 ```
 
 **Request Body:**
+
 ```json
 { "notes": "All documents verified successfully." }
 ```
 
 ### Reject KYC
+
 ```
 PUT /admin/kyc/{verification_id}/reject
 Authentication: Required (Admin)
 ```
 
 **Request Body:**
+
 ```json
 { "notes": "Business registration document is expired." }
 ```
@@ -14197,29 +14779,34 @@ Authentication: Required (Admin)
 ## 20.5 Event Types Management
 
 ### List Event Types
+
 ```
 GET /admin/event-types
 Authentication: Required (Admin)
 ```
 
 ### Create Event Type
+
 ```
 POST /admin/event-types
 Authentication: Required (Admin)
 ```
 
 **Request Body:**
+
 ```json
 { "name": "Cultural Festival", "description": "...", "icon": "🎭" }
 ```
 
 ### Update Event Type
+
 ```
 PUT /admin/event-types/{type_id}
 Authentication: Required (Admin)
 ```
 
 ### Delete Event Type
+
 ```
 DELETE /admin/event-types/{type_id}
 Authentication: Required (Admin)
@@ -14250,6 +14837,7 @@ Query Parameters: page, limit, q (search), status
 ## 20.8 Posts / Feed Moderation
 
 ### List Posts
+
 ```
 GET /admin/posts
 Authentication: Required (Admin)
@@ -14257,6 +14845,7 @@ Query Parameters: page, limit, q (search content)
 ```
 
 **Response 200:**
+
 ```json
 {
   "success": true,
@@ -14270,13 +14859,19 @@ Query Parameters: page, limit, q (search content)
       "location": "Nairobi",
       "created_at": "2025-02-10T12:00:00Z",
       "images": [{ "url": "https://..." }],
-      "user": { "id": "uuid", "name": "Jane Doe", "username": "janedoe", "avatar": "https://..." }
+      "user": {
+        "id": "uuid",
+        "name": "Jane Doe",
+        "username": "janedoe",
+        "avatar": "https://..."
+      }
     }
   ]
 }
 ```
 
 ### Remove Post (Soft Delete)
+
 ```
 DELETE /admin/posts/{post_id}
 Authentication: Required (Admin)
@@ -14289,6 +14884,7 @@ Sets `is_active = false` — does not permanently delete.
 ## 20.9 Moments Moderation
 
 ### List Moments
+
 ```
 GET /admin/moments
 Authentication: Required (Admin)
@@ -14296,6 +14892,7 @@ Query Parameters: page, limit, q (search caption)
 ```
 
 ### Remove Moment (Soft Delete)
+
 ```
 DELETE /admin/moments/{moment_id}
 Authentication: Required (Admin)
@@ -14306,6 +14903,7 @@ Authentication: Required (Admin)
 ## 20.10 Communities
 
 ### List Communities
+
 ```
 GET /admin/communities
 Authentication: Required (Admin)
@@ -14313,6 +14911,7 @@ Query Parameters: page, limit, q (search name)
 ```
 
 ### Delete Community
+
 ```
 DELETE /admin/communities/{community_id}
 Authentication: Required (Admin)
@@ -14335,6 +14934,7 @@ Query Parameters: page, limit, status (pending|accepted|rejected|completed)
 ## 20.12 NuruCard Orders
 
 ### List Orders
+
 ```
 GET /admin/nuru-cards
 Authentication: Required (Admin)
@@ -14342,12 +14942,14 @@ Query Parameters: page, limit, status (pending|processing|shipped|delivered|canc
 ```
 
 ### Update Order Status
+
 ```
 PUT /admin/nuru-cards/{order_id}/status
 Authentication: Required (Admin)
 ```
 
 **Request Body:**
+
 ```json
 { "status": "shipped", "tracking_number": "KE123456789" }
 ```
@@ -14357,6 +14959,7 @@ Authentication: Required (Admin)
 ## 20.13 Live Chat (Admin)
 
 ### List Chat Sessions
+
 ```
 GET /admin/chats
 Authentication: Required (Admin)
@@ -14364,6 +14967,7 @@ Query Parameters: page, limit, status (waiting|active|ended|abandoned)
 ```
 
 **Response 200:**
+
 ```json
 {
   "success": true,
@@ -14374,13 +14978,19 @@ Query Parameters: page, limit, status (waiting|active|ended|abandoned)
       "last_message": "Hi, I need help with my booking",
       "last_message_at": "2025-02-10T14:00:00Z",
       "created_at": "2025-02-10T13:55:00Z",
-      "user": { "id": "uuid", "name": "John Doe", "email": "john@example.com", "avatar": "https://..." }
+      "user": {
+        "id": "uuid",
+        "name": "John Doe",
+        "email": "john@example.com",
+        "avatar": "https://..."
+      }
     }
   ]
 }
 ```
 
 ### Get Chat Messages
+
 ```
 GET /admin/chats/{chat_id}/messages
 Authentication: Required (Admin)
@@ -14389,6 +14999,7 @@ Query Parameters:
 ```
 
 **Response 200:**
+
 ```json
 {
   "success": true,
@@ -14415,12 +15026,14 @@ Query Parameters:
 ```
 
 ### Reply to Chat
+
 ```
 POST /admin/chats/{chat_id}/reply
 Authentication: Required (Admin)
 ```
 
 **Request Body:**
+
 ```json
 { "content": "Sure, I can help with that." }
 ```
@@ -14428,6 +15041,7 @@ Authentication: Required (Admin)
 Automatically assigns the replying admin as the session agent and sets status to `active`.
 
 ### Close Chat
+
 ```
 PUT /admin/chats/{chat_id}/close
 Authentication: Required (Admin)
@@ -14438,6 +15052,7 @@ Authentication: Required (Admin)
 ## 20.14 Support Tickets (Admin)
 
 ### List Tickets
+
 ```
 GET /admin/tickets
 Authentication: Required (Admin)
@@ -14445,23 +15060,27 @@ Query Parameters: page, limit, status (open|closed)
 ```
 
 ### Get Ticket Detail
+
 ```
 GET /admin/tickets/{ticket_id}
 Authentication: Required (Admin)
 ```
 
 ### Reply to Ticket
+
 ```
 POST /admin/tickets/{ticket_id}/reply
 Authentication: Required (Admin)
 ```
 
 **Request Body:**
+
 ```json
 { "message": "We have resolved your issue. Please check again." }
 ```
 
 ### Close Ticket
+
 ```
 PUT /admin/tickets/{ticket_id}/close
 Authentication: Required (Admin)
@@ -14472,18 +15091,21 @@ Authentication: Required (Admin)
 ## 20.15 FAQs Management
 
 ### List FAQs
+
 ```
 GET /admin/faqs
 Authentication: Required (Admin)
 ```
 
 ### Create FAQ
+
 ```
 POST /admin/faqs
 Authentication: Required (Admin)
 ```
 
 **Request Body:**
+
 ```json
 {
   "question": "How do I verify my service?",
@@ -14495,12 +15117,14 @@ Authentication: Required (Admin)
 ```
 
 ### Update FAQ
+
 ```
 PUT /admin/faqs/{faq_id}
 Authentication: Required (Admin)
 ```
 
 ### Delete FAQ
+
 ```
 DELETE /admin/faqs/{faq_id}
 Authentication: Required (Admin)
@@ -14511,29 +15135,34 @@ Authentication: Required (Admin)
 ## 20.16 Service Categories Management
 
 ### List Categories
+
 ```
 GET /admin/service-categories
 Authentication: Required (Admin)
 ```
 
 ### Create Category
+
 ```
 POST /admin/service-categories
 Authentication: Required (Admin)
 ```
 
 **Request Body:**
+
 ```json
 { "name": "Photography", "description": "Photo and video services" }
 ```
 
 ### Update Category
+
 ```
 PUT /admin/service-categories/{cat_id}
 Authentication: Required (Admin)
 ```
 
 ### Delete Category
+
 ```
 DELETE /admin/service-categories/{cat_id}
 Authentication: Required (Admin)
@@ -14549,6 +15178,7 @@ Authentication: Required (Admin)
 ```
 
 **Request Body:**
+
 ```json
 {
   "title": "Platform Update",
@@ -14559,6 +15189,7 @@ Authentication: Required (Admin)
 Sends a `system` type notification to **all active users**.
 
 **Response 200:**
+
 ```json
 {
   "success": true,
@@ -14570,26 +15201,26 @@ Sends a `system` type notification to **all active users**.
 
 ## Admin Panel Routes (Frontend)
 
-| Path | Page |
-|---|---|
-| `/admin/login` | Admin login |
-| `/admin` | Dashboard |
-| `/admin/users` | User management |
-| `/admin/kyc` | KYC verification |
-| `/admin/services` | Services overview |
-| `/admin/service-categories` | Service categories CRUD |
-| `/admin/events` | Events overview |
-| `/admin/event-types` | Event types CRUD |
-| `/admin/posts` | Post/feed moderation |
-| `/admin/moments` | Moments moderation |
-| `/admin/communities` | Community moderation |
-| `/admin/bookings` | Bookings overview |
-| `/admin/nuru-cards` | NuruCard order management |
-| `/admin/chats` | Live chat sessions |
-| `/admin/chats/:chatId` | Chat detail + reply |
-| `/admin/tickets` | Support tickets |
-| `/admin/faqs` | FAQ management |
-| `/admin/notifications` | Broadcast notifications |
+| Path                        | Page                      |
+| --------------------------- | ------------------------- |
+| `/admin/login`              | Admin login               |
+| `/admin`                    | Dashboard                 |
+| `/admin/users`              | User management           |
+| `/admin/kyc`                | KYC verification          |
+| `/admin/services`           | Services overview         |
+| `/admin/service-categories` | Service categories CRUD   |
+| `/admin/events`             | Events overview           |
+| `/admin/event-types`        | Event types CRUD          |
+| `/admin/posts`              | Post/feed moderation      |
+| `/admin/moments`            | Moments moderation        |
+| `/admin/communities`        | Community moderation      |
+| `/admin/bookings`           | Bookings overview         |
+| `/admin/nuru-cards`         | NuruCard order management |
+| `/admin/chats`              | Live chat sessions        |
+| `/admin/chats/:chatId`      | Chat detail + reply       |
+| `/admin/tickets`            | Support tickets           |
+| `/admin/faqs`               | FAQ management            |
+| `/admin/notifications`      | Broadcast notifications   |
 
 ---
 
@@ -14599,22 +15230,23 @@ Admin authentication is **completely separate** from Nuru user authentication. A
 
 ## Admin Users Table (`admin_users`)
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | UUID | Primary key |
-| full_name | text | Admin's full name |
-| email | text | Unique email address |
-| username | text | Unique username |
-| password_hash | text | SHA-256 hashed password |
-| role | admin_role | One of: `admin`, `moderator`, `support` |
-| is_active | boolean | Whether account is active |
-| last_login_at | timestamp | Timestamp of last successful login |
-| created_at | timestamp | Account creation timestamp |
-| updated_at | timestamp | Last update timestamp |
+| Column        | Type       | Description                             |
+| ------------- | ---------- | --------------------------------------- |
+| id            | UUID       | Primary key                             |
+| full_name     | text       | Admin's full name                       |
+| email         | text       | Unique email address                    |
+| username      | text       | Unique username                         |
+| password_hash | text       | SHA-256 hashed password                 |
+| role          | admin_role | One of: `admin`, `moderator`, `support` |
+| is_active     | boolean    | Whether account is active               |
+| last_login_at | timestamp  | Timestamp of last successful login      |
+| created_at    | timestamp  | Account creation timestamp              |
+| updated_at    | timestamp  | Last update timestamp                   |
 
 **Roles:** `admin` (full control), `moderator` (content moderation), `support` (tickets & chat)
 
 **Creating the first admin (SQL):**
+
 ```sql
 INSERT INTO admin_users (full_name, email, username, password_hash, role)
 VALUES ('Admin Name', 'admin@nuru.tz', 'admin', encode(sha256('yourpassword'::bytea), 'hex'), 'admin');
@@ -14631,6 +15263,7 @@ Authentication: None
 ```
 
 **Request Body:**
+
 ```json
 {
   "username": "admin",
@@ -14639,6 +15272,7 @@ Authentication: None
 ```
 
 **Success Response (200):**
+
 ```json
 {
   "success": true,
@@ -14671,11 +15305,13 @@ Authentication: None
 ```
 
 **Request Body:**
+
 ```json
 { "refresh_token": "eyJ..." }
 ```
 
 **Success Response (200):**
+
 ```json
 {
   "success": true,
@@ -14689,6 +15325,7 @@ Authentication: None
 ## Admin Authorization
 
 All admin-protected routes require `Authorization: Bearer {admin_token}`. Admin JWTs carry an `is_admin: true` claim. The `require_admin` dependency validates:
+
 1. JWT signature and expiry
 2. `is_admin` claim is `true`
 3. Admin exists and `is_active = true` in `admin_users`
@@ -14704,6 +15341,7 @@ All endpoints below require `Authorization: Bearer {admin_token}`.
 **Frontend client:** `src/lib/api/admin.ts` — `adminApi` object  
 **Backend guard:** `require_admin` dependency (AdminUser returned, NOT User)  
 **Pagination:** Backend returns `pagination` at root level alongside `data`:
+
 ```json
 { "success": true, "data": [...], "pagination": { "page": 1, "total_pages": 5, "total_items": 98 } }
 ```
@@ -14713,9 +15351,11 @@ All endpoints below require `Authorization: Bearer {admin_token}`.
 ## Dashboard
 
 ### GET /admin/stats
+
 Core counters: `total_users`, `total_events`, `total_services`, `pending_kyc`, `open_tickets`, `active_chats`, `waiting_chats`
 
 ### GET /admin/stats/extended
+
 Extended counters: `total_posts`, `total_moments`, `total_communities`, `total_bookings`, `pending_bookings`, `pending_card_orders`
 
 ---
@@ -14723,8 +15363,11 @@ Extended counters: `total_posts`, `total_moments`, `total_communities`, `total_b
 ## User Management
 
 ### GET /admin/users — Query: `page`, `limit`, `q` (name/email/phone), `is_active`
+
 ### GET /admin/users/{user_id} — Full detail + `event_count`, `service_count`, `bio`, `location`
+
 ### PUT /admin/users/{user_id}/activate — Sets `is_active = true`
+
 ### PUT /admin/users/{user_id}/deactivate — Sets `is_active = false`
 
 ---
@@ -14732,8 +15375,11 @@ Extended counters: `total_posts`, `total_moments`, `total_communities`, `total_b
 ## KYC / Service Verification
 
 ### GET /admin/kyc — Query: `page`, `limit`, `status` (`pending`|`verified`|`rejected`)
+
 ### GET /admin/kyc/{verification_id} — Includes `files: [{ id, file_url, uploaded_at }]`
+
 ### PUT /admin/kyc/{verification_id}/approve — Body: `{ "notes": "..." }` (optional)
+
 ### PUT /admin/kyc/{verification_id}/reject — Body: `{ "notes": "..." }` (required)
 
 ---
@@ -14741,8 +15387,11 @@ Extended counters: `total_posts`, `total_moments`, `total_communities`, `total_b
 ## Event Types
 
 ### GET /admin/event-types
+
 ### POST /admin/event-types — Body: `{ name, description, icon }`
+
 ### PUT /admin/event-types/{type_id} — Body: any of `{ name, description, icon, is_active }`
+
 ### DELETE /admin/event-types/{type_id}
 
 ---
@@ -14750,13 +15399,16 @@ Extended counters: `total_posts`, `total_moments`, `total_communities`, `total_b
 ## Live Chats
 
 ### GET /admin/chats — Query: `status` (`waiting`|`active`|`ended`)
+
 Response items include: `id`, `status`, `last_message`, `last_message_at`, `user`
 
 ### GET /admin/chats/{chat_id}/messages?after={iso}
+
 Returns `{ messages: [...], session_status }`. Poll with `?after=` for real-time updates.
 Message shape: `{ id, content, sender: "agent"|"user"|"system", sender_name, sent_at }`
 
 ### POST /admin/chats/{chat_id}/reply — Body: `{ "content": "..." }`
+
 Uses `admin.id` and `admin.full_name` for sender attribution.
 
 ### PUT /admin/chats/{chat_id}/close — Sets session to `ended`
@@ -14766,8 +15418,11 @@ Uses `admin.id` and `admin.full_name` for sender attribution.
 ## Support Tickets
 
 ### GET /admin/tickets — Query: `status` (`open`|`closed`)
+
 ### GET /admin/tickets/{ticket_id} — Includes `messages: [{ id, content, is_agent, sender_name, created_at }]`
+
 ### POST /admin/tickets/{ticket_id}/reply — Body: `{ "message": "..." }` — Uses `admin.id` as `sender_id`
+
 ### PUT /admin/tickets/{ticket_id}/close — Sets `status = closed`
 
 ---
@@ -14775,8 +15430,11 @@ Uses `admin.id` and `admin.full_name` for sender attribution.
 ## FAQs
 
 ### GET /admin/faqs — Sorted by `display_order asc`
+
 ### POST /admin/faqs — Body: `{ question, answer, category, display_order, is_active }`
+
 ### PUT /admin/faqs/{faq_id}
+
 ### DELETE /admin/faqs/{faq_id}
 
 ---
@@ -14784,6 +15442,7 @@ Uses `admin.id` and `admin.full_name` for sender attribution.
 ## Events (Read-only)
 
 ### GET /admin/events — Query: `q` (name search), `status`
+
 Response: `{ id, name, status, date, location, organizer: { id, name } }`
 
 ---
@@ -14791,6 +15450,7 @@ Response: `{ id, name, status, date, location, organizer: { id, name } }`
 ## Services (Read-only)
 
 ### GET /admin/services — Query: `q`, `status` (verification_status)
+
 Response: `{ id, name, category, verification_status, is_active, user: { id, name, avatar } }`
 
 ---
@@ -14798,6 +15458,7 @@ Response: `{ id, name, category, verification_status, is_active, user: { id, nam
 ## Notifications Broadcast
 
 ### POST /admin/notifications/broadcast
+
 Body: `{ "title": "...", "message": "..." }` — Sends system notification to **all active users**
 
 ---
@@ -14805,10 +15466,15 @@ Body: `{ "title": "...", "message": "..." }` — Sends system notification to **
 ## Posts / Moments / Communities
 
 ### GET /admin/posts — Query: `q` (content search) — Response includes `images[]`, `user`
+
 ### DELETE /admin/posts/{post_id} — Soft-delete (`is_active = false`)
+
 ### GET /admin/moments — Query: `q` (caption search)
+
 ### DELETE /admin/moments/{moment_id} — Soft-delete (`is_active = false`)
+
 ### GET /admin/communities — Query: `q`
+
 ### DELETE /admin/communities/{community_id} — Hard-delete
 
 ---
@@ -14816,6 +15482,7 @@ Body: `{ "title": "...", "message": "..." }` — Sends system notification to **
 ## Bookings (Read-only)
 
 ### GET /admin/bookings — Query: `status`
+
 Response: `{ id, status, proposed_price, quoted_price, message, service, requester }`
 
 ---
@@ -14823,6 +15490,7 @@ Response: `{ id, status, proposed_price, quoted_price, message, service, request
 ## NuruCard Orders
 
 ### GET /admin/nuru-cards — Query: `status`
+
 Response: `{ id, card_type, quantity, status, payment_status, amount, delivery_city, tracking_number, user }`
 
 ### PUT /admin/nuru-cards/{order_id}/status — Body: `{ "status": "shipped", "tracking_number": "TZ123" }`
@@ -14832,11 +15500,15 @@ Response: `{ id, card_type, quantity, status, payment_status, amount, delivery_c
 ## Service Categories & KYC Management
 
 ### GET /admin/service-categories — Sorted by name
+
 ### POST /admin/service-categories — Body: `{ name, description, icon }`
+
 ### PUT /admin/service-categories/{cat_id}
+
 ### DELETE /admin/service-categories/{cat_id}
 
 ### GET /admin/service-categories/{cat_id}/service-types
+
 Returns service types (sub-categories) within a category.
 Response: `[ { id, name, description, requires_kyc } ]`
 
@@ -14844,17 +15516,21 @@ Response: `[ { id, name, description, requires_kyc } ]`
 > The `service_kyc_mapping` table links `service_type_id → kyc_requirement_id`.
 
 ### GET /admin/service-types/{type_id}/kyc-requirements
+
 Returns KYC requirements mapped to a specific service type.
 Response: `[ { mapping_id, id, name, description, is_mandatory } ]`
 
 ### POST /admin/service-types/{type_id}/kyc-requirements
+
 Body: `{ "kyc_requirement_id": "<uuid>", "is_mandatory": true }`
 Inserts a row into `service_kyc_mapping`.
 
 ### DELETE /admin/service-types/{type_id}/kyc-requirements/{mapping_id}
+
 Removes the mapping from `service_kyc_mapping` by the mapping row id.
 
 ### GET /admin/kyc-definitions
+
 Returns all available KYC requirement definitions from `kyc_requirements` table.
 Used to populate the dropdown when adding KYC to a service type.
 Response: `[ { id, name, description } ]`
@@ -14864,25 +15540,33 @@ Response: `[ { id, name, description } ]`
 ## Content Appeals
 
 ### POST /posts/{post_id}/appeal
+
 Submit an appeal for a removed post.
+
 - Auth: Bearer token (post owner only)
 - Body: `{ "reason": "string (min 10 chars)" }`
 - Returns: `{ id, status: "pending" }`
 - Errors: 400 if post is still active, already appealed, or reason is too short
 
 ### GET /admin/appeals
+
 List all content appeals (admin only).
+
 - Auth: Admin token
 - Query: `page`, `limit`, `status` (pending|approved|rejected)
 - Returns: paginated list with `content_preview`, `content_type`, `user`, `appeal_reason`, `admin_notes`, `reviewed_at`
 
 ### PUT /admin/appeals/{appeal_id}/approve
+
 Approve an appeal — restores the post/moment and notifies the user.
+
 - Auth: Admin token
 - Body: `{ "notes": "optional admin note" }`
 
 ### PUT /admin/appeals/{appeal_id}/reject
+
 Reject an appeal — content stays removed, user is notified with reason.
+
 - Auth: Admin token
 - Body: `{ "notes": "reason for rejection (required)" }`
 
@@ -14891,10 +15575,13 @@ Reject an appeal — content stays removed, user is notified with reason.
 ## Admin Posts (Updated)
 
 ### GET /admin/posts
+
 Returns live glow and echo counts queried directly from `user_feed_glows` and `user_feed_comments` tables (not stale denormalized columns). Also returns `removal_reason` for removed posts.
 
 ### PUT /admin/posts/{post_id}/status
+
 Update post active status and persist removal reason.
+
 - Body: `{ "is_active": bool, "reason": "string (optional, used when removing)" }`
 - Removal reason is saved to `user_feeds.removal_reason` and included in user notification.
 - Restoring a post clears `removal_reason`.
@@ -14906,9 +15593,11 @@ Update post active status and persist removal reason.
 The following seed data must be applied to a fresh database:
 
 ### Service Categories (10)
+
 Entertainment, Catering, Logistics, Photography and Videography, Decor and Setup, Planning, Rentals, Audio Visual, Security, Cleaning
 
 ### KYC Requirements (5)
+
 - Government-issued ID
 - Business License
 - Tax Compliance Certificate
@@ -14916,14 +15605,17 @@ Entertainment, Catering, Logistics, Photography and Videography, Decor and Setup
 - Portfolio/Work Samples
 
 ### Service Types (28 sub-types across all categories)
+
 See `database.sql` SEED DATA section for full INSERT statements with `ON CONFLICT DO NOTHING` for idempotent re-runs.
 
-
 ### GET /admin/appeals — Query: `page`, `limit`, `status` (pending|approved|rejected)
+
 Response: `[ { id, content_id, content_type, appeal_reason, status, admin_notes, created_at, user } ]`
 
 ### PUT /admin/appeals/{appeal_id}/review
+
 Body: `{ "decision": "approved" | "rejected", "notes": "..." }`
+
 - `approved` → restores the content (`is_active = true`, `removal_reason = null`) and notifies the user
 - `rejected` → keeps content removed; notifies user with admin notes
 
@@ -14932,7 +15624,9 @@ Body: `{ "decision": "approved" | "rejected", "notes": "..." }`
 ## User Appeals (Workspace)
 
 ### POST /appeals
+
 Body: `{ "content_id": "<uuid>", "content_type": "post" | "moment", "appeal_reason": "..." }`
+
 - One appeal per content item (409 if already submitted)
 
 ---
@@ -14940,9 +15634,11 @@ Body: `{ "content_id": "<uuid>", "content_type": "post" | "moment", "appeal_reas
 ## Content Removal Fields
 
 ### user_feeds — added columns:
+
 - `removal_reason TEXT` — set when admin removes a post; included in notification `message_data`
 
 ### user_moments — added columns:
+
 - `removal_reason TEXT` — set when admin removes a moment; included in notification `message_data`
 
 ---
@@ -14955,7 +15651,6 @@ Body: `{ "content_id": "<uuid>", "content_type": "post" | "moment", "appeal_reas
 - **Pagination:** `(res as any).pagination` — preserved at root level by `adminRequest` helper
 - **Route guard:** `AdminLayout` checks `admin_token` on mount, redirects to `/admin/login` if absent
 - **Auth dependency changed:** All backend admin endpoints use `Depends(require_admin)` returning `AdminUser` — `get_current_user` is NOT used in admin routes
-
 
 ---
 
@@ -14997,73 +15692,78 @@ Nuru uses an intelligent, multi-factor feed ranking system that replaces chronol
 ### Data Models
 
 #### user_interaction_logs
+
 Tracks every user interaction with feed content.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | UUID | Primary key |
-| user_id | UUID | FK → users.id |
-| post_id | UUID | FK → user_feeds.id |
-| interaction_type | text | view, dwell, glow, unglow, comment, echo, spark, save, unsave, click_image, click_profile, hide, report, expand |
-| dwell_time_ms | integer | Milliseconds user spent viewing (for dwell events) |
-| session_id | text | Groups interactions within one feed session |
-| device_type | text | mobile, desktop, tablet |
-| created_at | timestamp | Auto-generated |
+| Column           | Type      | Description                                                                                                     |
+| ---------------- | --------- | --------------------------------------------------------------------------------------------------------------- |
+| id               | UUID      | Primary key                                                                                                     |
+| user_id          | UUID      | FK → users.id                                                                                                   |
+| post_id          | UUID      | FK → user_feeds.id                                                                                              |
+| interaction_type | text      | view, dwell, glow, unglow, comment, echo, spark, save, unsave, click_image, click_profile, hide, report, expand |
+| dwell_time_ms    | integer   | Milliseconds user spent viewing (for dwell events)                                                              |
+| session_id       | text      | Groups interactions within one feed session                                                                     |
+| device_type      | text      | mobile, desktop, tablet                                                                                         |
+| created_at       | timestamp | Auto-generated                                                                                                  |
 
 #### user_interest_profiles
+
 Stores per-user interest vectors, updated after each interaction.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| user_id | UUID | PK, FK → users.id |
-| interest_vector | JSONB | Category interest scores (0.0-1.0) e.g. {"wedding": 0.82, "birthday": 0.45} |
-| engagement_stats | JSONB | Aggregate stats: total_glows, total_comments, total_dwell_ms, etc. |
-| negative_signals | JSONB | Hidden authors, disliked categories |
-| last_computed_at | timestamp | Last recomputation time |
+| Column           | Type      | Description                                                                 |
+| ---------------- | --------- | --------------------------------------------------------------------------- |
+| user_id          | UUID      | PK, FK → users.id                                                           |
+| interest_vector  | JSONB     | Category interest scores (0.0-1.0) e.g. {"wedding": 0.82, "birthday": 0.45} |
+| engagement_stats | JSONB     | Aggregate stats: total_glows, total_comments, total_dwell_ms, etc.          |
+| negative_signals | JSONB     | Hidden authors, disliked categories                                         |
+| last_computed_at | timestamp | Last recomputation time                                                     |
 
 #### author_affinity_scores
+
 Precomputed relationship strength between viewer and author.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | UUID | Primary key |
-| viewer_id | UUID | FK → users.id |
-| author_id | UUID | FK → users.id |
-| interaction_count | integer | Raw count of interactions |
-| weighted_score | float | Time-decayed weighted sum (0.0-1.0) |
-| is_following | boolean | Whether viewer follows author |
-| shared_events_count | integer | Events both participated in |
-| is_circle_member | boolean | Whether in each other's circle |
-| last_interaction_at | timestamp | Most recent interaction |
+| Column              | Type      | Description                         |
+| ------------------- | --------- | ----------------------------------- |
+| id                  | UUID      | Primary key                         |
+| viewer_id           | UUID      | FK → users.id                       |
+| author_id           | UUID      | FK → users.id                       |
+| interaction_count   | integer   | Raw count of interactions           |
+| weighted_score      | float     | Time-decayed weighted sum (0.0-1.0) |
+| is_following        | boolean   | Whether viewer follows author       |
+| shared_events_count | integer   | Events both participated in         |
+| is_circle_member    | boolean   | Whether in each other's circle      |
+| last_interaction_at | timestamp | Most recent interaction             |
 
 #### post_quality_scores
+
 Cached quality score for each post, recomputed every 30 minutes.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| post_id | UUID | PK, FK → user_feeds.id |
-| engagement_velocity | float | Engagements per hour since creation |
-| content_richness | float | Score based on text, images, media (0.0-1.0) |
-| author_credibility | float | Based on author's engagement history (0.0-1.0) |
-| moderation_flag | boolean | Flagged by moderation (suppresses ranking) |
-| spam_probability | float | Spam likelihood (0.0-1.0) |
-| category | text | Detected category: wedding, birthday, memorial, etc. |
-| final_quality_score | float | Composite quality metric (0.0-1.0) |
-| total_engagements | integer | Weighted engagement count |
-| engagement_rate | float | Engagements / impressions |
-| impression_count | integer | Times shown in feeds |
+| Column              | Type    | Description                                          |
+| ------------------- | ------- | ---------------------------------------------------- |
+| post_id             | UUID    | PK, FK → user_feeds.id                               |
+| engagement_velocity | float   | Engagements per hour since creation                  |
+| content_richness    | float   | Score based on text, images, media (0.0-1.0)         |
+| author_credibility  | float   | Based on author's engagement history (0.0-1.0)       |
+| moderation_flag     | boolean | Flagged by moderation (suppresses ranking)           |
+| spam_probability    | float   | Spam likelihood (0.0-1.0)                            |
+| category            | text    | Detected category: wedding, birthday, memorial, etc. |
+| final_quality_score | float   | Composite quality metric (0.0-1.0)                   |
+| total_engagements   | integer | Weighted engagement count                            |
+| engagement_rate     | float   | Engagements / impressions                            |
+| impression_count    | integer | Times shown in feeds                                 |
 
 #### feed_impressions
+
 Tracks which posts were shown to which users and in what position.
 
-| Column | Type | Description |
-|--------|------|-------------|
-| id | UUID | Primary key |
-| user_id | UUID | FK → users.id |
-| post_id | UUID | FK → user_feeds.id |
-| position | integer | 0-indexed position in feed |
-| session_id | text | Client session identifier |
-| was_engaged | boolean | Updated after interaction |
+| Column      | Type    | Description                |
+| ----------- | ------- | -------------------------- |
+| id          | UUID    | Primary key                |
+| user_id     | UUID    | FK → users.id              |
+| post_id     | UUID    | FK → user_feeds.id         |
+| position    | integer | 0-indexed position in feed |
+| session_id  | text    | Client session identifier  |
+| was_engaged | boolean | Updated after interaction  |
 
 ---
 
@@ -15078,14 +15778,15 @@ Authorization: Bearer {access_token}
 
 **Query Parameters:**
 
-| Param | Type | Default | Description |
-|-------|------|---------|-------------|
-| page | integer | 1 | Page number |
-| limit | integer | 20 | Items per page (max 100) |
-| mode | string | "ranked" | "ranked" (intelligent) or "chronological" (legacy) |
-| session_id | string | null | Client session ID for impression deduplication |
+| Param      | Type    | Default  | Description                                        |
+| ---------- | ------- | -------- | -------------------------------------------------- |
+| page       | integer | 1        | Page number                                        |
+| limit      | integer | 20       | Items per page (max 100)                           |
+| mode       | string  | "ranked" | "ranked" (intelligent) or "chronological" (legacy) |
+| session_id | string  | null     | Client session ID for impression deduplication     |
 
 **Success Response (200 OK):**
+
 ```json
 {
   "success": true,
@@ -15106,6 +15807,7 @@ Authorization: Bearer {access_token}
 ```
 
 **feed_mode values:**
+
 - `ranked` — Full personalized ranking (user has ≥10 interactions)
 - `cold_start` — Engagement-based ranking for new users (<10 interactions)
 - `chronological` — Legacy mode (requested via mode=chronological)
@@ -15124,6 +15826,7 @@ Content-Type: application/json
 ```
 
 **Single Interaction:**
+
 ```json
 {
   "post_id": "550e8400-e29b-41d4-a716-446655440000",
@@ -15135,12 +15838,13 @@ Content-Type: application/json
 ```
 
 **Batch Interactions (max 50):**
+
 ```json
 {
   "interactions": [
-    {"post_id": "uuid-1", "interaction_type": "view"},
-    {"post_id": "uuid-1", "interaction_type": "dwell", "dwell_time_ms": 8200},
-    {"post_id": "uuid-2", "interaction_type": "glow"}
+    { "post_id": "uuid-1", "interaction_type": "view" },
+    { "post_id": "uuid-1", "interaction_type": "dwell", "dwell_time_ms": 8200 },
+    { "post_id": "uuid-2", "interaction_type": "glow" }
   ],
   "session_id": "abc123",
   "device_type": "mobile"
@@ -15149,22 +15853,22 @@ Content-Type: application/json
 
 **Interaction Types:**
 
-| Type | Weight | Description |
-|------|--------|-------------|
-| view | 0.1 | Post entered viewport (50% visible) |
-| dwell | 0.3 | User spent >3s viewing |
-| glow | 1.0 | User liked the post |
-| unglow | -0.5 | User unliked |
-| comment | 1.5 | User commented |
-| echo | 2.0 | User reposted |
-| spark | 2.5 | User shared externally |
-| save | 1.2 | User bookmarked |
-| unsave | -0.3 | User removed bookmark |
-| click_image | 0.4 | User clicked/tapped image |
-| click_profile | 0.6 | User navigated to author profile |
-| hide | -2.0 | User hid the post |
-| report | -5.0 | User reported the post |
-| expand | 0.3 | User expanded truncated text |
+| Type          | Weight | Description                         |
+| ------------- | ------ | ----------------------------------- |
+| view          | 0.1    | Post entered viewport (50% visible) |
+| dwell         | 0.3    | User spent >3s viewing              |
+| glow          | 1.0    | User liked the post                 |
+| unglow        | -0.5   | User unliked                        |
+| comment       | 1.5    | User commented                      |
+| echo          | 2.0    | User reposted                       |
+| spark         | 2.5    | User shared externally              |
+| save          | 1.2    | User bookmarked                     |
+| unsave        | -0.3   | User removed bookmark               |
+| click_image   | 0.4    | User clicked/tapped image           |
+| click_profile | 0.6    | User navigated to author profile    |
+| hide          | -2.0   | User hid the post                   |
+| report        | -5.0   | User reported the post              |
+| expand        | 0.3    | User expanded truncated text        |
 
 ---
 
@@ -15178,6 +15882,7 @@ Authorization: Bearer {access_token}
 ```
 
 **Success Response:**
+
 ```json
 {
   "success": true,
@@ -15186,9 +15891,9 @@ Authorization: Bearer {access_token}
       "wedding": 0.82,
       "birthday": 0.45,
       "memorial": 0.12,
-      "corporate_event": 0.60,
+      "corporate_event": 0.6,
       "graduation": 0.33,
-      "general": 0.50
+      "general": 0.5
     },
     "engagement_stats": {
       "total_glows": 142,
@@ -15219,77 +15924,87 @@ FinalScore = W1 × EngagementPrediction
 
 ### Weight Configuration
 
-| Weight | Value | Component |
-|--------|-------|-----------|
-| W1 | 0.25 | Engagement Prediction — P(like, comment, dwell >3s) |
-| W2 | 0.22 | Relationship Strength — Viewer-author affinity |
-| W3 | 0.18 | Interest Match — Post category vs user interest vector |
-| W4 | 0.15 | Recency Decay — Exponential time decay |
-| W5 | 0.10 | Content Quality — Richness + credibility score |
-| W6 | -0.05 | Diversity Penalty — Penalize repeated authors/categories |
-| W7 | 0.05 | Exploration Boost — Inject novel content |
+| Weight | Value | Component                                                |
+| ------ | ----- | -------------------------------------------------------- |
+| W1     | 0.25  | Engagement Prediction — P(like, comment, dwell >3s)      |
+| W2     | 0.22  | Relationship Strength — Viewer-author affinity           |
+| W3     | 0.18  | Interest Match — Post category vs user interest vector   |
+| W4     | 0.15  | Recency Decay — Exponential time decay                   |
+| W5     | 0.10  | Content Quality — Richness + credibility score           |
+| W6     | -0.05 | Diversity Penalty — Penalize repeated authors/categories |
+| W7     | 0.05  | Exploration Boost — Inject novel content                 |
 
 ### Component Details
 
 **Engagement Prediction:**
+
 - Heuristic model using engagement velocity (engagements/hour)
 - Sigmoid normalization: `1 / (1 + exp(-0.5 × (velocity - 2)))`
 - Boosted by user's interest match with content category
 
 **Relationship Strength:**
+
 - From `author_affinity_scores.weighted_score`
 - Base 0.4 if following, 0.0 if not
 - Incrementally updated on each interaction
 - Factors: interaction count, follow status, circle membership, shared events
 
 **Interest Match:**
+
 - User interest vector lookup by detected post category
 - Categories: wedding, birthday, memorial, graduation, baby_shower, corporate_event, fundraiser, cultural, general
 - Category detection via keyword matching in post content
 - Updated via exponential moving average (α=0.05) after each interaction
 
 **Recency Decay:**
+
 ```
 RecencyScore = exp(-λ × age_in_hours)
 λ = 0.04
 ```
+
 - 50% score at ~17 hours
 - 25% score at ~35 hours
 - 10% score at ~57 hours
 
 **Content Quality:**
+
 ```
 quality = content_richness × 0.3 + author_credibility × 0.3 + engagement_velocity_norm × 0.4
 ```
+
 - Content richness: text length, image count, video presence
 - Author credibility: historical engagement on author's posts
 - Suppressed if moderation_flag=true or spam_probability>0.5
 
 **Diversity Penalty:**
+
 - Max 2 posts from same author in sliding window of 10
 - Max 4 posts from same category in sliding window of 10
 - Deferred posts re-inserted at appropriate score positions
 
 **Exploration Boost:**
+
 - 8% of feed slots reserved for exploration
 - Deterministic per user-post-day (hash-based)
 - Exposes new creators and content categories
 
 ### Candidate Generation Sources
 
-| Source | Limit | Priority |
-|--------|-------|----------|
-| Following users' posts | 500 | Highest |
-| Circle members' posts | 300 | High |
-| Shared event participants' posts | 200 | High |
-| Own posts | 50 | Always included |
-| Trending/high-engagement platform posts | 500 | Fill remaining |
+| Source                                  | Limit | Priority        |
+| --------------------------------------- | ----- | --------------- |
+| Following users' posts                  | 500   | Highest         |
+| Circle members' posts                   | 300   | High            |
+| Shared event participants' posts        | 200   | High            |
+| Own posts                               | 50    | Always included |
+| Trending/high-engagement platform posts | 500   | Fill remaining  |
 
 Total pool: up to 1,500 candidates
 
 ### Cold Start Strategy
 
 For new users with <10 interactions:
+
 1. Recent high-quality posts with images (visual appeal)
 2. Posts from popular authors (social proof)
 3. Round-robin across categories for exploration
@@ -15312,6 +16027,7 @@ For new users with <10 interactions:
 ### Frontend Integration
 
 The frontend uses `useFeedTracking.ts` hooks for:
+
 - **Viewport tracking:** `usePostViewTracking(postId)` — IntersectionObserver at 50% threshold
 - **Dwell time:** Logged when post leaves viewport after >3s visible
 - **Explicit interactions:** `useInteractionLogger()` — logs glow, save, etc.
@@ -15320,14 +16036,14 @@ The frontend uses `useFeedTracking.ts` hooks for:
 
 ### Evaluation Metrics
 
-| Metric | Description | Target |
-|--------|-------------|--------|
-| Feed CTR | Impressions → Engagements | >5% |
-| Avg Dwell Time | Mean time per post view | >4s |
-| Diversity Score | Unique authors per 20 posts | >12 |
+| Metric                | Description                          | Target     |
+| --------------------- | ------------------------------------ | ---------- |
+| Feed CTR              | Impressions → Engagements            | >5%        |
+| Avg Dwell Time        | Mean time per post view              | >4s        |
+| Diversity Score       | Unique authors per 20 posts          | >12        |
 | Cold Start Engagement | New user engagement in first session | >3 actions |
-| Fallback Rate | % feeds using chronological fallback | <1% |
-| Feed Latency | Time to generate ranked feed | <200ms |
+| Fallback Rate         | % feeds using chronological fallback | <1%        |
+| Feed Latency          | Time to generate ranked feed         | <200ms     |
 
 ### Scalability Considerations
 
@@ -15419,6 +16135,7 @@ CREATE INDEX idx_impression_created ON feed_impressions(created_at);
 ### Smart Service Discovery & Ranking (2026-02-19)
 
 **Frontend Changes:**
+
 - `FindServices.tsx` completely redesigned with infinite scroll (IntersectionObserver, 20 items per page)
 - Removed AI chatbot icon (Sparkles) from the page
 - Added **price range filter** with dual-handle slider (min/max TZS)
@@ -15430,6 +16147,7 @@ CREATE INDEX idx_impression_created ON feed_impressions(created_at);
 - End-of-results indicator shown when all services loaded
 
 **Backend Changes (`services.py` - `GET /services`):**
+
 - New query parameters: `lat`, `lng`, `radius_km` for geo-proximity ranking
 - Smart multi-factor relevance algorithm when `sort_by=relevance`:
   - **W1: Rating Quality (0-25 pts)** — normalized average rating
@@ -15452,22 +16170,24 @@ CREATE INDEX idx_impression_created ON feed_impressions(created_at);
 **WhatsApp Templates (whatsapp-send edge function):**
 All outbound WhatsApp messages now use **approved Meta templates** instead of plain text, ensuring production readiness without sandbox restrictions.
 
-| Template Name | Action Key | Parameters ({{1}}-{{N}}) |
-|---|---|---|
-| `event_invitation` | `invite` | guest_name, event_name, event_date, organizer_name, rsvp_url |
-| `event_update` | `event_update` | guest_name, event_name, changes |
-| `event_reminder` | `reminder` | guest_name, event_name, event_date, event_time, location |
-| `expense_recorded` | `expense_recorded` | recipient_name, recorder_name, amount, category, event_name |
+| Template Name      | Action Key         | Parameters ({{1}}-{{N}})                                     |
+| ------------------ | ------------------ | ------------------------------------------------------------ |
+| `event_invitation` | `invite`           | guest_name, event_name, event_date, organizer_name, rsvp_url |
+| `event_update`     | `event_update`     | guest_name, event_name, changes                              |
+| `event_reminder`   | `reminder`         | guest_name, event_name, event_date, event_time, location     |
+| `expense_recorded` | `expense_recorded` | recipient_name, recorder_name, amount, category, event_name  |
 
 - The `text` action remains as a fallback for ad-hoc messages (still sends plain text).
 - All templates use language code `en` and utility category.
 - Backend helper `wa_expense_recorded()` added to `backend/app/utils/whatsapp.py`.
 
 **Service Verification Badge:**
+
 - Removed the "Verified" text overlay badge from service cards in `FindServices.tsx`.
 - Verification is now shown as a ✓ icon inline before the service name (CheckCircle icon in primary color).
 
 **Expense Report Ordering:**
+
 - Backend `GET /user-events/{event_id}/expenses/report` now orders expenses by `expense_date ASC` (chronological) instead of category-first.
 - Frontend `generateExpenseReportHtml` sorts expenses by date ascending for consistent report output.
 
@@ -15480,52 +16200,63 @@ All outbound WhatsApp messages now use **approved Meta templates** instead of pl
 #### Endpoints
 
 **Public — Get Ticketed Events**
+
 ```
 GET /ticketing/events?page=1&limit=10
 ```
+
 Returns all public events that sell tickets, with `min_price`, `total_available`, and `ticket_class_count`.
 
 **Public — Get Ticket Classes for an Event**
+
 ```
 GET /ticketing/events/{event_id}/ticket-classes
 ```
+
 Returns all ticket classes for a public ticketed event with `id`, `name`, `description`, `price`, `quantity`, `sold`, `available`, `is_sold_out`, `status`, `display_order`.
 
-**Organizer — Create Ticket Class** *(Auth required)*
+**Organizer — Create Ticket Class** _(Auth required)_
+
 ```
 POST /ticketing/events/{event_id}/ticket-classes
 Body: { "name": "VIP", "description": "Front row", "price": 50000, "quantity": 100 }
 ```
 
-**Organizer — Update Ticket Class** *(Auth required)*
+**Organizer — Update Ticket Class** _(Auth required)_
+
 ```
 PUT /ticketing/ticket-classes/{class_id}
 Body: { "name": "...", "price": ..., "quantity": ..., "status": "..." }
 ```
 
-**Organizer — Delete Ticket Class** *(Auth required, only if no tickets sold)*
+**Organizer — Delete Ticket Class** _(Auth required, only if no tickets sold)_
+
 ```
 DELETE /ticketing/ticket-classes/{class_id}
 ```
 
-**User — Purchase Ticket** *(Auth required)*
+**User — Purchase Ticket** _(Auth required)_
+
 ```
 POST /ticketing/purchase
 Body: { "ticket_class_id": "uuid", "quantity": 1 }
 Response: { "ticket_id": "...", "ticket_code": "NTK-XXXXXXXX", "quantity": 1, "total_amount": 50000 }
 ```
 
-**User — Get My Tickets** *(Auth required)*
+**User — Get My Tickets** _(Auth required)_
+
 ```
 GET /ticketing/my-tickets?page=1&limit=20
 ```
 
-**Organizer — Get Event Tickets** *(Auth required)*
+**Organizer — Get Event Tickets** _(Auth required)_
+
 ```
 GET /ticketing/events/{event_id}/tickets?page=1&limit=50
 ```
 
 #### Frontend Integration
+
 - `EventTicketing` component in Create/Edit Event for organizers to manage ticket classes
 - `EventTicketPurchase` component on Event View page showing all available classes with purchase flow
 - `TicketEventsSection` in Right Sidebar showing public ticketed events with "From [price]" badges
@@ -15539,24 +16270,28 @@ GET /ticketing/events/{event_id}/tickets?page=1&limit=50
 
 #### Endpoints
 
-**List Business Phones** *(Auth required)*
+**List Business Phones** _(Auth required)_
+
 ```
 GET /user-services/business-phones/list
 ```
 
-**Add Business Phone** *(Auth required)*
+**Add Business Phone** _(Auth required)_
+
 ```
 POST /user-services/business-phones
 Body: { "phone_number": "0653750805" }
 ```
 
-**Verify Business Phone** *(Auth required)*
+**Verify Business Phone** _(Auth required)_
+
 ```
 POST /user-services/business-phones/{phone_id}/verify
 Body: { "otp": "123456" }
 ```
 
 #### Frontend Integration
+
 - Business phone selector in Add Service and Edit Service forms
 - Inline OTP verification flow matching registration-style inputs
 - Verified phones can be reused across multiple services
@@ -15568,6 +16303,7 @@ Body: { "otp": "123456" }
 **Overview:** Event creators can share their events to the feed with visibility (Public/Circle) and duration controls (specific date or lifetime). Shared events render as rich event preview cards in the feed, distinct from regular posts/moments.
 
 #### Backend Changes
+
 - `POST /posts/` now accepts additional form fields:
   - `post_type`: `"post"` (default) or `"event_share"`
   - `event_id`: UUID of the event to share (required when `post_type=event_share`)
@@ -15598,6 +16334,7 @@ Body: { "otp": "123456" }
   ```
 
 #### Frontend Integration
+
 - `ShareEventToFeed` component accessible from Event Management header
 - Visibility options: Public (all users) or Circle (only circle members)
 - Duration options: Until specific date/time or Lifetime (manual removal)
@@ -15609,6 +16346,7 @@ Body: { "otp": "123456" }
 - Regular posts continue to render with standard media/text layout
 
 #### Database
+
 - `user_feeds.post_type` — TEXT, default `'post'`
 - `user_feeds.shared_event_id` — UUID FK → `events(id)`
 - `user_feeds.share_duration` — `event_share_duration_enum` (`'timed'`, `'lifetime'`)
@@ -15625,6 +16363,7 @@ Body: { "otp": "123456" }
 ### OTP Input Standardization (2026-02-21)
 
 All OTP inputs across the platform now use consistent styling: `w-12 h-14 text-xl font-semibold rounded-xl border-2` with `gap-2` spacing. Applied to:
+
 - Registration (phone verification)
 - Phone verification page
 - Email verification page
@@ -15669,6 +16408,7 @@ All OTP inputs across the platform now use consistent styling: `w-12 h-14 text-x
 **Overview:** The invitation card has been redesigned with event-type-specific themes. Each event type (wedding, birthday, corporate, memorial, anniversary, conference, graduation) has a unique color scheme, typography, ornamental decorations, and invitation label. Cards include QR code generation and print/share functionality.
 
 **Supported event type themes:**
+
 - Wedding — Rose/pink palette with elegant serif typography
 - Birthday — Amber/orange with playful rounded styling
 - Corporate — Slate/blue with professional sans-serif
@@ -15690,11 +16430,13 @@ All OTP inputs across the platform now use consistent styling: `w-12 h-14 text-x
 **Overview:** Event organizers can now update the status of assigned service providers directly from the event management dashboard. A status dropdown allows setting service status to any valid value: `pending`, `assigned`, `in_progress`, `completed`, `cancelled`.
 
 **Backend endpoint:** `PUT /user-events/{event_id}/services/{service_id}`
+
 - Accepts `status` or `service_status` field in request body
 - Validates against the `event_service_status` enum
 - Requires `can_manage_vendors` permission or event creator role
 
 **Valid `event_service_status` enum values:**
+
 - `pending` — Service not yet confirmed
 - `assigned` — Service provider assigned to event
 - `in_progress` — Service currently being delivered
@@ -15736,12 +16478,15 @@ All OTP inputs across the platform now use consistent styling: `w-12 h-14 text-x
 **Admin Endpoints:**
 
 `GET /admin/whatsapp/conversations` — List all conversations sorted by last activity
+
 - Response: `{ success, data: [{ id, phone, contact_name, last_message, last_activity_at, unread_count }] }`
 
 `GET /admin/whatsapp/conversations/{id}/messages?page=1&limit=50` — Paginated message history
+
 - Response: `{ success, data: { items: [{ id, direction, content, status, created_at }], total, page, pages } }`
 
 `POST /admin/whatsapp/conversations/{id}/send` — Send message to conversation
+
 - Body: `{ message: "Hello" }`
 - Response: `{ success, data: { id, direction, content, status, created_at } }`
 
@@ -15750,9 +16495,11 @@ All OTP inputs across the platform now use consistent styling: `w-12 h-14 text-x
 **Internal Webhook Endpoints (called by whatsapp-webhook edge function):**
 
 `POST /whatsapp/incoming` — Store incoming message & update conversation
+
 - Body: `{ phone, name, content, wa_message_id }`
 
 `POST /whatsapp/status-update` — Update message delivery status
+
 - Body: `{ wa_message_id, status }`
 
 **Status Indicators:** ✓ Sent → ✓✓ Delivered → ✓✓ Read (blue)
@@ -15804,50 +16551,63 @@ All OTP inputs across the platform now use consistent styling: `w-12 h-14 text-x
 ### User Endpoints (Auth Required)
 
 `GET /issues/categories` — List active issue categories
+
 - Response: `{ success, data: [{ id, name, description, icon, display_order }] }`
 
 `GET /issues/` — List user's submitted issues
+
 - Query: `?page=1&limit=20&status=open`
 - Response: `{ success, data: { issues: [...], summary: { total, open, in_progress, resolved } } }`
 
 `GET /issues/{issue_id}` — Get issue detail with responses
+
 - Response: `{ success, data: { id, subject, description, status, priority, category, screenshot_urls, responses: [...], created_at } }`
 
 `POST /issues/` — Submit a new issue
+
 - Body: `{ category_id, subject, description, priority?, screenshot_urls? }`
 - Response: `{ success, data: { id, subject, status } }`
 
 `POST /issues/{issue_id}/reply` — Reply to an issue
+
 - Body: `{ message }`
 - Response: `{ success, data: { id } }`
 
 `PUT /issues/{issue_id}/close` — Close an issue
+
 - Response: `{ success, message }`
 
 ### Admin Endpoints (Admin Auth Required)
 
 `GET /admin/issues` — List all issues with filtering
+
 - Query: `?page=1&limit=20&status=open&priority=high&search=keyword`
 - Response: `{ success, data: { items: [...], total, page, pages, counts: { total, open, in_progress, resolved, closed } } }`
 
 `GET /admin/issues/{issue_id}` — Get issue detail with user info and responses
+
 - Response: `{ success, data: { id, subject, description, status, priority, category, user, responses, screenshot_urls, created_at } }`
 
 `POST /admin/issues/{issue_id}/reply` — Admin reply to an issue
+
 - Body: `{ message }`
 - Response: `{ success, data: { id } }`
 
 `PUT /admin/issues/{issue_id}/status` — Update issue status/priority
+
 - Body: `{ status?, priority? }`
 - Response: `{ success, message }`
 
 `GET /admin/issue-categories` — List all categories (including inactive)
+
 - Response: `{ success, data: [...] }`
 
 `POST /admin/issue-categories` — Create a new category
+
 - Body: `{ name, description?, icon?, display_order? }`
 
 `PUT /admin/issue-categories/{id}` — Update a category
+
 - Body: `{ name?, description?, icon?, display_order?, is_active? }`
 
 `DELETE /admin/issue-categories/{id}` — Delete a category (fails if issues exist)
@@ -15861,11 +16621,13 @@ All OTP inputs across the platform now use consistent styling: `w-12 h-14 text-x
 #### Database Changes
 
 **New Enum:**
+
 ```sql
 CREATE TYPE ticket_approval_status_enum AS ENUM ('pending', 'approved', 'rejected', 'removed');
 ```
 
 **New Columns on `events` table:**
+
 ```sql
 ALTER TABLE events ADD COLUMN ticket_approval_status ticket_approval_status_enum DEFAULT 'pending';
 ALTER TABLE events ADD COLUMN ticket_rejection_reason TEXT;
@@ -15876,6 +16638,7 @@ ALTER TABLE events ADD COLUMN ticket_removed_at TIMESTAMP;
 ```
 
 #### Status Flow
+
 - **pending** - Default when organizer enables `sells_tickets`. Event is not visible in public ticket browsing.
 - **approved** - Admin approves. Event becomes visible in `/tickets` browse page and right sidebar.
 - **rejected** - Admin rejects with a reason. Organizer sees the reason and can edit and resubmit.
@@ -15884,24 +16647,29 @@ ALTER TABLE events ADD COLUMN ticket_removed_at TIMESTAMP;
 #### Admin Endpoints (Admin Auth Required)
 
 `GET /admin/ticketed-events` - List all ticketed events with approval status
+
 - Query: `?page=1&limit=20&status=pending|approved|rejected|removed&search=keyword`
 - Response: `{ success, data: { items: [...], total, page, pages } }`
 
 `PUT /admin/ticketed-events/{event_id}/approve` - Approve a ticketed event
+
 - Response: `{ success, message: "Event approved for ticket sales" }`
 - Side effect: Sends in-app notification to organizer (`ticket_event_approved`)
 
 `PUT /admin/ticketed-events/{event_id}/reject` - Reject a ticketed event
+
 - Body: `{ "reason": "Event details are incomplete or unverifiable" }`
 - Response: `{ success, message: "Event rejected" }`
 - Side effect: Sends in-app notification to organizer (`ticket_event_rejected`) with the reason
 
 `PUT /admin/ticketed-events/{event_id}/remove` - Remove a ticketed event from marketplace
+
 - Body: `{ "reason": "Reported as fraudulent" }`
 - Response: `{ success, message: "Event removed from ticket marketplace" }`
 - Side effect: Sends in-app notification to organizer (`ticket_event_removed`) with the reason
 
 `DELETE /admin/ticketed-events/{event_id}` - Permanently delete a ticketed event (hard delete)
+
 - Response: `{ success, message: "Event permanently deleted" }`
 
 #### Public Endpoint Changes
@@ -15911,6 +16679,7 @@ ALTER TABLE events ADD COLUMN ticket_removed_at TIMESTAMP;
 Right sidebar ticketed events section also filters to `approved` only, with preference-based randomization and fallback for new users.
 
 #### Organizer Experience
+
 - When `sells_tickets` is enabled, `ticket_approval_status` defaults to `pending`
 - Organizer sees colored status banners in their ticket management:
   - **Pending** (yellow): "Your event is under review for ticket approval"
@@ -15920,6 +16689,7 @@ Right sidebar ticketed events section also filters to `approved` only, with pref
 - Organizers receive in-app notifications on every status change
 
 #### Notification Types Added
+
 - `ticket_event_approved`
 - `ticket_event_rejected`
 - `ticket_event_removed`

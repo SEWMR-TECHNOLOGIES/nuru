@@ -429,19 +429,28 @@ class _HomeScreenState extends State<HomeScreen> {
     ]);
     if (!mounted) return;
 
+    // IMPORTANT: if a background poll request fails (timeout/network/5xx),
+    // _extractEvents returns null. We MUST keep the previously-loaded list
+    // instead of clobbering it with []. Otherwise the My Events tab flashes
+    // an empty state ("No events — Create event") until the next pull-to-
+    // refresh succeeds. Only update lists whose request actually succeeded.
     final newMyEvents = _extractEvents(results[0]);
     final newInvitedEvents = _extractEvents(results[1]);
     final newCommitteeEvents = _extractEvents(results[2]);
 
-    final unchanged = _eventsListsEqual(_myEvents, newMyEvents) &&
-        _eventsListsEqual(_invitedEvents, newInvitedEvents) &&
-        _eventsListsEqual(_committeeEvents, newCommitteeEvents);
+    final myEventsNext = newMyEvents ?? _myEvents;
+    final invitedNext = newInvitedEvents ?? _invitedEvents;
+    final committeeNext = newCommitteeEvents ?? _committeeEvents;
+
+    final unchanged = _eventsListsEqual(_myEvents, myEventsNext) &&
+        _eventsListsEqual(_invitedEvents, invitedNext) &&
+        _eventsListsEqual(_committeeEvents, committeeNext);
 
     if (!unchanged) {
       setState(() {
-        _myEvents = newMyEvents;
-        _invitedEvents = newInvitedEvents;
-        _committeeEvents = newCommitteeEvents;
+        _myEvents = myEventsNext;
+        _invitedEvents = invitedNext;
+        _committeeEvents = committeeNext;
         _eventsLoading = false;
       });
       HomeCache.myEvents = _myEvents;
@@ -531,8 +540,11 @@ class _HomeScreenState extends State<HomeScreen> {
     HomeCache.myServices = _myServices;
   }
 
-  List<dynamic> _extractEvents(Map<String, dynamic> res) {
-    if (res['success'] != true) return [];
+  /// Returns the events list on success, or `null` when the API call failed.
+  /// Callers must treat `null` as "keep the existing list" and never replace
+  /// the on-screen events with an empty array on transient failures.
+  List<dynamic>? _extractEvents(Map<String, dynamic> res) {
+    if (res['success'] != true) return null;
     final data = res['data'];
     if (data is List) return data;
     if (data is Map) return data['events'] ?? [];

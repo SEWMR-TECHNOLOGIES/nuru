@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Optional
 
 import pytz
-from fastapi import APIRouter, Depends, Body, Query, File, Form, UploadFile, Request
+from fastapi import APIRouter, Depends, Body, Query, File, Form, UploadFile, Request, BackgroundTasks
 from sqlalchemy import func as sa_func, or_, and_, text
 from sqlalchemy.orm import Session, joinedload, selectinload
 
@@ -987,7 +987,7 @@ def get_event_contributors(
 
 
 @router.post("/events/{event_id}/contributors")
-def add_to_event(event_id: str, body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def add_to_event(event_id: str, body: dict = Body(...), background_tasks: BackgroundTasks = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         eid = uuid.UUID(event_id)
     except ValueError:
@@ -1120,9 +1120,11 @@ def add_to_event(event_id: str, body: dict = Body(...), db: Session = Depends(ge
         db.rollback()
 
     # Send WhatsApp (primary) + SMS (fallback) when contributor is added with a pledge amount.
-    # Honour notify_target (primary | secondary | both) on the EventContributor.
+    # Offloaded to BackgroundTasks so the request returns immediately. The
+    # helpers internally enqueue Celery jobs, but Redis hiccups can still add
+    # 100s of ms — keep them off the hot path entirely.
     pledge_val = float(body.get("pledge_amount", 0))
-    if pledge_val > 0:
+    if pledge_val > 0 and background_tasks is not None:
         from utils.offline_claims import contributor_notify_phones
         recipients = contributor_notify_phones(ec)
         if recipients:
@@ -1130,33 +1132,36 @@ def add_to_event(event_id: str, body: dict = Body(...), db: Session = Depends(ge
             organizer = db.query(User).filter(User.id == event.organizer_id).first()
             organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
             pay_instr = (event.contribution_payment_instructions or "").strip() or None
-            for ph in recipients:
-                try:
-                    from utils.whatsapp import wa_contribution_target_set
-                    wa_contribution_target_set(
-                        ph, contributor.name,
-                        event.name, pledge_val, 0, currency,
-                        organizer_phone=organizer_phone,
-                        payment_instructions=pay_instr,
-                    )
-                except Exception:
-                    pass
-                try:
-                    from utils.sms import sms_contribution_target_set
-                    sms_contribution_target_set(
-                        ph, contributor.name,
-                        event.name, pledge_val, 0, currency,
-                        organizer_phone=organizer_phone,
-                        payment_instructions=pay_instr,
-                    )
-                except Exception:
-                    pass
+            contrib_name = contributor.name
+            event_name = event.name
+
+            def _notify_added():
+                for ph in recipients:
+                    try:
+                        from utils.whatsapp import wa_contribution_target_set
+                        wa_contribution_target_set(
+                            ph, contrib_name, event_name, pledge_val, 0, currency,
+                            organizer_phone=organizer_phone,
+                            payment_instructions=pay_instr,
+                        )
+                    except Exception:
+                        pass
+                    try:
+                        from utils.sms import sms_contribution_target_set
+                        sms_contribution_target_set(
+                            ph, contrib_name, event_name, pledge_val, currency=currency,
+                            organizer_phone=organizer_phone,
+                            payment_instructions=pay_instr,
+                        )
+                    except Exception:
+                        pass
+            background_tasks.add_task(_notify_added)
 
     return standard_response(True, "Contributor added to event", _event_contributor_dict(ec))
 
 
 @router.put("/events/{event_id}/contributors/{ec_id}")
-def update_event_contributor(event_id: str, ec_id: str, body: dict = Body(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def update_event_contributor(event_id: str, ec_id: str, body: dict = Body(...), background_tasks: BackgroundTasks = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     try:
         eid = uuid.UUID(event_id)
         ecid = uuid.UUID(ec_id)
@@ -1195,9 +1200,9 @@ def update_event_contributor(event_id: str, ec_id: str, body: dict = Body(...), 
     db.commit()
 
     # Send WhatsApp (primary) + SMS (fallback) when pledge target is changed.
-    # Honour notify_target (primary | secondary | both) on the EventContributor.
+    # Offloaded to BackgroundTasks so the HTTP response returns instantly.
     new_pledge = float(ec.pledge_amount or 0)
-    if new_pledge > 0 and new_pledge != old_pledge and ec.contributor:
+    if new_pledge > 0 and new_pledge != old_pledge and ec.contributor and background_tasks is not None:
         from utils.offline_claims import contributor_notify_phones
         recipients = contributor_notify_phones(ec)
         if recipients:
@@ -1205,54 +1210,54 @@ def update_event_contributor(event_id: str, ec_id: str, body: dict = Body(...), 
             organizer = db.query(User).filter(User.id == event.organizer_id).first()
             organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
             pay_instr = (event.contribution_payment_instructions or "").strip() or None
-            # Decide template variant: first-time set, increase, or reduction.
-            # Reductions currently fall back to ``set`` (no dedicated template).
-            is_first_time = old_pledge <= 0
             is_increase = new_pledge > old_pledge and old_pledge > 0
-            for ph in recipients:
-                try:
-                    if is_increase:
-                        from utils.whatsapp import wa_contribution_target_updated
-                        wa_contribution_target_updated(
-                            ph, ec.contributor.name, event.name,
-                            increase=(new_pledge - old_pledge),
-                            total_target=new_pledge,
-                            currency=currency,
-                            organizer_phone=organizer_phone,
-                            payment_instructions=pay_instr,
-                        )
-                    else:
-                        from utils.whatsapp import wa_contribution_target_set
-                        wa_contribution_target_set(
-                            ph, ec.contributor.name,
-                            event.name, new_pledge, 0, currency,
-                            organizer_phone=organizer_phone,
-                            payment_instructions=pay_instr,
-                        )
-                except Exception:
-                    pass
-                try:
-                    if is_increase:
-                        from utils.sms import sms_contribution_target_updated
-                        sms_contribution_target_updated(
-                            ph, ec.contributor.name, event.name,
-                            increase=(new_pledge - old_pledge),
-                            total_target=new_pledge,
-                            currency=currency,
-                            organizer_phone=organizer_phone,
-                            payment_instructions=pay_instr,
-                        )
-                    else:
-                        # First-time set, or reduction (fallback to set template).
-                        from utils.sms import sms_contribution_target_set
-                        sms_contribution_target_set(
-                            ph, ec.contributor.name, event.name,
-                            new_pledge, currency=currency,
-                            organizer_phone=organizer_phone,
-                            payment_instructions=pay_instr,
-                        )
-                except Exception:
-                    pass
+            contrib_name = ec.contributor.name
+            event_name = event.name
+
+            def _notify_pledge_change():
+                for ph in recipients:
+                    try:
+                        if is_increase:
+                            from utils.whatsapp import wa_contribution_target_updated
+                            wa_contribution_target_updated(
+                                ph, contrib_name, event_name,
+                                increase=(new_pledge - old_pledge),
+                                total_target=new_pledge,
+                                currency=currency,
+                                organizer_phone=organizer_phone,
+                                payment_instructions=pay_instr,
+                            )
+                        else:
+                            from utils.whatsapp import wa_contribution_target_set
+                            wa_contribution_target_set(
+                                ph, contrib_name, event_name, new_pledge, 0, currency,
+                                organizer_phone=organizer_phone,
+                                payment_instructions=pay_instr,
+                            )
+                    except Exception:
+                        pass
+                    try:
+                        if is_increase:
+                            from utils.sms import sms_contribution_target_updated
+                            sms_contribution_target_updated(
+                                ph, contrib_name, event_name,
+                                increase=(new_pledge - old_pledge),
+                                total_target=new_pledge,
+                                currency=currency,
+                                organizer_phone=organizer_phone,
+                                payment_instructions=pay_instr,
+                            )
+                        else:
+                            from utils.sms import sms_contribution_target_set
+                            sms_contribution_target_set(
+                                ph, contrib_name, event_name, new_pledge,
+                                currency=currency,
+                                organizer_phone=organizer_phone,
+                                payment_instructions=pay_instr,
+                            )
+                    except Exception:
+                        pass
+            background_tasks.add_task(_notify_pledge_change)
 
     return standard_response(True, "Event contributor updated", _event_contributor_dict(ec))
 
@@ -1299,6 +1304,7 @@ def record_payment(
     ec_id: str,
     body: dict = Body(...),
     request: Request = None,
+    background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1401,87 +1407,89 @@ def record_payment(
         except Exception as _e:
             print(f"[record_payment] idempotency persist failed: {_e}")
 
-    # Post into event group workspace (if one exists). Best-effort.
-    # Only announce CONFIRMED contributions — pending committee submissions
-    # must wait for organiser approval before appearing in the group chat,
-    # otherwise members see contributions that may later be rejected.
-    if confirmation_status == ContributionStatusEnum.confirmed:
-        try:
-            from api.routes.event_groups import post_payment_system_message
-            total_paid_after = sum(
-                float(c.amount or 0) for c in ec.contributions
-                if c.confirmation_status is None
-                or c.confirmation_status == ContributionStatusEnum.confirmed
-            )
-            pledge_amount = float(ec.pledge_amount or 0)
-            currency = _currency_code(db, event)
-            post_payment_system_message(
-                db, eid,
-                ec.contributor.name if ec.contributor else "Someone",
-                float(amount), pledge_amount, total_paid_after, currency,
-            )
-        except Exception:
-            pass
-
-    # Notify contributor.
-    # IMPORTANT: when a committee member records a contribution it lands as
-    # `pending` and must be approved by the organiser before counting. We
-    # MUST NOT send the celebratory "contribution recorded" SMS/WA in that
-    # case — otherwise the contributor thinks it's confirmed even though it
-    # may later be rejected. Instead, send a soft acknowledgement and defer
-    # the full confirmation to /confirm-contributions (which already
-    # notifies on approval).
+    # Post into event group workspace + send contributor receipts. Both are
+    # offloaded to BackgroundTasks so the request returns instantly. Without
+    # this the round-trip blocks on Celery enqueue + workspace insert and
+    # users perceive the "Record payment" button as slow.
     contributor = ec.contributor
-    if contributor:
-        from utils.offline_claims import contributor_notify_phones
-        recipients = contributor_notify_phones(ec)
-        if recipients:
-            currency = _currency_code(db, event)
-            organizer = db.query(User).filter(User.id == event.organizer_id).first()
-            organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
+    contrib_name = contributor.name if contributor else "Someone"
+    pledge_amount_snapshot = float(ec.pledge_amount or 0)
+    total_paid_after = sum(
+        float(c.amount or 0) for c in ec.contributions
+        if c.confirmation_status is None
+        or c.confirmation_status == ContributionStatusEnum.confirmed
+    )
+    currency = _currency_code(db, event)
+    organizer = db.query(User).filter(User.id == event.organizer_id).first()
+    organizer_phone = format_phone_display(organizer.phone) if organizer and organizer.phone else None
+    event_name = event.name
+    event_id_str = eid
+    amount_val = float(amount)
+    is_creator_flag = is_creator
+    recorder_label = f"{current_user.first_name} {current_user.last_name}"
 
-            if confirmation_status == ContributionStatusEnum.confirmed:
-                # Organiser-recorded → confirmed instantly, send full receipt.
-                total_paid = sum(float(c.amount or 0) for c in ec.contributions)
-                pledge = float(ec.pledge_amount or 0)
-                for ph in recipients:
-                    try:
-                        from utils.whatsapp import wa_contribution_recorded
-                        wa_contribution_recorded(
-                            ph, contributor.name,
-                            event.name, float(amount), pledge, total_paid, currency,
-                            organizer_phone=organizer_phone,
-                            recorder_name=None,
-                        )
-                    except Exception:
-                        pass
-                    try:
-                        from utils.sms import sms_contribution_recorded
-                        sms_contribution_recorded(
-                            ph, contributor.name,
-                            event.name, float(amount), pledge, total_paid, currency,
-                            organizer_phone=organizer_phone,
-                            recorder_name=None,
-                        )
-                    except Exception:
-                        pass
-            else:
-                # Committee-recorded → pending. Soft acknowledgement only.
-                recorder_name = f"{current_user.first_name} {current_user.last_name}"
-                pending_msg = (
-                    f"Hello {contributor.name}, {recorder_name} has logged your contribution of "
-                    f"{currency} {float(amount):,.0f} for {event.name}. You'll receive a confirmation "
-                    f"once the event organiser approves it."
-                )
+    from utils.offline_claims import contributor_notify_phones
+    recipients = contributor_notify_phones(ec) if contributor else []
+
+    def _post_payment_side_effects():
+        # Workspace announcement — confirmed payments only.
+        if confirmation_status == ContributionStatusEnum.confirmed:
+            try:
+                from api.routes.event_groups import post_payment_system_message
+                from core.database import SessionLocal
+                _db = SessionLocal()
                 try:
-                    from utils.notify_channels import notify_user_wa_sms
-                    for ph in recipients:
-                        try:
-                            notify_user_wa_sms(ph, pending_msg)
-                        except Exception:
-                            pass
+                    post_payment_system_message(
+                        _db, event_id_str, contrib_name,
+                        amount_val, pledge_amount_snapshot, total_paid_after, currency,
+                    )
+                finally:
+                    _db.close()
+            except Exception:
+                pass
+        # Contributor receipt / acknowledgement.
+        if not recipients:
+            return
+        if confirmation_status == ContributionStatusEnum.confirmed:
+            for ph in recipients:
+                try:
+                    from utils.whatsapp import wa_contribution_recorded
+                    wa_contribution_recorded(
+                        ph, contrib_name, event_name, amount_val,
+                        pledge_amount_snapshot, total_paid_after, currency,
+                        organizer_phone=organizer_phone, recorder_name=None,
+                    )
                 except Exception:
                     pass
+                try:
+                    from utils.sms import sms_contribution_recorded
+                    sms_contribution_recorded(
+                        ph, contrib_name, event_name, amount_val,
+                        pledge_amount_snapshot, total_paid_after, currency,
+                        organizer_phone=organizer_phone, recorder_name=None,
+                    )
+                except Exception:
+                    pass
+        else:
+            pending_msg = (
+                f"Hello {contrib_name}, {recorder_label} has logged your contribution of "
+                f"{currency} {amount_val:,.0f} for {event_name}. You'll receive a confirmation "
+                f"once the event organiser approves it."
+            )
+            try:
+                from utils.notify_channels import notify_user_wa_sms
+                for ph in recipients:
+                    try:
+                        notify_user_wa_sms(ph, pending_msg)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+    if background_tasks is not None:
+        background_tasks.add_task(_post_payment_side_effects)
+    else:
+        _post_payment_side_effects()
 
     return standard_response(True, "Payment recorded", {
         "id": str(contribution.id),
@@ -3058,15 +3066,15 @@ def generate_share_link(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Generate (or regenerate) a public payment URL for one contributor.
+    """Generate or fetch the public payment URL for one contributor.
 
-    Body (optional): ``{ "regenerate": true }`` — if a token already exists
-    we return the existing URL only when the caller explicitly re-issues.
-    The plain token is returned ONCE; we never expose it again.
+    Body (optional): ``{ "regenerate": true }`` — rotate the token. When
+    ``regenerate`` is false (default) we return the existing URL so the
+    share link stays stable across "Share payment link" clicks.
     """
     from services.share_links import (
         issue_share_token, build_share_url, host_for_currency,
-        can_send_sms_for_currency,
+        can_send_sms_for_currency, get_active_token,
     )
     from fastapi import HTTPException
 
@@ -3084,14 +3092,11 @@ def generate_share_link(
         raise HTTPException(status_code=404, detail="Contributor not found on this event.")
 
     regenerate = bool(body.get("regenerate"))
-    if not regenerate and ec.share_token_hash and not ec.share_token_revoked_at:
-        # Already has a live token — but we don't know the plain text.
-        # Force a regenerate so the host actually receives a usable URL.
-        regenerate = True
-
-    plain = issue_share_token(db, ec)
-    db.commit()
-    db.refresh(ec)
+    plain = None if regenerate else get_active_token(ec)
+    if not plain:
+        plain = issue_share_token(db, ec)
+        db.commit()
+        db.refresh(ec)
 
     currency_code = _currency_code(db, event)
     url = build_share_url(currency_code, plain)
@@ -3103,9 +3108,24 @@ def generate_share_link(
         "sms_supported": can_send_sms_for_currency(currency_code),
     })
 
-    """Send the share link to the contributor via WhatsApp (primary) + SMS (fallback)."""
+
+@router.post("/events/{event_id}/contributors/{ec_id}/send-share-sms")
+@router.post("/events/{event_id}/contributors/{ec_id}/share-link/send-sms")
+def send_share_link_sms(
+    event_id: str,
+    ec_id: str,
+    body: dict = Body(default={}),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Send the share link to the contributor via WhatsApp (primary) + SMS (fallback).
+
+    Reuses the existing token if one is active so the contributor keeps
+    receiving the same URL across re-sends.
+    """
     from services.share_links import (
         issue_share_token, build_share_url, can_send_sms_for_currency,
+        get_active_token,
     )
     from utils.sms import sms_guest_contribution_invite
     from utils.whatsapp import wa_guest_contribution_invite
@@ -3128,8 +3148,9 @@ def generate_share_link(
     currency_code = _currency_code(db, event)
     sms_ok = can_send_sms_for_currency(currency_code)
 
-    # Always re-issue so the link contains a guaranteed-valid token.
-    plain = issue_share_token(db, ec)
+    plain = get_active_token(ec)
+    if not plain:
+        plain = issue_share_token(db, ec)
     url = build_share_url(currency_code, plain)
     from utils.event_owner import get_event_owner_display_name
     organiser_name = get_event_owner_display_name(event, db=db, fallback="Your host")
@@ -3146,7 +3167,6 @@ def generate_share_link(
     sent_wa = False
     sent_sms = False
     for phone in recipients:
-        # WhatsApp (primary — works internationally)
         try:
             wa_guest_contribution_invite(
                 phone=phone,
@@ -3160,7 +3180,6 @@ def generate_share_link(
             sent_wa = True
         except Exception:
             pass
-        # SMS fallback (currency-gated)
         if sms_ok:
             try:
                 sms_guest_contribution_invite(

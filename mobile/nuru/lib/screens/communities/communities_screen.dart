@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../core/widgets/nuru_refresh_indicator.dart';
+import '../../core/widgets/nuru_skeleton.dart';
 import '../../core/services/social_service.dart';
 import '../../core/l10n/l10n_helper.dart';
 import 'community_detail_screen.dart';
@@ -153,9 +154,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
         ],
       ),
       body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primary),
-            )
+          ? const NuruSkeletonList(itemCount: 6, showTrailing: true)
           : NuruRefreshIndicator(
               onRefresh: _load,
               color: AppColors.primary,
