@@ -7,6 +7,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../core/utils/share_helpers.dart';
 import '../../core/services/api_base.dart';
 import '../../core/services/secure_token_storage.dart';
 import '../../core/theme/app_colors.dart';
@@ -59,7 +60,7 @@ class _MomentViewScreenState extends State<MomentViewScreen> {
   }
 
   void _share() {
-    Share.share('https://nuru.tz/moment/${widget.momentId}', subject: 'Moment on Nuru');
+    Share.share('https://nuru.tz/moment/${widget.momentId}', subject: 'Moment on Nuru', sharePositionOrigin: sharePositionOrigin(context));
   }
 
   @override

@@ -6,6 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../core/utils/share_helpers.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/money_format.dart' show getActiveCurrency;
@@ -504,6 +505,7 @@ class _TicketDetailsScreenState extends State<TicketDetailsScreen> {
         [XFile(file.path, mimeType: 'image/png')],
         subject: 'Nuru Ticket',
         text: 'My ticket for $_eventName${_ticketCode.isNotEmpty ? "  ·  $_ticketCode" : ""}',
+        sharePositionOrigin: sharePositionOrigin(context),
       );
     } catch (e) {
       if (mounted) {

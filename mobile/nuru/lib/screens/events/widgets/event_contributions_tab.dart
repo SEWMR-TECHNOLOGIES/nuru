@@ -12,6 +12,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/services/events_service.dart';
 import '../../../core/services/event_contributors_service.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../../core/utils/share_helpers.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import '../../../core/services/report_generator.dart';
 import '../../../core/widgets/app_snackbar.dart';
@@ -1093,7 +1094,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
                               'Hi $name, please use this secure link to pay your contribution'
                               '${balance > 0 ? " ($currency ${balance.toStringAsFixed(0)})" : ""}'
                               ': ${url!}';
-                            Share.share(text, subject: 'Payment link');
+                            Share.share(text, subject: 'Payment link', sharePositionOrigin: sharePositionOrigin(context));
                           },
                           icon: const Icon(Icons.ios_share),
                           label: const Text('Share'),

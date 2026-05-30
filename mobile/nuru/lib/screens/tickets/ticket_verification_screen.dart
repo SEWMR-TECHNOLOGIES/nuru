@@ -7,6 +7,7 @@
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../core/utils/share_helpers.dart';
 import '../../core/services/api_base.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/date_formatters.dart';
@@ -53,7 +54,7 @@ class _TicketVerificationScreenState extends State<TicketVerificationScreen> {
 
   void _share() {
     final url = 'https://nuru.tz/ticket/${widget.code}';
-    Share.share(url, subject: 'My Nuru ticket');
+    Share.share(url, subject: 'My Nuru ticket', sharePositionOrigin: sharePositionOrigin(context));
   }
 
   @override

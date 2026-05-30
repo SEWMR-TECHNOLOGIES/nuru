@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../../core/utils/share_helpers.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/social_service.dart';
@@ -194,7 +195,7 @@ class _MomentCardState extends State<MomentCard> {
     final shareText = _content.isNotEmpty
         ? '$_content\n\n$shareUrl'
         : 'Check out this moment on Nuru!\n$shareUrl';
-    await Share.share(shareText);
+    await Share.share(shareText, sharePositionOrigin: sharePositionOrigin(context));
   }
 
   @override

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../core/utils/share_helpers.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -116,7 +117,7 @@ class _MeetingDetailsScreenState extends State<MeetingDetailsScreen> {
     if (m == null) return;
     final url = m['meeting_url'] ?? 'https://nuru.tz/meet/${m['room_id'] ?? ''}';
     final title = m['title'] ?? 'Meeting';
-    Share.share('$title\n$url');
+    Share.share('$title\n$url', sharePositionOrigin: sharePositionOrigin(context));
   }
 
   Future<void> _addToCalendar() async {
@@ -180,6 +181,7 @@ END:VCALENDAR''';
         [XFile(file.path, mimeType: 'text/calendar', name: '$safe.ics')],
         subject: 'Add "$title" to your calendar',
         text: '$title\n$url',
+        sharePositionOrigin: sharePositionOrigin(context),
       );
     } catch (_) {
       // Last-resort fallback

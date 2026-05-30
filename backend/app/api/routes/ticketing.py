@@ -380,6 +380,132 @@ async def purchase_ticket(
 
 
 # ──────────────────────────────────────────────
+# Bulk purchase (multiple ticket classes in one order)
+# ──────────────────────────────────────────────
+@router.post("/purchase-bulk")
+async def purchase_tickets_bulk(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Purchase tickets across multiple ticket classes in one atomic order.
+
+    Request body:
+        { "items": [ { "ticket_class_id": "...", "quantity": 2 }, ... ] }
+
+    Backend is the source of truth for pricing. All items must belong to the
+    same event. Each item becomes a pending EventTicket row; siblings share a
+    `BULK:<token>` payment_ref so a single payment confirms the whole order.
+
+    Returns the primary ticket (used as the payment target) plus the line
+    items, subtotal per class, and grand total.
+    """
+    from sqlalchemy import func as sa_func
+    from uuid import uuid4 as _uuid4
+
+    payload = await request.json()
+    raw_items = payload.get("items") or []
+    if not isinstance(raw_items, list) or not raw_items:
+        return standard_response(False, "At least one ticket item is required")
+
+    # Validate + normalise
+    parsed = []  # list of (tc, quantity)
+    event_id = None
+    for entry in raw_items:
+        if not isinstance(entry, dict):
+            return standard_response(False, "Invalid item format")
+        tcid_raw = entry.get("ticket_class_id")
+        try:
+            qty = int(entry.get("quantity", 0))
+        except (TypeError, ValueError):
+            return standard_response(False, "Invalid quantity")
+        if not tcid_raw or qty < 1:
+            continue  # skip zero-quantity selections
+        try:
+            tcid = UUID(str(tcid_raw))
+        except (ValueError, TypeError):
+            return standard_response(False, "Invalid ticket class ID")
+        tc = db.query(EventTicketClass).filter(EventTicketClass.id == tcid).first()
+        if not tc:
+            return standard_response(False, "Ticket class not found")
+        if event_id is None:
+            event_id = tc.event_id
+        elif tc.event_id != event_id:
+            return standard_response(False, "All ticket classes must belong to the same event")
+        # Availability check using actual order rows.
+        current_sold = db.query(sa_func.coalesce(sa_func.sum(EventTicket.quantity), 0)).filter(
+            EventTicket.ticket_class_id == tc.id,
+            EventTicket.status.notin_([TicketOrderStatusEnum.rejected, TicketOrderStatusEnum.cancelled]),
+        ).scalar()
+        available = tc.quantity - int(current_sold)
+        if available < qty:
+            return standard_response(False, f"Only {available} tickets available for '{tc.name}'. You requested {qty}.")
+        parsed.append((tc, qty))
+
+    if not parsed:
+        return standard_response(False, "No tickets selected")
+
+    group_token = f"BULK:{_uuid4().hex}"
+    grand_total = 0.0
+    created_tickets = []
+    items_response = []
+
+    buyer_name = f"{current_user.first_name} {current_user.last_name}".strip() or "Guest"
+
+    for tc, qty in parsed:
+        subtotal = float(tc.price) * qty
+        grand_total += subtotal
+        ticket_code = f"NTK-{secrets.token_hex(4).upper()}"
+        t = EventTicket(
+            ticket_class_id=tc.id,
+            event_id=tc.event_id,
+            buyer_user_id=current_user.id,
+            ticket_code=ticket_code,
+            quantity=qty,
+            total_amount=subtotal,
+            buyer_name=buyer_name,
+            buyer_phone=current_user.phone,
+            buyer_email=current_user.email,
+            status=TicketOrderStatusEnum.pending,
+            payment_status=PaymentStatusEnum.pending,
+            payment_ref=group_token,
+        )
+        db.add(t)
+        created_tickets.append((t, tc, qty, subtotal))
+
+    db.commit()
+    for t, _tc, _q, _s in created_tickets:
+        db.refresh(t)
+
+    primary = created_tickets[0][0]
+    for t, tc, qty, subtotal in created_tickets:
+        items_response.append({
+            "ticket_id": str(t.id),
+            "ticket_code": t.ticket_code,
+            "ticket_class_id": str(tc.id),
+            "ticket_class": tc.name,
+            "quantity": qty,
+            "unit_price": float(tc.price),
+            "subtotal": subtotal,
+        })
+
+    return standard_response(True, "Tickets reserved successfully", {
+        "primary_ticket_id": str(primary.id),
+        "primary_ticket_code": primary.ticket_code,
+        "group_token": group_token,
+        "event_id": str(event_id),
+        "items": items_response,
+        "grand_total": grand_total,
+        # Back-compat aliases for clients that read the single-purchase shape.
+        "ticket_id": str(primary.id),
+        "ticket_code": primary.ticket_code,
+        "total_amount": grand_total,
+        "quantity": sum(q for _t, _tc, q, _s in created_tickets),
+    })
+
+
+
+# ──────────────────────────────────────────────
 # Get my tickets
 # ──────────────────────────────────────────────
 @router.get("/my-tickets")

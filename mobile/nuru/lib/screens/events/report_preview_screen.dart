@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:printing/printing.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../core/utils/share_helpers.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/app_snackbar.dart';
@@ -175,7 +176,7 @@ class _ReportPreviewScreenState extends State<ReportPreviewScreen> {
                         setState(() => _sharing = true);
                         try {
                           final path = await _ensureFile();
-                          await Share.shareXFiles([XFile(path)], subject: widget.title);
+                          await Share.shareXFiles([XFile(path)], subject: widget.title, sharePositionOrigin: sharePositionOrigin(context));
                         } catch (_) {
                           if (mounted) AppSnackbar.error(context, 'Failed to share');
                         }

@@ -9,6 +9,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../core/utils/share_helpers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -194,11 +195,13 @@ class _InvitationQRScreenState extends State<InvitationQRScreen> {
       if (share) {
         await Share.shareXFiles([XFile(file.path)],
             subject: '$_eventTitle invitation',
-            text: 'My invitation to $_eventTitle');
+            text: 'My invitation to $_eventTitle',
+          sharePositionOrigin: sharePositionOrigin(context),
+        );
       } else {
         if (!mounted) return;
         AppSnackbar.success(context, 'Saved to ${file.path.split('/').last}');
-        await Share.shareXFiles([XFile(file.path)], subject: '$_eventTitle invitation');
+        await Share.shareXFiles([XFile(file.path)], subject: '$_eventTitle invitation', sharePositionOrigin: sharePositionOrigin(context));
       }
     } catch (e) {
       if (mounted) AppSnackbar.error(context, 'Could not save card');

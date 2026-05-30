@@ -239,50 +239,70 @@ def _sync_target_after_payment(db: Session, tx: Transaction):
         ticket = db.query(EventTicket).filter(EventTicket.id == tx.target_id).first()
         if not ticket:
             return
-        ticket.payment_status = PaymentStatusEnum.completed
-        ticket.payment_ref = tx.transaction_code
-        # Gateway-paid tickets are auto-confirmed — funds already received via
-        # SasaPay, no organiser approval needed. Promote the order status so
-        # the ticket appears in /my-tickets, counts toward sold inventory, and
-        # is eligible for QR-code check-in.
+        # Multi-class bulk orders share a `BULK:<token>` payment_ref across
+        # sibling EventTicket rows. When the user pays for the primary
+        # ticket, every sibling must be confirmed as part of the same order.
         from models.enums import TicketOrderStatusEnum
-        if ticket.status not in (
-            TicketOrderStatusEnum.cancelled,
-            TicketOrderStatusEnum.rejected,
-        ):
-            ticket.status = TicketOrderStatusEnum.confirmed
-        # Auto-deliver the ticket via WhatsApp (fire-and-forget).
-        try:
-            if ticket.buyer_phone:
-                from utils.whatsapp_cards import wa_send_ticket
-                from models.events import Event as _Ev
-                from models.ticketing import EventTicketClass as _Tc
-                ev = db.query(_Ev).filter(_Ev.id == ticket.event_id).first()
-                tc = db.query(_Tc).filter(_Tc.id == ticket.ticket_class_id).first()
-                ev_date = ""
-                try:
-                    if ev and getattr(ev, "start_date", None):
-                        ev_date = ev.start_date.strftime("%a, %-d %b %Y")
-                except Exception:
+        tickets_to_confirm = [ticket]
+        if ticket.payment_ref and ticket.payment_ref.startswith("BULK:"):
+            siblings = db.query(EventTicket).filter(
+                EventTicket.payment_ref == ticket.payment_ref,
+                EventTicket.id != ticket.id,
+            ).all()
+            tickets_to_confirm.extend(siblings)
+        for _t in tickets_to_confirm:
+            # Idempotency guard: if this ticket was already confirmed by a
+            # prior callback, skip the WhatsApp delivery so repeated webhook
+            # calls don't spam the buyer with duplicate ticket cards.
+            already_confirmed = (
+                _t.payment_status == PaymentStatusEnum.completed
+                and _t.status == TicketOrderStatusEnum.confirmed
+            )
+            _t.payment_status = PaymentStatusEnum.completed
+            _t.payment_ref = tx.transaction_code
+            # Gateway-paid tickets are auto-confirmed — funds already received
+            # via SasaPay, no organiser approval needed.
+            if _t.status not in (
+                TicketOrderStatusEnum.cancelled,
+                TicketOrderStatusEnum.rejected,
+            ):
+                _t.status = TicketOrderStatusEnum.confirmed
+            if already_confirmed:
+                continue
+            # Auto-deliver each ticket via WhatsApp (fire-and-forget).
+            try:
+                if _t.buyer_phone:
+                    from utils.whatsapp_cards import wa_send_ticket
+                    from models.events import Event as _Ev
+                    from models.ticketing import EventTicketClass as _Tc
+                    ev = db.query(_Ev).filter(_Ev.id == _t.event_id).first()
+                    tc = db.query(_Tc).filter(_Tc.id == _t.ticket_class_id).first()
+                    ev_date = ""
                     try:
-                        ev_date = ev.start_date.strftime("%a, %d %b %Y") if ev and getattr(ev, "start_date", None) else ""
+                        if ev and getattr(ev, "start_date", None):
+                            ev_date = ev.start_date.strftime("%a, %-d %b %Y")
                     except Exception:
-                        pass
-                wa_send_ticket(
-                    phone=ticket.buyer_phone,
-                    event_id=str(ticket.event_id),
-                    ticket_code=ticket.ticket_code,
-                    buyer_name=ticket.buyer_name or "Friend",
-                    event_name=(ev.name if ev else "the event"),
-                    event_date=ev_date or "",
-                    ticket_class=(tc.name if tc else "General"),
-                    cover_image=(getattr(ev, "cover_image_url", None) if ev else None) or "",
-                    event_time=(getattr(ev, "start_time", None).isoformat() if ev and getattr(ev, "start_time", None) else ""),
-                    venue=(getattr(ev, "location", None) if ev else None) or "",
-                )
-        except Exception as _e:
-            print(f"[payments] wa_send_ticket (online) failed: {_e}")
+                        try:
+                            ev_date = ev.start_date.strftime("%a, %d %b %Y") if ev and getattr(ev, "start_date", None) else ""
+                        except Exception:
+                            pass
+                    wa_send_ticket(
+                        phone=_t.buyer_phone,
+                        event_id=str(_t.event_id),
+                        ticket_code=_t.ticket_code,
+                        buyer_name=_t.buyer_name or "Friend",
+                        event_name=(ev.name if ev else "the event"),
+                        event_date=ev_date or "",
+                        ticket_class=(tc.name if tc else "General"),
+                        cover_image=(getattr(ev, "cover_image_url", None) if ev else None) or "",
+                        event_time=(getattr(ev, "start_time", None).isoformat() if ev and getattr(ev, "start_time", None) else ""),
+                        venue=(getattr(ev, "location", None) if ev else None) or "",
+                    )
+            except Exception as _e:
+                print(f"[payments] wa_send_ticket (online) failed: {_e}")
         return
+
+
 
     # ── Event contributions ────────────────────────────────────────────────
     if tx.target_type == PaymentTargetTypeEnum.contribution:
@@ -912,8 +932,47 @@ async def initiate_payment(
         if not provider or not provider.is_collection_enabled:
             raise HTTPException(status_code=400, detail="Provider not available for collection.")
 
+    # ─── Server-side amount validation for tickets ───────────────────────
+    # Defence against tampered client `gross_amount`. For ticket targets we
+    # know the authoritative subtotal: it's the sum of `total_amount` across
+    # the EventTicket row pointed to by `target_id` (plus its BULK siblings,
+    # if any). Reject any request whose pre-commission amount disagrees.
+    if target_type == PaymentTargetTypeEnum.ticket and target_id_uuid:
+        primary_ticket = db.query(EventTicket).filter(
+            EventTicket.id == target_id_uuid,
+        ).first()
+        if not primary_ticket:
+            raise HTTPException(status_code=404, detail="Ticket not found.")
+        if primary_ticket.buyer_user_id != current_user.id:
+            raise HTTPException(status_code=403, detail="Not your ticket.")
+        ticket_rows = [primary_ticket]
+        if primary_ticket.payment_ref and primary_ticket.payment_ref.startswith("BULK:"):
+            siblings = db.query(EventTicket).filter(
+                EventTicket.payment_ref == primary_ticket.payment_ref,
+                EventTicket.id != primary_ticket.id,
+            ).all()
+            ticket_rows.extend(siblings)
+        expected = sum(
+            (Decimal(str(t.total_amount or 0)) for t in ticket_rows),
+            Decimal("0"),
+        )
+        # Allow a tiny rounding tolerance (1 minor unit).
+        if abs(expected - gross_amount) > Decimal("1"):
+            print(
+                f"[payments] ticket gross_amount mismatch: client={gross_amount} "
+                f"expected={expected} ticket_id={primary_ticket.id} "
+                f"user={current_user.id}"
+            )
+            raise HTTPException(
+                status_code=400,
+                detail="Payment amount does not match ticket order total.",
+            )
+        # Use the trusted, DB-derived amount for the rest of the flow.
+        gross_amount = expected
+
     # ─── Build the transaction (with enriched, Nuru-branded description)
     enriched_description = _enrich_payment_description(
+
         target_type=target_type,
         user_supplied=payment_description,
         payer=current_user,

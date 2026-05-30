@@ -7,6 +7,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../core/utils/share_helpers.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:printing/printing.dart';
 import 'package:pdf/pdf.dart';
@@ -60,7 +61,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
       'https://nuru.tz/wallet/receipt/${widget.transactionCode}';
 
   Future<void> _share() async {
-    await Share.share('Nuru receipt ${widget.transactionCode}\n$_verifyUrl');
+    await Share.share('Nuru receipt ${widget.transactionCode}\n$_verifyUrl', sharePositionOrigin: sharePositionOrigin(context));
   }
 
   Future<void> _shareAsPng() async {
@@ -80,6 +81,7 @@ class _ReceiptScreenState extends State<ReceiptScreen> {
         [XFile(file.path, mimeType: 'image/png')],
         subject: 'Nuru Receipt',
         text: 'Nuru receipt ${widget.transactionCode}',
+        sharePositionOrigin: sharePositionOrigin(context),
       );
     } catch (e) {
       if (mounted) {

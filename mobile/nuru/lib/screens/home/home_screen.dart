@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../core/utils/share_helpers.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
@@ -58,7 +59,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   int _tab = 0;
   final _scaffoldKey = GlobalKey<ScaffoldState>();
 
@@ -104,6 +105,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     HomeTabController.requestSeq.addListener(_onTabRequest);
     NotificationCenter.unreadCount.addListener(_onNotifCenterChange);
     // Seed from cache so re-entering Home is instant; refresh in background.
@@ -179,12 +181,25 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _eventsSearchDebounce?.cancel();
     _myEventsPollTimer?.cancel();
     _eventsSearchCtl.dispose();
     HomeTabController.requestSeq.removeListener(_onTabRequest);
     NotificationCenter.unreadCount.removeListener(_onNotifCenterChange);
     super.dispose();
+  }
+
+  /// Refresh live data when the app returns from background so the user
+  /// never sees stale My Events / notifications / unread counts after
+  /// switching apps. Runs silently — no skeleton flash.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      _loadEvents(silent: true);
+      _loadNotifications(silent: true);
+      _loadUnreadMessages();
+    }
   }
 
   /// Mirror central unread count into local state so the existing
@@ -741,7 +756,14 @@ class _HomeScreenState extends State<HomeScreen> {
           onTabChanged: (i) {
             // Center "+" is handled by onCreateTap; ignore stray index 2 taps.
             if (i == 2) return;
+            final wasEvents = _tab == HomeTabController.events;
             setState(() => _tab = i);
+            // Re-entering My Events should always reflect the latest backend
+            // state, not a stale list cached on first load. Re-fire when the
+            // user re-selects the same tab too.
+            if (i == HomeTabController.events) {
+              _loadEvents(silent: _myEvents.isNotEmpty || wasEvents);
+            }
           },
         ),
       ),
@@ -1021,7 +1043,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                           final id = e['id']?.toString() ?? '';
                                           final title = (e['title'] ?? e['name'] ?? 'Event').toString();
                                           final url = 'https://nuru.tz/events/$id';
-                                          Share.share('$title\n$url');
+                                          Share.share('$title\n$url', sharePositionOrigin: sharePositionOrigin(context));
                                         },
                                         onStatusChange: (newStatus) async {
                                           final res = await EventsService.updateEventStatus(e['id']?.toString() ?? '', newStatus);

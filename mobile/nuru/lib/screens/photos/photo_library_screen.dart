@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../core/utils/share_helpers.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/text_styles.dart';
 import '../../core/services/photo_libraries_service.dart';
@@ -135,7 +136,7 @@ class _PhotoLibraryScreenState extends State<PhotoLibraryScreen> {
       return;
     }
     final url = _library?['share_url']?.toString() ?? '';
-    if (url.isNotEmpty) Share.share('Check out this photo library: $url');
+    if (url.isNotEmpty) Share.share('Check out this photo library: $url', sharePositionOrigin: sharePositionOrigin(context));
   }
 
   void _downloadAll() {

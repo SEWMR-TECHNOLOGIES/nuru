@@ -13,6 +13,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../core/utils/share_helpers.dart';
 import '../../core/services/api_base.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/date_formatters.dart';
@@ -87,7 +88,7 @@ class _InvitationViewScreenState extends State<InvitationViewScreen> {
 
   void _share() {
     final url = 'https://nuru.tz/${widget.mode == 'rsvp' ? 'rsvp' : 'i'}/${widget.code}';
-    Share.share(url, subject: 'You are invited');
+    Share.share(url, subject: 'You are invited', sharePositionOrigin: sharePositionOrigin(context));
   }
 
   void _openEvent(String eventId) {

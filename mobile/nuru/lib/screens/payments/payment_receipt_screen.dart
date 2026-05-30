@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../core/utils/share_helpers.dart';
 import 'package:path_provider/path_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/money_format.dart';
@@ -126,6 +127,7 @@ class _PaymentReceiptScreenState extends State<PaymentReceiptScreen> {
         [XFile(file.path, mimeType: 'image/png')],
         subject: 'Nuru Receipt',
         text: 'Nuru receipt $_txCode',
+        sharePositionOrigin: sharePositionOrigin(context),
       );
     } catch (e) {
       if (mounted) {

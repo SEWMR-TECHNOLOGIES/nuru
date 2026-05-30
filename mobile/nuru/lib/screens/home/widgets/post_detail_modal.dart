@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../../core/utils/share_helpers.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/social_service.dart';
 import '../../../core/widgets/nuru_video_player.dart';
@@ -172,7 +173,7 @@ class _PostDetailModalState extends State<PostDetailModal> {
     HapticFeedback.lightImpact();
     final shareUrl = 'https://nuru.tz/shared/post/$_postId';
     final shareText = _content.isNotEmpty ? '$_content\n\n$shareUrl' : 'Check out this on Nuru!\n$shareUrl';
-    await Share.share(shareText);
+    await Share.share(shareText, sharePositionOrigin: sharePositionOrigin(context));
   }
 
   Future<void> _sendComment() async {

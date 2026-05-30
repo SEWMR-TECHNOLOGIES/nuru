@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../core/utils/share_helpers.dart';
 import 'widgets/venue_map_preview.dart';
 import 'directions_screen.dart';
 import '../../core/theme/app_colors.dart';
@@ -421,7 +422,7 @@ class _EventPublicViewScreenState extends State<EventPublicViewScreen> {
   void _shareEvent() {
     final title = extractStr(_event?['title'], fallback: 'Event');
     final location = extractStr(_event?['location']);
-    Share.share([title, location].where((s) => s.isNotEmpty).join('\n'));
+    Share.share([title, location].where((s) => s.isNotEmpty).join('\n'), sharePositionOrigin: sharePositionOrigin(context));
   }
 
   void _toggleSaved() {

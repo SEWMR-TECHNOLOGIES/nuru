@@ -121,18 +121,21 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
 
   Future<void> _proceed() async {
     if (_totalQty == 0 || _purchasing) return;
-    // Find first selected class (purchase API takes one class per call). For
-    // multi-class carts we fall back to issuing the largest line; backend will
-    // create a single ticket order with the right total.
-    String? targetId;
-    int targetQty = 0;
+    // Build the full multi-class cart — backend is the source of truth for
+    // pricing and the grand total, so we send every selected line.
+    final items = <Map<String, dynamic>>[];
     _quantities.forEach((id, qty) {
-      if (qty > targetQty) { targetQty = qty; targetId = id; }
+      if (qty > 0) items.add({'ticket_class_id': id, 'quantity': qty});
     });
-    if (targetId == null) return;
+    if (items.isEmpty) return;
 
     setState(() => _purchasing = true);
-    final res = await TicketingService.purchaseTicket(ticketClassId: targetId!, quantity: targetQty);
+    final res = items.length == 1
+        ? await TicketingService.purchaseTicket(
+            ticketClassId: items.first['ticket_class_id'] as String,
+            quantity: items.first['quantity'] as int,
+          )
+        : await TicketingService.purchaseTicketsBulk(items);
     if (!mounted) return;
     setState(() => _purchasing = false);
     if (res['success'] != true) {
@@ -140,10 +143,22 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
       return;
     }
     final data = res['data'] is Map ? Map<String, dynamic>.from(res['data']) : <String, dynamic>{};
-    final pendingTicketId = data['ticket_id']?.toString() ?? data['id']?.toString() ?? targetId!;
-    final totalAmount = data['total_amount'] is num
-        ? data['total_amount'] as num
-        : num.tryParse(data['total_amount']?.toString() ?? '') ?? _grandTotal;
+    final pendingTicketId = (data['primary_ticket_id'] ?? data['ticket_id'] ?? data['id'])?.toString() ?? '';
+    // Always trust the backend-computed amount (grand_total for bulk,
+    // total_amount for single). Falls back to the client subtotal only if
+    // the response is malformed.
+    final num? backendAmount = data['grand_total'] is num
+        ? data['grand_total'] as num
+        : (data['total_amount'] is num
+            ? data['total_amount'] as num
+            : num.tryParse((data['grand_total'] ?? data['total_amount'])?.toString() ?? ''));
+    final totalAmount = backendAmount ?? _grandTotal;
+    final lineItems = (data['items'] is List) ? List<Map>.from((data['items'] as List).whereType<Map>()) : const <Map>[];
+    final description = lineItems.isNotEmpty
+        ? lineItems
+            .map((it) => '${it['ticket_class'] ?? 'Ticket'} × ${it['quantity'] ?? 0}')
+            .join(' · ')
+        : '$_totalQty ticket${_totalQty > 1 ? "s" : ""} • ${widget.eventName}';
 
     Navigator.push(
       context,
@@ -154,7 +169,7 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
           amount: totalAmount,
           allowBank: false,
           title: 'Tickets for ${widget.eventName}',
-          description: '$_totalQty ticket${_totalQty > 1 ? "s" : ""} • ${widget.eventName}',
+          description: description,
           summaryImageUrl: widget.coverImage,
           summarySubtitle: '$_totalQty ticket${_totalQty > 1 ? "s" : ""}',
           summaryMeta: [widget.startDate, widget.startTime]
@@ -166,7 +181,7 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
               Navigator.pop(context);
               Navigator.pop(context);
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                content: Text('Payment confirmed — your ticket is now issued.'),
+                content: Text('Payment confirmed — your tickets are now issued.'),
               ));
             }
           },

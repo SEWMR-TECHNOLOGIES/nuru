@@ -10,6 +10,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../core/utils/share_helpers.dart';
 import '../../core/services/api_base.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/date_formatters.dart';
@@ -63,7 +64,7 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
   }
 
   void _share() {
-    Share.share('https://nuru.tz/post/${widget.postId}', subject: 'Check this out on Nuru');
+    Share.share('https://nuru.tz/post/${widget.postId}', subject: 'Check this out on Nuru', sharePositionOrigin: sharePositionOrigin(context));
   }
 
   void _requireSignIn(String action) {

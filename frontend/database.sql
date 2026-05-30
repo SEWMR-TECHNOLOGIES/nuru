@@ -83,7 +83,6 @@ FOR ALL
 TO authenticated
 USING (public.has_role(auth.uid(), 'admin'));
 
-
 CREATE TABLE IF NOT EXISTS currencies (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     code char(3) NOT NULL UNIQUE,

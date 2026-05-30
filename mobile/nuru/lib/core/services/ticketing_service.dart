@@ -86,7 +86,7 @@ class TicketingService {
     }
   }
 
-  /// Purchase ticket
+  /// Purchase ticket (single class)
   static Future<Map<String, dynamic>> purchaseTicket({required String ticketClassId, int quantity = 1}) async {
     try {
       final res = await http.post(
@@ -97,6 +97,21 @@ class TicketingService {
       return jsonDecode(res.body);
     } catch (e) {
       return {'success': false, 'message': 'Unable to purchase ticket'};
+    }
+  }
+
+  /// Purchase multiple ticket classes in one order.
+  /// `items` is a list of `{ticket_class_id, quantity}` maps.
+  static Future<Map<String, dynamic>> purchaseTicketsBulk(List<Map<String, dynamic>> items) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$_baseUrl/ticketing/purchase-bulk'),
+        headers: await _headers(),
+        body: jsonEncode({'items': items}),
+      );
+      return jsonDecode(res.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Unable to purchase tickets'};
     }
   }
 

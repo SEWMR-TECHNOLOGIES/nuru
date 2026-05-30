@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../core/utils/share_helpers.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/services/events_service.dart';
@@ -515,7 +516,9 @@ class _EventInvitationScreenState extends State<EventInvitationScreen> {
       final file = await _renderToFile();
       await Share.shareXFiles([XFile(file.path)],
           subject: '$_title invitation',
-          text: 'You are invited to $_title');
+          text: 'You are invited to $_title',
+        sharePositionOrigin: sharePositionOrigin(context),
+      );
     } catch (_) {
       if (mounted) AppSnackbar.error(context, 'Could not share invitation');
     } finally {
