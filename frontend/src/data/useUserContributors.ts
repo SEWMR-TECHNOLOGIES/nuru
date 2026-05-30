@@ -6,6 +6,18 @@ import { throwApiError } from "@/lib/api/showApiErrors";
 let _contributorsCache: UserContributor[] = [];
 let _contributorsHasLoaded = false;
 
+/**
+ * Invalidate the global address book cache so the next consumer of
+ * `useUserContributors` refetches from the backend. Call this after
+ * mutations that happen OUTSIDE this hook (e.g. bulk upload from
+ * event contributions) so newly-imported people show up in the
+ * organiser's global contributor list.
+ */
+export const invalidateUserContributorsCache = () => {
+  _contributorsCache = [];
+  _contributorsHasLoaded = false;
+};
+
 export const useUserContributors = () => {
   const [contributors, setContributors] = useState<UserContributor[]>(_contributorsCache);
   const [loading, setLoading] = useState(!_contributorsHasLoaded);

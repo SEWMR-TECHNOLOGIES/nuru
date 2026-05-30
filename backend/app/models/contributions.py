@@ -71,6 +71,11 @@ class EventContributor(Base):
     # Plain token never lives in DB — only the SHA-256 hash. The plain value
     # is returned ONCE on generation and embedded in the SMS link.
     share_token_hash = Column(Text, nullable=True, index=True)
+    # Plain token persisted so "Share payment link" can return the same URL
+    # repeatedly without rotating the SMS/WhatsApp link each time. Token is
+    # already public (it lives in messages), so storing it carries no extra
+    # exposure beyond what we already disclose to the contributor.
+    share_token_plain = Column(Text, nullable=True)
     share_token_created_at = Column(DateTime, nullable=True)
     share_token_expires_at = Column(DateTime, nullable=True)
     share_token_revoked_at = Column(DateTime, nullable=True)

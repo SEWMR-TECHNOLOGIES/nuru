@@ -9,6 +9,7 @@ import '../../core/services/photo_libraries_service.dart';
 import '../../core/services/media_transfer_manager.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/video_thumbnail_image.dart';
+import '../../core/widgets/nuru_skeleton.dart';
 import 'upload_to_library_screen.dart';
 import 'media_viewer_screen.dart';
 import 'transfers_screen.dart';
@@ -246,7 +247,7 @@ class _PhotoLibraryScreenState extends State<PhotoLibraryScreen> {
             _header(name),
             Expanded(
               child: _loading
-                  ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+                  ? const NuruSkeletonGrid(itemCount: 9, crossAxisCount: 3, showCaption: false)
                   : NuruRefreshIndicator(
                       onRefresh: _load,
                       color: AppColors.primary,

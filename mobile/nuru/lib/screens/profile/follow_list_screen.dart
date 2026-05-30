@@ -1,4 +1,5 @@
 import '../../core/widgets/nuru_refresh_indicator.dart';
+import '../../core/widgets/nuru_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/app_colors.dart';
@@ -66,7 +67,7 @@ class _FollowListScreenState extends State<FollowListScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? const NuruSkeletonList(itemCount: 8, showTrailing: true)
           : _items.isEmpty
               ? Center(
                   child: Text(

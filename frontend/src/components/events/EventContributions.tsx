@@ -22,6 +22,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
 import { useEventContributors } from '@/data/useContributors';
+import { invalidateUserContributorsCache } from '@/data/useUserContributors';
 import { useContributorSearch } from '@/hooks/useContributorSearch';
 import { usePolling } from '@/hooks/usePolling';
 import { toast } from 'sonner';
@@ -603,6 +604,10 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
             toast.error(s.error_message || 'Bulk import failed');
           }
           refetchEC();
+          // Bulk import also adds rows to the organiser's global address
+          // book — invalidate that cache so the Global Contributors page
+          // reflects the new entries on next visit.
+          invalidateUserContributorsCache();
         }
       }
     } catch (err: any) {

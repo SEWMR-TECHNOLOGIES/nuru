@@ -9,6 +9,7 @@ import '../../core/utils/prefetch_helper.dart';
 import 'public_service_screen.dart';
 import '../../core/widgets/nuru_refresh.dart';
 import '../../core/widgets/nuru_loader.dart';
+import '../../core/widgets/nuru_skeleton.dart';
 
 class FindServicesScreen extends StatefulWidget {
   /// When true, the screen opens already filtered to the user's saved vendors.
@@ -154,7 +155,7 @@ class _FindServicesScreenState extends State<FindServicesScreen> {
           const SizedBox(height: 14),
           Expanded(
             child: _loading
-                ? const Center(child: NuruLoader(size: 40))
+                ? const NuruSkeletonEventList(itemCount: 4)
                 : NuruRefresh(
                     onRefresh: () => _load(silent: true),
                     child: ListView(

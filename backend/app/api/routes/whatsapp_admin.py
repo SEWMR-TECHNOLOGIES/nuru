@@ -26,7 +26,7 @@ from api.routes.admin import require_admin
 EDGE_FUNCTION_URL = os.getenv("EDGE_FUNCTION_URL", "") or os.getenv("SUPABASE_URL", "")
 EDGE_FUNCTION_KEY = os.getenv("EDGE_FUNCTION_KEY", "") or os.getenv("SUPABASE_ANON_KEY", "")
 WHATSAPP_SEND_URL = f"{EDGE_FUNCTION_URL}/functions/v1/whatsapp-send" if EDGE_FUNCTION_URL else ""
-
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
 
 # ──────────────────────────────────────────────
 # INTERNAL: Webhook stores incoming messages

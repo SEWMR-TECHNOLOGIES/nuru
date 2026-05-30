@@ -1,4 +1,5 @@
 import '../../core/widgets/nuru_refresh_indicator.dart';
+import '../../core/widgets/nuru_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -77,7 +78,7 @@ class _MyIssuesScreenState extends State<MyIssuesScreen> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? const NuruSkeletonList(itemCount: 5, showAvatar: false, showTrailing: true)
           : _issues.isEmpty
               ? Center(child: Column(
                   mainAxisSize: MainAxisSize.min,

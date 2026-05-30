@@ -112,6 +112,8 @@ class AppTranslations {
     // ── Events ──
     'events': {'en': 'Events', 'sw': 'Matukio'},
     'my_events': {'en': 'My Events', 'sw': 'Matukio Yangu'},
+    'my_contributions': {'en': 'My Contributions', 'sw': 'Michango Yangu'},
+
     'create_event': {'en': 'Create Event', 'sw': 'Unda Tukio'},
     'edit_event': {'en': 'Edit Event', 'sw': 'Hariri Tukio'},
     'delete_event': {'en': 'Delete Event', 'sw': 'Futa Tukio'},
