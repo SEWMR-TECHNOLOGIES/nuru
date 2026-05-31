@@ -16,6 +16,9 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 30m
+          command_timeout: 30m
+          script_stop: true
           script: |
             set -e
 
@@ -29,8 +32,13 @@ jobs:
 
             echo "🎨 Build frontend FIRST"
             cd frontend
-            npm install
-            npm run build
+
+            echo "🔎 Node and npm versions"
+            node -v
+            npm -v
+
+            npm install --no-audit --no-fund
+            NODE_OPTIONS="--max-old-space-size=2048" npm run build
 
             echo "🐍 Prepare backend"
             cd ../backend/app
