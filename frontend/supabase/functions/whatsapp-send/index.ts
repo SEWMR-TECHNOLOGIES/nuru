@@ -568,6 +568,7 @@ async function sendTemplate(
     }
     throw new Error(`WhatsApp template API failed [${res.status}]: ${JSON.stringify(data)}`);
   }
+  console.log(`[WhatsApp] OK tpl="${templateName}" to=${phone} msg_id=${data.messages?.[0]?.id} contacts=${JSON.stringify(data.contacts || [])}`);
   return { sent: true, message_id: data.messages?.[0]?.id };
 }
 

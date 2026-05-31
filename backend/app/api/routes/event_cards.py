@@ -676,8 +676,26 @@ def send_pledge_thank_you_cards(
                     continue
                 # Build URLs the channel-providers will use
                 api_base = os.getenv("API_BASE_URL", f"https://api.{host}").rstrip("/")
-                image_url = f"{api_base}/api/v1/cards/public/{row.id}.png"
+                fallback_image_url = f"{api_base}/api/v1/cards/public/{row.id}.png"
                 landing_url = f"https://{host}/cards/{row.id}"
+
+                # Pre-render the card and upload to Supabase Storage so that
+                # Meta fetches a stable, public, correct-content-type PNG.
+                # Falls back to the api.nuru.tz endpoint if upload fails.
+                image_url = fallback_image_url
+                try:
+                    from utils.whatsapp_cards import upload_card_png
+                    svg, _ec, _tpl = _render_event_card_svg(s, ev, dispatch_category, contributor_name=row.recipient_name)
+                    png_bytes = _render_png_bytes(svg, tpl, width=1080)
+                    if png_bytes:
+                        cache_key = f"{row.id}.png"
+                        _storage.cache_put(cache_key, png_bytes)
+                        storage_url = upload_card_png(f"pledge-cards/{row.id}.png", png_bytes)
+                        if storage_url:
+                            image_url = storage_url
+                except Exception as exc:
+                    print(f"[pledge_card_dispatch] pre-render/upload failed: {exc!r}")
+
                 row.rendered_card_url = image_url
                 s.commit()
 

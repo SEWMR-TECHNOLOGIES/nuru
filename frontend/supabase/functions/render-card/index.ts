@@ -293,6 +293,28 @@ function json(payload: unknown, status = 200): Response {
   });
 }
 
+async function handleUpload(body: any): Promise<Response> {
+  const path: string = (body?.path || '').toString();
+  const pngB64: string = (body?.png_b64 || '').toString();
+  if (!path || !pngB64) {
+    return json({ error: 'path and png_b64 are required' }, 400);
+  }
+  // Basic safety: confine uploads to the cards namespace
+  if (path.includes('..') || path.startsWith('/')) {
+    return json({ error: 'invalid path' }, 400);
+  }
+  try {
+    const bin = atob(pngB64);
+    const png = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) png[i] = bin.charCodeAt(i);
+    const url = await uploadPng(path, png);
+    return json({ url, path, kind: 'upload' });
+  } catch (e) {
+    console.error('[render-card] upload failed', e);
+    return json({ error: String((e as Error)?.message || e) }, 500);
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
@@ -300,7 +322,8 @@ Deno.serve(async (req) => {
     const kind = body?.kind;
     if (kind === 'invitation') return await renderInvitation(body);
     if (kind === 'ticket') return await renderTicket(body);
-    return json({ error: 'kind must be "invitation" or "ticket"' }, 400);
+    if (kind === 'upload') return await handleUpload(body);
+    return json({ error: 'kind must be "invitation", "ticket", or "upload"' }, 400);
   } catch (e) {
     console.error('[render-card]', e);
     return json({ error: String(e?.message || e) }, 500);

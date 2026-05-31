@@ -50,6 +50,36 @@ def _render(payload: dict) -> str | None:
     return None
 
 
+def upload_card_png(path: str, png_bytes: bytes) -> str | None:
+    """Upload pre-rendered PNG bytes to Supabase Storage via the render-card
+    edge function and return the public URL. Used to give Meta a stable,
+    publicly reachable image URL for template header media."""
+    import base64
+    urls = [RENDER_URL] if RENDER_URL else []
+    fallback_url = f"{CURRENT_FUNCTIONS_URL}/functions/v1/render-card"
+    if fallback_url not in urls:
+        urls.append(fallback_url)
+    if not urls or not png_bytes:
+        return None
+    payload = {
+        "kind": "upload",
+        "path": path,
+        "png_b64": base64.b64encode(png_bytes).decode("ascii"),
+    }
+    for url in urls:
+        try:
+            r = requests.post(url, json=payload, headers=_HEADERS, timeout=30)
+            if not r.ok:
+                print(f"[wa_cards] upload failed ({r.status_code}): {r.text[:200]}")
+                continue
+            data = r.json() or {}
+            print(f"[wa_cards] upload ok path={path} url={data.get('url')}")
+            return data.get("url")
+        except Exception as e:
+            print(f"[wa_cards] upload exception url={url}: {e}")
+    return None
+
+
 def _send(action: str, phone: str, params: dict) -> bool:
     urls = [SEND_URL] if SEND_URL else []
     fallback_url = f"{CURRENT_FUNCTIONS_URL}/functions/v1/whatsapp-send"
