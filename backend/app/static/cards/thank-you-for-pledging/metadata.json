@@ -1,0 +1,28 @@
+{
+  "name": "Asanteni kwa Kila Kitu",
+  "slug": "thank-you-for-pledging-card-1",
+  "category": "thank-you-for-pledging",
+  "description": "Editorial gold-on-cream pledge thank-you card with Anthony Hunter script accent.",
+  "svg_file": "card_1.svg",
+  "thumbnail_file": null,
+  "fonts": [
+    "Anthony Hunter.ttf",
+    "Anthony Hunter Italic.ttf",
+    "Anthony Hunter.otf",
+    "Anthony Hunter Italic.otf"
+  ],
+  "contributor_placeholder_id": "contributor_name_text",
+  "locked_ids": [
+    "contributor_name_text",
+    "brand_tagline_text"
+  ],
+  "editable_fields": [
+    { "id": "main_title_asanteni_text", "label": "Main title", "max_length": 60, "multiline": false, "default": "Asanteni" },
+    { "id": "main_subtitle_kwa_kila_kitu_text", "label": "Subtitle", "max_length": 80, "multiline": false, "default": "KWA KILA KITU" },
+    { "id": "body_intro_paragraph_text", "label": "Intro paragraph", "max_length": 400, "multiline": true, "default": "Tunapenda kutoa shukrani zetu za dhati kwa wageni wote waalikwa kwa kujitokeza na kushiriki nasi katika shughuli yetu. Uwepo wenu umeifanya siku yetu kuwa ya kipekee, yenye furaha na kumbukumbu zisizofutika mioyoni mwetu." },
+    { "id": "body_appreciation_paragraph_text", "label": "Appreciation paragraph", "max_length": 400, "multiline": true, "default": "Tunathamini sana muda wenu, upendo wenu, na ushirikiano wenu katika kufanikisha tukio hili. Bila ninyi, isingekuwa rahisi kufikia mafanikio haya." },
+    { "id": "body_apology_paragraph_text", "label": "Apology paragraph", "max_length": 400, "multiline": true, "default": "Aidha, tunaomba radhi kwa mapungufu yoyote yaliyoweza kujitokeza wakati wa shughuli. Tunaahidi kujifunza na kuboresha zaidi katika siku zijazo." },
+    { "id": "body_blessing_text", "label": "Blessing", "max_length": 200, "multiline": true, "default": "Mungu awabariki sana" },
+    { "id": "closing_thank_you_text", "label": "Closing line", "max_length": 80, "multiline": false, "default": "Asanteni sana kwa kuwa sehemu ya furaha yetu" }
+  ]
+}

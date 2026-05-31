@@ -79,6 +79,7 @@
                 <data android:pathPrefix="/post/" />
                 <data android:pathPrefix="/moment/" />
                 <data android:pathPrefix="/c/" />
+                <data android:pathPrefix="/cards/" />
                 <data android:pathPrefix="/rsvp/" />
                 <data android:pathPrefix="/i/" />
                 <data android:pathPrefix="/set-password/" />

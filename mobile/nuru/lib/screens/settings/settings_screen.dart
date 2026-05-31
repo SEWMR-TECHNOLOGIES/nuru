@@ -196,9 +196,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           () {
             Navigator.push(
               context,
-              MaterialPageRoute(
-                builder: (_) => const PayoutProfileScreen(),
-              ),
+              MaterialPageRoute(builder: (_) => const PayoutProfileScreen()),
             );
           },
         ),
@@ -213,8 +211,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                  builder: (_) =>
-                      const InterestsOnboardingScreen(fromSettings: true)),
+                builder: (_) =>
+                    const InterestsOnboardingScreen(fromSettings: true),
+              ),
             );
           },
         ),
@@ -1221,7 +1220,7 @@ String? _svgForIcon(IconData? icon) {
   if (icon == null) return null;
   final map = <int, String>{
     Icons.lock_outline_rounded.codePoint: 'assets/icons/shield-icon.svg',
-    Icons.public_rounded.codePoint: 'assets/icons/language-icon.svg',
+    Icons.public_rounded.codePoint: 'assets/icons/website-click.svg',
     Icons.language_rounded.codePoint: 'assets/icons/language-icon.svg',
     Icons.attach_money_rounded.codePoint: 'assets/icons/wallet-icon.svg',
     Icons.palette_rounded.codePoint: 'assets/icons/palette-icon.svg',
@@ -1232,7 +1231,7 @@ String? _svgForIcon(IconData? icon) {
     Icons.block_rounded.codePoint: 'assets/icons/block-icon.svg',
     Icons.description_rounded.codePoint: 'assets/icons/info-icon.svg',
     Icons.privacy_tip_rounded.codePoint: 'assets/icons/secure-shield-icon.svg',
-    Icons.code_rounded.codePoint: 'assets/icons/settings-icon.svg',
+    Icons.code_rounded.codePoint: 'assets/icons/license.svg',
     Icons.email_rounded.codePoint: 'assets/icons/chat-icon.svg',
     Icons.system_update_rounded.codePoint: 'assets/icons/thunder-icon.svg',
     Icons.devices_other_rounded.codePoint: 'assets/icons/user-icon.svg',
@@ -1270,12 +1269,23 @@ Widget _settingsToggle({
               Text(title, style: appText(size: 14, weight: FontWeight.w600)),
               if (subtitle != null && subtitle.isNotEmpty) ...[
                 const SizedBox(height: 2),
-                Text(subtitle, style: appText(size: 11, color: AppColors.textTertiary, height: 1.35)),
+                Text(
+                  subtitle,
+                  style: appText(
+                    size: 11,
+                    color: AppColors.textTertiary,
+                    height: 1.35,
+                  ),
+                ),
               ],
             ],
           ),
         ),
-        Switch.adaptive(value: value, onChanged: onChanged, activeColor: AppColors.primary),
+        Switch.adaptive(
+          value: value,
+          onChanged: onChanged,
+          activeColor: AppColors.primary,
+        ),
       ],
     ),
   );
@@ -1305,15 +1315,23 @@ Widget _settingsTile({
                 color: iconBg ?? AppColors.primarySoft,
                 borderRadius: BorderRadius.circular(11),
               ),
-              child: Builder(builder: (_) {
-                final svg = _svgForIcon(icon);
-                final color = iconColor ?? AppColors.primary;
-                if (svg != null) {
-                  return Center(child: SvgPicture.asset(svg, width: 18, height: 18,
-                    colorFilter: ColorFilter.mode(color, BlendMode.srcIn)));
-                }
-                return Icon(icon, color: color, size: 18);
-              }),
+              child: Builder(
+                builder: (_) {
+                  final svg = _svgForIcon(icon);
+                  final color = iconColor ?? AppColors.primary;
+                  if (svg != null) {
+                    return Center(
+                      child: SvgPicture.asset(
+                        svg,
+                        width: 18,
+                        height: 18,
+                        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+                      ),
+                    );
+                  }
+                  return Icon(icon, color: color, size: 18);
+                },
+              ),
             ),
             const SizedBox(width: 12),
           ],
@@ -1324,16 +1342,25 @@ Widget _settingsTile({
                 Text(title, style: appText(size: 14, weight: FontWeight.w600)),
                 if (subtitle != null && subtitle.isNotEmpty) ...[
                   const SizedBox(height: 2),
-                  Text(subtitle, style: appText(size: 11, color: AppColors.textTertiary)),
+                  Text(
+                    subtitle,
+                    style: appText(size: 11, color: AppColors.textTertiary),
+                  ),
                 ],
               ],
             ),
           ),
           if (trailing != null) trailing,
           if (onTap != null && trailing == null)
-            SvgPicture.asset('assets/icons/chevron-right-icon.svg',
-              width: 18, height: 18,
-              colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
+            SvgPicture.asset(
+              'assets/icons/chevron-right-icon.svg',
+              width: 18,
+              height: 18,
+              colorFilter: const ColorFilter.mode(
+                AppColors.textHint,
+                BlendMode.srcIn,
+              ),
+            ),
         ],
       ),
     ),
@@ -1341,10 +1368,17 @@ Widget _settingsTile({
 }
 
 Widget _sectionHeading(String label) => Padding(
-      padding: const EdgeInsets.fromLTRB(4, 14, 0, 8),
-      child: Text(label.toUpperCase(),
-          style: appText(size: 10, weight: FontWeight.w700, color: AppColors.textHint, height: 1.0)),
-    );
+  padding: const EdgeInsets.fromLTRB(4, 14, 0, 8),
+  child: Text(
+    label.toUpperCase(),
+    style: appText(
+      size: 10,
+      weight: FontWeight.w700,
+      color: AppColors.textHint,
+      height: 1.0,
+    ),
+  ),
+);
 
 // ─── PRIVACY ───────────────────────────────────────────────────────────
 
@@ -1358,7 +1392,10 @@ class _PrivacySectionState extends State<_PrivacySection> {
   Map<String, dynamic> _p = {};
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    _load();
+  }
 
   Future<void> _load() async {
     setState(() => _loading = true);
@@ -1381,99 +1418,136 @@ class _PrivacySectionState extends State<_PrivacySection> {
     }
   }
 
-  bool _b(String key, [bool def = true]) => _p[key] == null ? def : _p[key] == true;
+  bool _b(String key, [bool def = true]) =>
+      _p[key] == null ? def : _p[key] == true;
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+    if (_loading)
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
       children: [
         _sectionHeading('Profile'),
-        _settingsCard(child: _settingsTile(
-          title: 'Profile visibility',
-          subtitle: (_p['profile_visibility'] ?? 'public').toString().toUpperCase(),
-          icon: Icons.public_rounded,
-          onTap: () async {
-            final choice = await showModalBottomSheet<String>(
-              context: context,
-              shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
-              builder: (ctx) => SafeArea(
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  for (final v in const ['public', 'followers', 'private'])
-                    ListTile(
-                      title: Text(v[0].toUpperCase() + v.substring(1), style: appText(size: 14, weight: FontWeight.w600)),
-                      trailing: (_p['profile_visibility'] ?? 'public') == v
-                          ? const Icon(Icons.check_rounded, color: AppColors.primary)
-                          : null,
-                      onTap: () => Navigator.pop(ctx, v),
-                    ),
-                ]),
-              ),
-            );
-            if (choice != null) _update('profile_visibility', choice);
-          },
-        )),
-        _settingsCard(child: _settingsToggle(
-          title: 'Private account',
-          subtitle: 'Only approved followers can see your moments and events',
-          value: _p['private_profile'] == true,
-          onChanged: (v) => _update('private_profile', v),
-        )),
-        _settingsCard(child: _settingsToggle(
-          title: 'Hide from search',
-          subtitle: 'Stop your profile appearing in search and suggestions',
-          value: _p['hide_from_search'] == true,
-          onChanged: (v) => _update('hide_from_search', v),
-        )),
+        _settingsCard(
+          child: _settingsTile(
+            title: 'Profile visibility',
+            subtitle: (_p['profile_visibility'] ?? 'public')
+                .toString()
+                .toUpperCase(),
+            icon: Icons.public_rounded,
+            onTap: () async {
+              final choice = await showModalBottomSheet<String>(
+                context: context,
+                shape: const RoundedRectangleBorder(
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+                ),
+                builder: (ctx) => SafeArea(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final v in const ['public', 'followers', 'private'])
+                        ListTile(
+                          title: Text(
+                            v[0].toUpperCase() + v.substring(1),
+                            style: appText(size: 14, weight: FontWeight.w600),
+                          ),
+                          trailing: (_p['profile_visibility'] ?? 'public') == v
+                              ? const Icon(
+                                  Icons.check_rounded,
+                                  color: AppColors.primary,
+                                )
+                              : null,
+                          onTap: () => Navigator.pop(ctx, v),
+                        ),
+                    ],
+                  ),
+                ),
+              );
+              if (choice != null) _update('profile_visibility', choice);
+            },
+          ),
+        ),
+        _settingsCard(
+          child: _settingsToggle(
+            title: 'Private account',
+            subtitle: 'Only approved followers can see your moments and events',
+            value: _p['private_profile'] == true,
+            onChanged: (v) => _update('private_profile', v),
+          ),
+        ),
+        _settingsCard(
+          child: _settingsToggle(
+            title: 'Hide from search',
+            subtitle: 'Stop your profile appearing in search and suggestions',
+            value: _p['hide_from_search'] == true,
+            onChanged: (v) => _update('hide_from_search', v),
+          ),
+        ),
 
         _sectionHeading('Activity'),
-        _settingsCard(child: _settingsToggle(
-          title: 'Show online status',
-          value: _b('show_online_status'),
-          onChanged: (v) => _update('show_online_status', v),
-        )),
-        _settingsCard(child: _settingsToggle(
-          title: 'Show last seen',
-          value: _b('show_last_seen'),
-          onChanged: (v) => _update('show_last_seen', v),
-        )),
-        _settingsCard(child: _settingsToggle(
-          title: 'Read receipts',
-          subtitle: 'Let people know when you\u2019ve read their messages',
-          value: _b('show_read_receipts'),
-          onChanged: (v) => _update('show_read_receipts', v),
-        )),
+        _settingsCard(
+          child: _settingsToggle(
+            title: 'Show online status',
+            value: _b('show_online_status'),
+            onChanged: (v) => _update('show_online_status', v),
+          ),
+        ),
+        _settingsCard(
+          child: _settingsToggle(
+            title: 'Show last seen',
+            value: _b('show_last_seen'),
+            onChanged: (v) => _update('show_last_seen', v),
+          ),
+        ),
+        _settingsCard(
+          child: _settingsToggle(
+            title: 'Read receipts',
+            subtitle: 'Let people know when you\u2019ve read their messages',
+            value: _b('show_read_receipts'),
+            onChanged: (v) => _update('show_read_receipts', v),
+          ),
+        ),
 
         _sectionHeading('Interactions'),
-        _settingsCard(child: _settingsToggle(
-          title: 'Allow tagging',
-          subtitle: 'Others can tag you in moments and events',
-          value: _b('allow_tagging'),
-          onChanged: (v) => _update('allow_tagging', v),
-        )),
-        _settingsCard(child: _settingsToggle(
-          title: 'Allow mentions',
-          value: _b('allow_mentions'),
-          onChanged: (v) => _update('allow_mentions', v),
-        )),
-        _settingsCard(child: _settingsToggle(
-          title: 'Message requests',
-          subtitle: 'Receive requests from people outside your circle',
-          value: _b('allow_message_requests'),
-          onChanged: (v) => _update('allow_message_requests', v),
-        )),
+        _settingsCard(
+          child: _settingsToggle(
+            title: 'Allow tagging',
+            subtitle: 'Others can tag you in moments and events',
+            value: _b('allow_tagging'),
+            onChanged: (v) => _update('allow_tagging', v),
+          ),
+        ),
+        _settingsCard(
+          child: _settingsToggle(
+            title: 'Allow mentions',
+            value: _b('allow_mentions'),
+            onChanged: (v) => _update('allow_mentions', v),
+          ),
+        ),
+        _settingsCard(
+          child: _settingsToggle(
+            title: 'Message requests',
+            subtitle: 'Receive requests from people outside your circle',
+            value: _b('allow_message_requests'),
+            onChanged: (v) => _update('allow_message_requests', v),
+          ),
+        ),
 
         _sectionHeading('Blocked'),
-        _settingsCard(child: _settingsTile(
-          title: 'Blocked users',
-          subtitle: '${_p['blocked_users_count'] ?? 0} blocked',
-          icon: Icons.block_rounded,
-          iconBg: const Color(0xFFFEECEC),
-          iconColor: const Color(0xFFD64545),
-          onTap: () {},
-        )),
+        _settingsCard(
+          child: _settingsTile(
+            title: 'Blocked users',
+            subtitle: '${_p['blocked_users_count'] ?? 0} blocked',
+            icon: Icons.block_rounded,
+            iconBg: const Color(0xFFFEECEC),
+            iconColor: const Color(0xFFD64545),
+            onTap: () {},
+          ),
+        ),
       ],
     );
   }
@@ -1491,17 +1565,21 @@ class _NotificationsSectionState extends State<_NotificationsSection> {
   Map<String, dynamic> _n = {};
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    _load();
+  }
 
   Future<void> _load() async {
     setState(() => _loading = true);
     final res = await SettingsService.fetchAll();
-    if (mounted) setState(() {
-      _loading = false;
-      if (res['success'] == true && res['data'] is Map) {
-        _n = Map<String, dynamic>.from(res['data']['notifications'] ?? {});
-      }
-    });
+    if (mounted)
+      setState(() {
+        _loading = false;
+        if (res['success'] == true && res['data'] is Map) {
+          _n = Map<String, dynamic>.from(res['data']['notifications'] ?? {});
+        }
+      });
   }
 
   Future<void> _update(String key, dynamic value) async {
@@ -1512,86 +1590,167 @@ class _NotificationsSectionState extends State<_NotificationsSection> {
     }
   }
 
-  bool _b(String key, [bool def = true]) => _n[key] == null ? def : _n[key] == true;
+  bool _b(String key, [bool def = true]) =>
+      _n[key] == null ? def : _n[key] == true;
 
   Future<void> _pickTime(String key) async {
     final current = (_n[key] ?? '22:00').toString();
     final parts = current.split(':');
-    final initial = TimeOfDay(hour: int.tryParse(parts[0]) ?? 22, minute: int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0);
+    final initial = TimeOfDay(
+      hour: int.tryParse(parts[0]) ?? 22,
+      minute: int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0,
+    );
     final picked = await showTimePicker(context: context, initialTime: initial);
     if (picked != null) {
-      final s = '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+      final s =
+          '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
       _update(key, s);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+    if (_loading)
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
       children: [
         _sectionHeading('Channels'),
-        _settingsCard(child: Column(children: [
-          _settingsToggle(title: 'Push notifications', value: _b('push_notifications'), onChanged: (v) => _update('push_notifications', v)),
-          const Divider(height: 1, indent: 14),
-          _settingsToggle(title: 'Email notifications', value: _b('email_notifications'), onChanged: (v) => _update('email_notifications', v)),
-          const Divider(height: 1, indent: 14),
-          _settingsToggle(title: 'SMS notifications', subtitle: 'Standard SMS rates may apply', value: _b('sms_notifications', false), onChanged: (v) => _update('sms_notifications', v)),
-        ])),
+        _settingsCard(
+          child: Column(
+            children: [
+              _settingsToggle(
+                title: 'Push notifications',
+                value: _b('push_notifications'),
+                onChanged: (v) => _update('push_notifications', v),
+              ),
+              const Divider(height: 1, indent: 14),
+              _settingsToggle(
+                title: 'Email notifications',
+                value: _b('email_notifications'),
+                onChanged: (v) => _update('email_notifications', v),
+              ),
+              const Divider(height: 1, indent: 14),
+              _settingsToggle(
+                title: 'SMS notifications',
+                subtitle: 'Standard SMS rates may apply',
+                value: _b('sms_notifications', false),
+                onChanged: (v) => _update('sms_notifications', v),
+              ),
+            ],
+          ),
+        ),
 
         _sectionHeading('Events'),
-        _settingsCard(child: Column(children: [
-          _settingsToggle(title: 'Event invitations', value: _b('event_invitation_notifications'), onChanged: (v) => _update('event_invitation_notifications', v)),
-          const Divider(height: 1, indent: 14),
-          _settingsToggle(title: 'RSVP updates', value: _b('rsvp_notifications'), onChanged: (v) => _update('rsvp_notifications', v)),
-          const Divider(height: 1, indent: 14),
-          _settingsToggle(title: 'Contributions', subtitle: 'When someone contributes to your event', value: _b('contribution_notifications'), onChanged: (v) => _update('contribution_notifications', v)),
-        ])),
+        _settingsCard(
+          child: Column(
+            children: [
+              _settingsToggle(
+                title: 'Event invitations',
+                value: _b('event_invitation_notifications'),
+                onChanged: (v) => _update('event_invitation_notifications', v),
+              ),
+              const Divider(height: 1, indent: 14),
+              _settingsToggle(
+                title: 'RSVP updates',
+                value: _b('rsvp_notifications'),
+                onChanged: (v) => _update('rsvp_notifications', v),
+              ),
+              const Divider(height: 1, indent: 14),
+              _settingsToggle(
+                title: 'Contributions',
+                subtitle: 'When someone contributes to your event',
+                value: _b('contribution_notifications'),
+                onChanged: (v) => _update('contribution_notifications', v),
+              ),
+            ],
+          ),
+        ),
 
         _sectionHeading('Social'),
-        _settingsCard(child: Column(children: [
-          _settingsToggle(title: 'Direct messages', value: _b('message_notifications'), onChanged: (v) => _update('message_notifications', v)),
-          const Divider(height: 1, indent: 14),
-          _settingsToggle(title: 'Mentions', value: _b('mention_notifications'), onChanged: (v) => _update('mention_notifications', v)),
-          const Divider(height: 1, indent: 14),
-          _settingsToggle(title: 'New followers', value: _b('follower_notifications'), onChanged: (v) => _update('follower_notifications', v)),
-          const Divider(height: 1, indent: 14),
-          _settingsToggle(title: 'Glows & Echoes', subtitle: 'Reactions on your moments and posts', value: _b('glows_echoes_notifications'), onChanged: (v) => _update('glows_echoes_notifications', v)),
-        ])),
+        _settingsCard(
+          child: Column(
+            children: [
+              _settingsToggle(
+                title: 'Direct messages',
+                value: _b('message_notifications'),
+                onChanged: (v) => _update('message_notifications', v),
+              ),
+              const Divider(height: 1, indent: 14),
+              _settingsToggle(
+                title: 'Mentions',
+                value: _b('mention_notifications'),
+                onChanged: (v) => _update('mention_notifications', v),
+              ),
+              const Divider(height: 1, indent: 14),
+              _settingsToggle(
+                title: 'New followers',
+                value: _b('follower_notifications'),
+                onChanged: (v) => _update('follower_notifications', v),
+              ),
+              const Divider(height: 1, indent: 14),
+              _settingsToggle(
+                title: 'Glows & Echoes',
+                subtitle: 'Reactions on your moments and posts',
+                value: _b('glows_echoes_notifications'),
+                onChanged: (v) => _update('glows_echoes_notifications', v),
+              ),
+            ],
+          ),
+        ),
 
         _sectionHeading('Email digest'),
-        _settingsCard(child: Column(children: [
-          _settingsToggle(title: 'Weekly digest', subtitle: 'A weekly summary of what matters', value: _b('weekly_digest'), onChanged: (v) => _update('weekly_digest', v)),
-          const Divider(height: 1, indent: 14),
-          _settingsToggle(title: 'Marketing emails', subtitle: 'Tips, product news and offers', value: _b('marketing_emails', false), onChanged: (v) => _update('marketing_emails', v)),
-        ])),
+        _settingsCard(
+          child: Column(
+            children: [
+              _settingsToggle(
+                title: 'Weekly digest',
+                subtitle: 'A weekly summary of what matters',
+                value: _b('weekly_digest'),
+                onChanged: (v) => _update('weekly_digest', v),
+              ),
+              const Divider(height: 1, indent: 14),
+              _settingsToggle(
+                title: 'Marketing emails',
+                subtitle: 'Tips, product news and offers',
+                value: _b('marketing_emails', false),
+                onChanged: (v) => _update('marketing_emails', v),
+              ),
+            ],
+          ),
+        ),
 
         _sectionHeading('Quiet hours'),
-        _settingsCard(child: Column(children: [
-          _settingsToggle(
-            title: 'Enable quiet hours',
-            subtitle: 'Mute push notifications during this window',
-            value: _b('quiet_hours_enabled', false),
-            onChanged: (v) => _update('quiet_hours_enabled', v),
+        _settingsCard(
+          child: Column(
+            children: [
+              _settingsToggle(
+                title: 'Enable quiet hours',
+                subtitle: 'Mute push notifications during this window',
+                value: _b('quiet_hours_enabled', false),
+                onChanged: (v) => _update('quiet_hours_enabled', v),
+              ),
+              if (_b('quiet_hours_enabled', false)) ...[
+                const Divider(height: 1, indent: 14),
+                _settingsTile(
+                  title: 'Start',
+                  subtitle: (_n['quiet_hours_start'] ?? '22:00').toString(),
+                  icon: Icons.bedtime_rounded,
+                  onTap: () => _pickTime('quiet_hours_start'),
+                ),
+                const Divider(height: 1, indent: 14),
+                _settingsTile(
+                  title: 'End',
+                  subtitle: (_n['quiet_hours_end'] ?? '07:00').toString(),
+                  icon: Icons.wb_sunny_rounded,
+                  onTap: () => _pickTime('quiet_hours_end'),
+                ),
+              ],
+            ],
           ),
-          if (_b('quiet_hours_enabled', false)) ...[
-            const Divider(height: 1, indent: 14),
-            _settingsTile(
-              title: 'Start',
-              subtitle: (_n['quiet_hours_start'] ?? '22:00').toString(),
-              icon: Icons.bedtime_rounded,
-              onTap: () => _pickTime('quiet_hours_start'),
-            ),
-            const Divider(height: 1, indent: 14),
-            _settingsTile(
-              title: 'End',
-              subtitle: (_n['quiet_hours_end'] ?? '07:00').toString(),
-              icon: Icons.wb_sunny_rounded,
-              onTap: () => _pickTime('quiet_hours_end'),
-            ),
-          ],
-        ])),
+        ),
       ],
     );
   }
@@ -1609,17 +1768,21 @@ class _PreferencesSectionState extends State<_PreferencesSection> {
   Map<String, dynamic> _p = {};
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    _load();
+  }
 
   Future<void> _load() async {
     setState(() => _loading = true);
     final res = await SettingsService.fetchAll();
-    if (mounted) setState(() {
-      _loading = false;
-      if (res['success'] == true && res['data'] is Map) {
-        _p = Map<String, dynamic>.from(res['data']['preferences'] ?? {});
-      }
-    });
+    if (mounted)
+      setState(() {
+        _loading = false;
+        if (res['success'] == true && res['data'] is Map) {
+          _p = Map<String, dynamic>.from(res['data']['preferences'] ?? {});
+        }
+      });
   }
 
   Future<void> _update(String key, dynamic value) async {
@@ -1630,27 +1793,50 @@ class _PreferencesSectionState extends State<_PreferencesSection> {
     }
   }
 
-  Future<String?> _pickFromList(String title, List<MapEntry<String, String>> options, String current) {
+  Future<String?> _pickFromList(
+    String title,
+    List<MapEntry<String, String>> options,
+    String current,
+  ) {
     return showModalBottomSheet<String>(
       context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
       builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Padding(padding: const EdgeInsets.all(14), child: Text(title, style: appText(size: 14, weight: FontWeight.w700))),
-          for (final opt in options)
-            ListTile(
-              title: Text(opt.value, style: appText(size: 14, weight: FontWeight.w600)),
-              trailing: opt.key == current ? const Icon(Icons.check_rounded, color: AppColors.primary) : null,
-              onTap: () => Navigator.pop(ctx, opt.key),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(14),
+              child: Text(
+                title,
+                style: appText(size: 14, weight: FontWeight.w700),
+              ),
             ),
-        ]),
+            for (final opt in options)
+              ListTile(
+                title: Text(
+                  opt.value,
+                  style: appText(size: 14, weight: FontWeight.w600),
+                ),
+                trailing: opt.key == current
+                    ? const Icon(Icons.check_rounded, color: AppColors.primary)
+                    : null,
+                onTap: () => Navigator.pop(ctx, opt.key),
+              ),
+          ],
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+    if (_loading)
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
 
     final lang = (_p['language'] ?? 'en').toString();
     final notifLang = (_p['notification_language'] ?? 'sw').toString();
@@ -1664,108 +1850,119 @@ class _PreferencesSectionState extends State<_PreferencesSection> {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
       children: [
         _sectionHeading('Region'),
-        _settingsCard(child: Column(children: [
-          _settingsTile(
-            icon: Icons.language_rounded,
-            title: 'Language',
-            subtitle: const {'en': 'English', 'sw': 'Kiswahili'}[lang] ?? lang,
-            onTap: () async {
-              final v = await _pickFromList('Language', const [
-                MapEntry('en', 'English'),
-                MapEntry('sw', 'Kiswahili'),
-              ], lang);
-              if (v != null) _update('language', v);
-            },
+        _settingsCard(
+          child: Column(
+            children: [
+              _settingsTile(
+                icon: Icons.language_rounded,
+                title: 'Language',
+                subtitle:
+                    const {'en': 'English', 'sw': 'Kiswahili'}[lang] ?? lang,
+                onTap: () async {
+                  final v = await _pickFromList('Language', const [
+                    MapEntry('en', 'English'),
+                    MapEntry('sw', 'Kiswahili'),
+                  ], lang);
+                  if (v != null) _update('language', v);
+                },
+              ),
+              const Divider(height: 1, indent: 14),
+              _settingsTile(
+                icon: Icons.notifications_active_rounded,
+                title: 'Notification Language',
+                subtitle:
+                    const {'sw': 'Swahili', 'en': 'English'}[notifLang] ??
+                    'Swahili',
+                onTap: () async {
+                  final v = await _pickFromList('Notification Language', const [
+                    MapEntry('sw', 'Swahili'),
+                    MapEntry('en', 'English'),
+                  ], notifLang);
+                  if (v != null) _update('notification_language', v);
+                },
+              ),
+              const Divider(height: 1, indent: 14),
+              _settingsTile(
+                icon: Icons.attach_money_rounded,
+                title: 'Currency',
+                subtitle: cur,
+                onTap: () async {
+                  final v = await _pickFromList('Currency', const [
+                    MapEntry('TZS', 'Tanzanian Shilling (TZS)'),
+                    MapEntry('KES', 'Kenyan Shilling (KES)'),
+                    MapEntry('UGX', 'Ugandan Shilling (UGX)'),
+                    MapEntry('USD', 'US Dollar (USD)'),
+                    MapEntry('EUR', 'Euro (EUR)'),
+                  ], cur);
+                  if (v != null) _update('currency', v);
+                },
+              ),
+              const Divider(height: 1, indent: 14),
+              _settingsTile(
+                icon: Icons.public_rounded,
+                title: 'Time zone',
+                subtitle: tz,
+                onTap: () async {
+                  final v = await _pickFromList('Time zone', const [
+                    MapEntry('Africa/Dar_es_Salaam', 'Dar es Salaam (EAT)'),
+                    MapEntry('Africa/Nairobi', 'Nairobi (EAT)'),
+                    MapEntry('Africa/Kampala', 'Kampala (EAT)'),
+                    MapEntry('UTC', 'UTC'),
+                  ], tz);
+                  if (v != null) _update('timezone', v);
+                },
+              ),
+            ],
           ),
-          const Divider(height: 1, indent: 14),
-          _settingsTile(
-            icon: Icons.notifications_active_rounded,
-            title: 'Notification Language',
-            subtitle: const {'sw': 'Swahili', 'en': 'English'}[notifLang] ?? 'Swahili',
-            onTap: () async {
-              final v = await _pickFromList('Notification Language', const [
-                MapEntry('sw', 'Swahili'),
-                MapEntry('en', 'English'),
-              ], notifLang);
-              if (v != null) _update('notification_language', v);
-            },
-          ),
-          const Divider(height: 1, indent: 14),
-          _settingsTile(
-            icon: Icons.attach_money_rounded,
-            title: 'Currency',
-            subtitle: cur,
-            onTap: () async {
-              final v = await _pickFromList('Currency', const [
-                MapEntry('TZS', 'Tanzanian Shilling (TZS)'),
-                MapEntry('KES', 'Kenyan Shilling (KES)'),
-                MapEntry('UGX', 'Ugandan Shilling (UGX)'),
-                MapEntry('USD', 'US Dollar (USD)'),
-                MapEntry('EUR', 'Euro (EUR)'),
-              ], cur);
-              if (v != null) _update('currency', v);
-            },
-          ),
-          const Divider(height: 1, indent: 14),
-          _settingsTile(
-            icon: Icons.public_rounded,
-            title: 'Time zone',
-            subtitle: tz,
-            onTap: () async {
-              final v = await _pickFromList('Time zone', const [
-                MapEntry('Africa/Dar_es_Salaam', 'Dar es Salaam (EAT)'),
-                MapEntry('Africa/Nairobi', 'Nairobi (EAT)'),
-                MapEntry('Africa/Kampala', 'Kampala (EAT)'),
-                MapEntry('UTC', 'UTC'),
-              ], tz);
-              if (v != null) _update('timezone', v);
-            },
-          ),
-        ])),
+        ),
 
         _sectionHeading('Display'),
-        _settingsCard(child: Column(children: [
-          _settingsTile(
-            icon: Icons.palette_rounded,
-            title: 'Theme',
-            subtitle: theme[0].toUpperCase() + theme.substring(1),
-            onTap: () async {
-              final v = await _pickFromList('Theme', const [
-                MapEntry('system', 'System default'),
-                MapEntry('light', 'Light'),
-                MapEntry('dark', 'Dark'),
-              ], theme);
-              if (v != null) _update('theme', v);
-            },
+        _settingsCard(
+          child: Column(
+            children: [
+              _settingsTile(
+                icon: Icons.palette_rounded,
+                title: 'Theme',
+                subtitle: theme[0].toUpperCase() + theme.substring(1),
+                onTap: () async {
+                  final v = await _pickFromList('Theme', const [
+                    MapEntry('system', 'System default'),
+                    MapEntry('light', 'Light'),
+                    MapEntry('dark', 'Dark'),
+                  ], theme);
+                  if (v != null) _update('theme', v);
+                },
+              ),
+              const Divider(height: 1, indent: 14),
+              _settingsTile(
+                icon: Icons.calendar_today_rounded,
+                title: 'Date format',
+                subtitle: dateFmt,
+                onTap: () async {
+                  final v = await _pickFromList('Date format', const [
+                    MapEntry('DD/MM/YYYY', 'DD/MM/YYYY'),
+                    MapEntry('MM/DD/YYYY', 'MM/DD/YYYY'),
+                    MapEntry('YYYY-MM-DD', 'YYYY-MM-DD'),
+                  ], dateFmt);
+                  if (v != null) _update('date_format', v);
+                },
+              ),
+              const Divider(height: 1, indent: 14),
+              _settingsTile(
+                icon: Icons.access_time_rounded,
+                title: 'Time format',
+                subtitle: timeFmt == '24h' ? '24-hour' : '12-hour',
+                onTap: () async {
+                  final v = await _pickFromList('Time format', const [
+                    MapEntry('24h', '24-hour'),
+                    MapEntry('12h', '12-hour'),
+                  ], timeFmt);
+                  if (v != null) _update('time_format', v);
+                },
+              ),
+            ],
           ),
-          const Divider(height: 1, indent: 14),
-          _settingsTile(
-            icon: Icons.calendar_today_rounded,
-            title: 'Date format',
-            subtitle: dateFmt,
-            onTap: () async {
-              final v = await _pickFromList('Date format', const [
-                MapEntry('DD/MM/YYYY', 'DD/MM/YYYY'),
-                MapEntry('MM/DD/YYYY', 'MM/DD/YYYY'),
-                MapEntry('YYYY-MM-DD', 'YYYY-MM-DD'),
-              ], dateFmt);
-              if (v != null) _update('date_format', v);
-            },
-          ),
-          const Divider(height: 1, indent: 14),
-          _settingsTile(
-            icon: Icons.access_time_rounded,
-            title: 'Time format',
-            subtitle: timeFmt == '24h' ? '24-hour' : '12-hour',
-            onTap: () async {
-              final v = await _pickFromList('Time format', const [
-                MapEntry('24h', '24-hour'),
-                MapEntry('12h', '12-hour'),
-              ], timeFmt);
-              if (v != null) _update('time_format', v);
-            },
-          ),
-        ])),
+        ),
       ],
     );
   }
@@ -1789,7 +1986,10 @@ class _SecuritySectionState extends State<_SecuritySection> {
   List<dynamic> _sessions = [];
 
   @override
-  void initState() { super.initState(); _load(); }
+  void initState() {
+    super.initState();
+    _load();
+  }
 
   Future<void> _load() async {
     setState(() => _loading = true);
@@ -1797,25 +1997,32 @@ class _SecuritySectionState extends State<_SecuritySection> {
     final ses = await SettingsService.sessions();
     try {
       final auth = LocalAuthentication();
-      _biometricsAvailable = await auth.canCheckBiometrics && await auth.isDeviceSupported();
-    } catch (_) { _biometricsAvailable = false; }
-    if (mounted) setState(() {
-      _loading = false;
-      if (res['success'] == true && res['data'] is Map) {
-        final sec = Map<String, dynamic>.from(res['data']['security'] ?? {});
-        _twoFA = sec['two_factor_enabled'] == true;
-        _loginAlerts = sec['login_alerts'] != false;
-        _passkeyEnabled = sec['passkey_enabled'] == true;
-        _userEmail = (res['data']['account']?['email']
-            ?? res['data']['profile']?['email']
-            ?? sec['email'])?.toString();
-        _activeSessions = (sec['active_sessions_count'] as num?)?.toInt() ?? 0;
-      }
-      if (ses['success'] == true && ses['data'] is List) {
-        _sessions = ses['data'] as List;
-        _activeSessions = _sessions.length;
-      }
-    });
+      _biometricsAvailable =
+          await auth.canCheckBiometrics && await auth.isDeviceSupported();
+    } catch (_) {
+      _biometricsAvailable = false;
+    }
+    if (mounted)
+      setState(() {
+        _loading = false;
+        if (res['success'] == true && res['data'] is Map) {
+          final sec = Map<String, dynamic>.from(res['data']['security'] ?? {});
+          _twoFA = sec['two_factor_enabled'] == true;
+          _loginAlerts = sec['login_alerts'] != false;
+          _passkeyEnabled = sec['passkey_enabled'] == true;
+          _userEmail =
+              (res['data']['account']?['email'] ??
+                      res['data']['profile']?['email'] ??
+                      sec['email'])
+                  ?.toString();
+          _activeSessions =
+              (sec['active_sessions_count'] as num?)?.toInt() ?? 0;
+        }
+        if (ses['success'] == true && ses['data'] is List) {
+          _sessions = ses['data'] as List;
+          _activeSessions = _sessions.length;
+        }
+      });
   }
 
   Future<void> _toggleLoginAlerts(bool v) async {
@@ -1825,7 +2032,9 @@ class _SecuritySectionState extends State<_SecuritySection> {
 
   Future<void> _toggle2FA() async {
     if (_twoFA) {
-      final code = await _promptCode('Enter your authenticator code to disable 2FA');
+      final code = await _promptCode(
+        'Enter your authenticator code to disable 2FA',
+      );
       if (code == null) return;
       final res = await SettingsService.disable2fa(code);
       if (mounted) {
@@ -1852,55 +2061,127 @@ class _SecuritySectionState extends State<_SecuritySection> {
         context: context,
         isScrollControlled: true,
         backgroundColor: Colors.white,
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
         builder: (ctx) => Padding(
           padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(2)))),
-            const SizedBox(height: 18),
-            Text('Set up Authenticator', style: appText(size: 18, weight: FontWeight.w800)),
-            const SizedBox(height: 6),
-            Text('Scan this QR with Google Authenticator, Authy, 1Password or any TOTP app.',
-                style: appText(size: 12, color: AppColors.textSecondary, height: 1.45)),
-            const SizedBox(height: 18),
-            Center(
-              child: Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppColors.borderLight),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: AppColors.borderLight,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-                child: QrImageView(data: otpauth, size: 200, backgroundColor: Colors.white, version: QrVersions.auto),
               ),
-            ),
-            const SizedBox(height: 16),
-            Text('Or enter this code manually', style: appText(size: 11, weight: FontWeight.w700, color: AppColors.textTertiary)),
-            const SizedBox(height: 6),
-            GestureDetector(
-              onTap: () { Clipboard.setData(ClipboardData(text: secret)); AppSnackbar.success(context, 'Copied'); },
-              child: Container(
+              const SizedBox(height: 18),
+              Text(
+                'Set up Authenticator',
+                style: appText(size: 18, weight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Scan this QR with Google Authenticator, Authy, 1Password or any TOTP app.',
+                style: appText(
+                  size: 12,
+                  color: AppColors.textSecondary,
+                  height: 1.45,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: AppColors.borderLight),
+                  ),
+                  child: QrImageView(
+                    data: otpauth,
+                    size: 200,
+                    backgroundColor: Colors.white,
+                    version: QrVersions.auto,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Or enter this code manually',
+                style: appText(
+                  size: 11,
+                  weight: FontWeight.w700,
+                  color: AppColors.textTertiary,
+                ),
+              ),
+              const SizedBox(height: 6),
+              GestureDetector(
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: secret));
+                  AppSnackbar.success(context, 'Copied');
+                },
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySoft,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: SelectableText(
+                          secret,
+                          style: appText(
+                            size: 13,
+                            weight: FontWeight.w700,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                      SvgPicture.asset(
+                        'assets/icons/share-icon.svg',
+                        width: 16,
+                        height: 16,
+                        colorFilter: const ColorFilter.mode(
+                          AppColors.primary,
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
                 width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(12)),
-                child: Row(children: [
-                  Expanded(child: SelectableText(secret, style: appText(size: 13, weight: FontWeight.w700, color: AppColors.primary))),
-                  SvgPicture.asset('assets/icons/share-icon.svg', width: 16, height: 16,
-                      colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn)),
-                ]),
+                height: 48,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                  child: Text(
+                    'I\'ve added it',
+                    style: appText(
+                      size: 14,
+                      weight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
               ),
-            ),
-            const SizedBox(height: 18),
-            SizedBox(
-              width: double.infinity, height: 48,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(ctx),
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14))),
-                child: Text('I\'ve added it', style: appText(size: 14, weight: FontWeight.w700, color: Colors.white)),
-              ),
-            ),
-          ]),
+            ],
+          ),
         ),
       );
       final code = await _promptCode('Enter the 6-digit code from your app');
@@ -1927,10 +2208,15 @@ class _SecuritySectionState extends State<_SecuritySection> {
         final auth = LocalAuthentication();
         final ok = await auth.authenticate(
           localizedReason: 'Confirm to register a passkey for this device',
-          options: const AuthenticationOptions(biometricOnly: false, stickyAuth: true),
+          options: const AuthenticationOptions(
+            biometricOnly: false,
+            stickyAuth: true,
+          ),
         );
         if (!ok) return;
-      } catch (_) { return; }
+      } catch (_) {
+        return;
+      }
     }
     setState(() => _passkeyEnabled = v);
     final res = await SettingsService.updateSecurity({'passkey_enabled': v});
@@ -1938,7 +2224,10 @@ class _SecuritySectionState extends State<_SecuritySection> {
       setState(() => _passkeyEnabled = !v);
       AppSnackbar.error(context, res['message'] ?? 'Failed to update');
     } else if (mounted) {
-      AppSnackbar.success(context, v ? 'Passkey enabled on this device' : 'Passkey disabled');
+      AppSnackbar.success(
+        context,
+        v ? 'Passkey enabled on this device' : 'Passkey disabled',
+      );
     }
   }
 
@@ -1948,25 +2237,58 @@ class _SecuritySectionState extends State<_SecuritySection> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Verification', style: appText(size: 16, weight: FontWeight.w700)),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: appText(size: 12, color: AppColors.textSecondary, height: 1.4)),
-          const SizedBox(height: 12),
-          TextField(
-            controller: ctrl,
-            keyboardType: TextInputType.number,
-            maxLength: 6,
-            decoration: InputDecoration(
-              hintText: '123456',
-              filled: true,
-              fillColor: const Color(0xFFF5F7FA),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+        title: Text(
+          'Verification',
+          style: appText(size: 16, weight: FontWeight.w700),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: appText(
+                size: 12,
+                color: AppColors.textSecondary,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              decoration: InputDecoration(
+                hintText: '123456',
+                filled: true,
+                fillColor: const Color(0xFFF5F7FA),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'Cancel',
+              style: appText(size: 13, color: AppColors.textTertiary),
             ),
           ),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel', style: appText(size: 13, color: AppColors.textTertiary))),
-          TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: Text('Verify', style: appText(size: 13, color: AppColors.primary, weight: FontWeight.w700))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: Text(
+              'Verify',
+              style: appText(
+                size: 13,
+                color: AppColors.primary,
+                weight: FontWeight.w700,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1977,10 +2299,29 @@ class _SecuritySectionState extends State<_SecuritySection> {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text('Sign out this device?', style: appText(size: 15, weight: FontWeight.w700)),
+        title: Text(
+          'Sign out this device?',
+          style: appText(size: 15, weight: FontWeight.w700),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('Cancel', style: appText(size: 13, color: AppColors.textTertiary))),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: Text('Sign out', style: appText(size: 13, weight: FontWeight.w700, color: const Color(0xFFD64545)))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(
+              'Cancel',
+              style: appText(size: 13, color: AppColors.textTertiary),
+            ),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(
+              'Sign out',
+              style: appText(
+                size: 13,
+                weight: FontWeight.w700,
+                color: const Color(0xFFD64545),
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1991,67 +2332,101 @@ class _SecuritySectionState extends State<_SecuritySection> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+    if (_loading)
+      return const Center(
+        child: CircularProgressIndicator(color: AppColors.primary),
+      );
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
       children: [
         _sectionHeading('Account'),
-        _settingsCard(child: _settingsTile(
-          icon: Icons.lock_outline_rounded,
-          title: 'Change password',
-          subtitle: 'Use a strong, unique password',
-          onTap: () {
-            final state = context.findAncestorStateOfType<_SettingsScreenState>();
-            state?.setState(() => state._section = 2);
-          },
-        )),
+        _settingsCard(
+          child: _settingsTile(
+            icon: Icons.lock_outline_rounded,
+            title: 'Change password',
+            subtitle: 'Use a strong, unique password',
+            onTap: () {
+              final state = context
+                  .findAncestorStateOfType<_SettingsScreenState>();
+              state?.setState(() => state._section = 2);
+            },
+          ),
+        ),
 
         _sectionHeading('Two-factor authentication'),
-        _settingsCard(child: _settingsToggle(
-          title: 'Authenticator app (TOTP)',
-          subtitle: _twoFA ? 'Enabled — extra protection on every sign-in' : 'Add a 6-digit code from your authenticator app',
-          value: _twoFA,
-          onChanged: (_) => _toggle2FA(),
-        )),
-        _settingsCard(child: _settingsToggle(
-          title: 'Passkey (this device)',
-          subtitle: _biometricsAvailable
-              ? 'Use Face ID, fingerprint or device PIN to sign in faster'
-              : 'No biometrics enrolled on this device',
-          value: _passkeyEnabled,
-          onChanged: _biometricsAvailable ? _togglePasskey : null,
-        )),
+        _settingsCard(
+          child: _settingsToggle(
+            title: 'Authenticator app (TOTP)',
+            subtitle: _twoFA
+                ? 'Enabled — extra protection on every sign-in'
+                : 'Add a 6-digit code from your authenticator app',
+            value: _twoFA,
+            onChanged: (_) => _toggle2FA(),
+          ),
+        ),
+        _settingsCard(
+          child: _settingsToggle(
+            title: 'Passkey (this device)',
+            subtitle: _biometricsAvailable
+                ? 'Use Face ID, fingerprint or device PIN to sign in faster'
+                : 'No biometrics enrolled on this device',
+            value: _passkeyEnabled,
+            onChanged: _biometricsAvailable ? _togglePasskey : null,
+          ),
+        ),
 
         _sectionHeading('Alerts'),
-        _settingsCard(child: _settingsToggle(
-          title: 'Login alerts',
-          subtitle: 'Email me when a new device signs in',
-          value: _loginAlerts,
-          onChanged: _toggleLoginAlerts,
-        )),
+        _settingsCard(
+          child: _settingsToggle(
+            title: 'Login alerts',
+            subtitle: 'Email me when a new device signs in',
+            value: _loginAlerts,
+            onChanged: _toggleLoginAlerts,
+          ),
+        ),
 
         _sectionHeading('Active sessions ($_activeSessions)'),
         if (_sessions.isEmpty)
-          _settingsCard(child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text('No other active sessions.', style: appText(size: 12, color: AppColors.textTertiary)),
-          ))
+          _settingsCard(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                'No other active sessions.',
+                style: appText(size: 12, color: AppColors.textTertiary),
+              ),
+            ),
+          )
         else
           ..._sessions.map((s) {
             final m = Map<String, dynamic>.from(s as Map);
-            final name = (m['device_name'] ?? m['user_agent'] ?? 'Unknown device').toString();
+            final name =
+                (m['device_name'] ?? m['user_agent'] ?? 'Unknown device')
+                    .toString();
             final ip = (m['ip_address'] ?? '').toString();
             final last = (m['last_active_at'] ?? '').toString();
-            return _settingsCard(child: _settingsTile(
-              icon: Icons.devices_other_rounded,
-              title: name,
-              subtitle: [if (ip.isNotEmpty) ip, if (last.isNotEmpty) 'Active ${last.substring(0, last.length > 16 ? 16 : last.length)}'].join(' • '),
-              trailing: TextButton(
-                onPressed: () => _revokeSession(m['id'].toString()),
-                child: Text('Sign out', style: appText(size: 12, weight: FontWeight.w700, color: const Color(0xFFD64545))),
+            return _settingsCard(
+              child: _settingsTile(
+                icon: Icons.devices_other_rounded,
+                title: name,
+                subtitle: [
+                  if (ip.isNotEmpty) ip,
+                  if (last.isNotEmpty)
+                    'Active ${last.substring(0, last.length > 16 ? 16 : last.length)}',
+                ].join(' • '),
+                trailing: TextButton(
+                  onPressed: () => _revokeSession(m['id'].toString()),
+                  child: Text(
+                    'Sign out',
+                    style: appText(
+                      size: 12,
+                      weight: FontWeight.w700,
+                      color: const Color(0xFFD64545),
+                    ),
+                  ),
+                ),
               ),
-            ));
+            );
           }),
 
         if (_sessions.length > 1) ...[
@@ -2066,9 +2441,18 @@ class _SecuritySectionState extends State<_SecuritySection> {
               },
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: Color(0xFFD64545)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
-              child: Text('Sign out all other sessions', style: appText(size: 13, weight: FontWeight.w700, color: const Color(0xFFD64545))),
+              child: Text(
+                'Sign out all other sessions',
+                style: appText(
+                  size: 13,
+                  weight: FontWeight.w700,
+                  color: const Color(0xFFD64545),
+                ),
+              ),
             ),
           ),
         ],
@@ -2093,7 +2477,10 @@ class _AboutSectionState extends State<_AboutSection> {
   bool _hasUpdate = false;
 
   @override
-  void initState() { super.initState(); _hydrate(); }
+  void initState() {
+    super.initState();
+    _hydrate();
+  }
 
   Future<void> _hydrate() async {
     try {
@@ -2111,8 +2498,14 @@ class _AboutSectionState extends State<_AboutSection> {
         final latestBuild = _asInt(d['latest_build']);
         final installedBuildNum = int.tryParse(_installedBuild) ?? 0;
         _latestBuild = latestBuild;
-        final hasNewerBuild = latestBuild > 0 && installedBuildNum > 0 && latestBuild > installedBuildNum;
-        final hasNewerVersion = (_latestVersion ?? '').isNotEmpty && _installedVersion.isNotEmpty && _compareVersions(_latestVersion!, _installedVersion) > 0;
+        final hasNewerBuild =
+            latestBuild > 0 &&
+            installedBuildNum > 0 &&
+            latestBuild > installedBuildNum;
+        final hasNewerVersion =
+            (_latestVersion ?? '').isNotEmpty &&
+            _installedVersion.isNotEmpty &&
+            _compareVersions(_latestVersion!, _installedVersion) > 0;
         _hasUpdate = hasNewerBuild || hasNewerVersion;
       }
     } catch (_) {}
@@ -2120,8 +2513,16 @@ class _AboutSectionState extends State<_AboutSection> {
   }
 
   int _compareVersions(String a, String b) {
-    final left = a.split(RegExp(r'[^0-9]+')).where((p) => p.isNotEmpty).map((p) => int.tryParse(p) ?? 0).toList();
-    final right = b.split(RegExp(r'[^0-9]+')).where((p) => p.isNotEmpty).map((p) => int.tryParse(p) ?? 0).toList();
+    final left = a
+        .split(RegExp(r'[^0-9]+'))
+        .where((p) => p.isNotEmpty)
+        .map((p) => int.tryParse(p) ?? 0)
+        .toList();
+    final right = b
+        .split(RegExp(r'[^0-9]+'))
+        .where((p) => p.isNotEmpty)
+        .map((p) => int.tryParse(p) ?? 0)
+        .toList();
     final length = left.length > right.length ? left.length : right.length;
     for (var i = 0; i < length; i++) {
       final l = i < left.length ? left[i] : 0;
@@ -2131,7 +2532,8 @@ class _AboutSectionState extends State<_AboutSection> {
     return 0;
   }
 
-  int _asInt(dynamic value) => value is num ? value.toInt() : int.tryParse(value?.toString() ?? '') ?? 0;
+  int _asInt(dynamic value) =>
+      value is num ? value.toInt() : int.tryParse(value?.toString() ?? '') ?? 0;
 
   @override
   Widget build(BuildContext context) {
@@ -2141,36 +2543,79 @@ class _AboutSectionState extends State<_AboutSection> {
         Container(
           padding: const EdgeInsets.symmetric(vertical: 28, horizontal: 20),
           decoration: BoxDecoration(
-            gradient: const LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight,
-                colors: [Color(0xFF1A1A2E), Color(0xFF16213E)]),
+            color: Colors.white,
             borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: Colors.black.withOpacity(0.06)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
-          child: Column(children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Image.asset('assets/images/nuru-logo-square.png', width: 76, height: 76,
-                errorBuilder: (_, __, ___) => Container(
-                  width: 76, height: 76,
-                  decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(20)),
-                  child: Center(child: Text('N', style: appText(size: 30, weight: FontWeight.w700, color: Colors.white))),
+          child: Column(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Image.asset(
+                  'assets/images/nuru-logo-square.png',
+                  width: 76,
+                  height: 76,
+                  errorBuilder: (_, __, ___) => Container(
+                    width: 76,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Center(
+                      child: Text(
+                        'N',
+                        style: appText(
+                          size: 30,
+                          weight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 14),
-            Text('Nuru', style: appText(size: 22, weight: FontWeight.w800, color: Colors.white)),
-            const SizedBox(height: 6),
-            Text('Plan, host and live every event with clarity.',
+              Text(
+                'Plan smarter. Celebrate better.',
                 textAlign: TextAlign.center,
-                style: appText(size: 12, color: Colors.white70, height: 1.5)),
-            const SizedBox(height: 16),
-            if (_installedVersion.isNotEmpty)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(color: Colors.white.withOpacity(0.12), borderRadius: BorderRadius.circular(999)),
-                child: Text('v$_installedVersion${_installedBuild.isNotEmpty ? ' ($_installedBuild)' : ''}',
-                    style: appText(size: 12, weight: FontWeight.w600, color: Colors.white)),
+                style: appText(
+                  size: 12,
+                  color: const Color(0xFF4B5563),
+                  height: 1.5,
+                ),
               ),
-          ]),
+              const SizedBox(height: 16),
+              if (_installedVersion.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(
+                      color: AppColors.primary.withOpacity(0.18),
+                    ),
+                  ),
+                  child: Text(
+                    'v$_installedVersion${_installedBuild.isNotEmpty ? ' ($_installedBuild)' : ''}',
+                    style: appText(
+                      size: 12,
+                      weight: FontWeight.w600,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
         if (_hasUpdate) ...[
           const SizedBox(height: 12),
@@ -2181,70 +2626,135 @@ class _AboutSectionState extends State<_AboutSection> {
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: const Color(0xFFF5C45E)),
             ),
-            child: Row(children: [
-              SvgPicture.asset('assets/icons/thunder-icon.svg',
-                width: 20, height: 20,
-                colorFilter: const ColorFilter.mode(Color(0xFFB8860B), BlendMode.srcIn)),
-              const SizedBox(width: 10),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Update available', style: appText(size: 13, weight: FontWeight.w700, color: const Color(0xFF7A5400))),
-                Text('Latest v$_latestVersion${_latestBuild > 0 ? ' ($_latestBuild)' : ''} is available now.', style: appText(size: 11, color: const Color(0xFF7A5400))),
-              ])),
-              TextButton(
-                onPressed: () async {
-                  final uri = Uri.tryParse(_updateUrl ?? '');
-                  if (uri != null) await launchUrl(uri, mode: LaunchMode.externalApplication);
-                },
-                child: Text('Update', style: appText(size: 13, weight: FontWeight.w700, color: const Color(0xFFB8860B))),
-              ),
-            ]),
+            child: Row(
+              children: [
+                SvgPicture.asset(
+                  'assets/icons/thunder-icon.svg',
+                  width: 20,
+                  height: 20,
+                  colorFilter: const ColorFilter.mode(
+                    Color(0xFFB8860B),
+                    BlendMode.srcIn,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Update available',
+                        style: appText(
+                          size: 13,
+                          weight: FontWeight.w700,
+                          color: const Color(0xFF7A5400),
+                        ),
+                      ),
+                      Text(
+                        'Latest v$_latestVersion${_latestBuild > 0 ? ' ($_latestBuild)' : ''} is available now.',
+                        style: appText(
+                          size: 11,
+                          color: const Color(0xFF7A5400),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                TextButton(
+                  onPressed: () async {
+                    final uri = Uri.tryParse(_updateUrl ?? '');
+                    if (uri != null)
+                      await launchUrl(
+                        uri,
+                        mode: LaunchMode.externalApplication,
+                      );
+                  },
+                  child: Text(
+                    'Update',
+                    style: appText(
+                      size: 13,
+                      weight: FontWeight.w700,
+                      color: const Color(0xFFB8860B),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
         const SizedBox(height: 14),
 
         _sectionHeading('Legal'),
-        _settingsCard(child: _settingsTile(
-          icon: Icons.description_rounded,
-          title: 'Terms of Service',
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TermsScreen())),
-        )),
-        _settingsCard(child: _settingsTile(
-          icon: Icons.privacy_tip_rounded,
-          title: 'Privacy Policy',
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen())),
-        )),
-        _settingsCard(child: _settingsTile(
-          icon: Icons.code_rounded,
-          title: 'Open-source licenses',
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LicensesScreen())),
-        )),
-        _settingsCard(child: _settingsTile(
-          icon: Icons.delete_forever_rounded,
-          title: 'Request data deletion',
-          subtitle: 'Delete your Nuru account and personal data',
-          onTap: () => launchUrl(
-            Uri.parse('https://nuru.tz/data-deletion'),
-            mode: LaunchMode.externalApplication,
+        _settingsCard(
+          child: _settingsTile(
+            icon: Icons.description_rounded,
+            title: 'Terms of Service',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const TermsScreen()),
+            ),
           ),
-        )),
+        ),
+        _settingsCard(
+          child: _settingsTile(
+            icon: Icons.privacy_tip_rounded,
+            title: 'Privacy Policy',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
+            ),
+          ),
+        ),
+        _settingsCard(
+          child: _settingsTile(
+            icon: Icons.code_rounded,
+            title: 'Open-source licenses',
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const LicensesScreen()),
+            ),
+          ),
+        ),
+        _settingsCard(
+          child: _settingsTile(
+            icon: Icons.delete_forever_rounded,
+            title: 'Request data deletion',
+            subtitle: 'Delete your Nuru account and personal data',
+            onTap: () => launchUrl(
+              Uri.parse('https://nuru.tz/data-deletion'),
+              mode: LaunchMode.externalApplication,
+            ),
+          ),
+        ),
 
         _sectionHeading('Connect'),
-        _settingsCard(child: _settingsTile(
-          icon: Icons.email_rounded,
-          title: 'Support',
-          subtitle: 'support@nuru.tz',
-          onTap: () => launchUrl(Uri.parse('mailto:support@nuru.tz')),
-        )),
-        _settingsCard(child: _settingsTile(
-          icon: Icons.public_rounded,
-          title: 'Website',
-          subtitle: 'nuru.tz',
-          onTap: () => launchUrl(Uri.parse('https://nuru.tz'), mode: LaunchMode.externalApplication),
-        )),
+        _settingsCard(
+          child: _settingsTile(
+            icon: Icons.email_rounded,
+            title: 'Support',
+            subtitle: 'support@nuru.tz',
+            onTap: () => launchUrl(Uri.parse('mailto:support@nuru.tz')),
+          ),
+        ),
+        _settingsCard(
+          child: _settingsTile(
+            icon: Icons.public_rounded,
+            title: 'Website',
+            subtitle: 'nuru.tz',
+            onTap: () => launchUrl(
+              Uri.parse('https://nuru.tz'),
+              mode: LaunchMode.externalApplication,
+            ),
+          ),
+        ),
 
         const SizedBox(height: 20),
-        Center(child: Text('© ${DateTime.now().year} Nuru. Made for African events.',
-            style: appText(size: 11, color: AppColors.textHint))),
+        Center(
+          child: Text(
+            '© ${DateTime.now().year} Nuru. All rights reserved.',
+            style: appText(size: 11, color: AppColors.textHint),
+          ),
+        ),
       ],
     );
   }

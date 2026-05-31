@@ -23,6 +23,7 @@ import 'screens/tickets/ticket_verification_screen.dart';
 import 'screens/home/post_detail_screen.dart';
 import 'screens/moments/moment_view_screen.dart';
 import 'screens/auth/set_password_screen.dart';
+import 'screens/cards/public_card_view_screen.dart';
 import 'widgets/rate_limit_overlay.dart';
 import 'widgets/payment_verifier.dart';
 
@@ -148,6 +149,8 @@ class _NuruAppState extends State<NuruApp> {
         return MaterialPageRoute(builder: (_) => MomentViewScreen(momentId: s('id')));
       case '/set-password':
         return MaterialPageRoute(builder: (_) => SetPasswordScreen(token: s('token')));
+      case '/cards':
+        return MaterialPageRoute(builder: (_) => PublicCardViewScreen(cardId: s('id')));
     }
     return null;
   }

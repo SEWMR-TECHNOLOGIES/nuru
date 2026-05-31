@@ -63,6 +63,7 @@ from .offline_payments import router as offline_payments_router
 from .reminder_automations import router as reminder_automations_router
 from .account_setup import router as account_setup_router
 from .meeting_redirect import router as meeting_redirect_router
+from .event_cards import router as event_cards_router
 
 # All routers to be included in main app
 all_routers = [
@@ -127,7 +128,7 @@ all_routers = [
     reminder_automations_router,        # /events/.../automations + /reminder-templates
     account_setup_router,               # /auth/account-setup/...
     meeting_redirect_router,            # /m/{token}  (WhatsApp meeting button resolver)
-
+    event_cards_router,                 # /cards/... + /events/.../cards/...
 ]
 
 __all__ = [

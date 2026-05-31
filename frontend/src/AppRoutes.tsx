@@ -100,6 +100,7 @@ import MyGroups from "@/components/eventGroups/MyGroups";
 import MyContributions from "@/pages/MyContributions";
 import PublicContribute from "@/pages/PublicContribute";
 import PublicContributionReceipt from "@/pages/PublicContributionReceipt";
+import PublicCardView from "@/pages/PublicCardView";
 
 // Admin
 import AdminLogin from "@/pages/admin/AdminLogin";
@@ -277,6 +278,7 @@ function InnerRoutes() {
         <Route path="/g/:token" element={<GuestGroupJoin />} />
         <Route path="/c/:token" element={<PublicContribute />} />
         <Route path="/c/:token/r/:txCode" element={<PublicContributionReceipt />} />
+        <Route path="/cards/:id" element={<PublicCardView />} />
         <Route path="/features" element={<FeaturesIndex />} />
         <Route path="/features/event-planning" element={<EventPlanning />} />
         <Route path="/features/service-providers" element={<ServiceProviders />} />

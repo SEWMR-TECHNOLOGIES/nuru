@@ -125,6 +125,9 @@ class DeepLinkService {
       case 'set-password':
         if (rest != null) { nav.pushNamed('/set-password', arguments: {'token': rest}); routed = '/set-password'; }
         break;
+      case 'cards':
+        if (rest != null) { nav.pushNamed('/cards', arguments: {'id': rest}); routed = '/cards'; }
+        break;
       case 'm':
         if (rest != null) { _resolveMeetingToken(nav, rest); routed = '/m'; }
         break;

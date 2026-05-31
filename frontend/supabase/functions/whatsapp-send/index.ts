@@ -179,6 +179,19 @@ const BUILDERS: Record<string, (lang: Lang, p: any) => Built> = {
     ]),
   }),
 
+  // Pledge thank-you card (image header + 2 body params)
+  pledge_thank_you_card: (lang, p) => ({
+    name: `nuru_pledge_thank_you_card_${lang}`,
+    lang,
+    components: [
+      { type: "header", parameters: [{ type: "image", image: { link: toWaImageLink(p.image_url || "") } }] },
+      ...bodyParams([
+        p.contributor_name || "Friend",
+        p.event_name || "the event",
+      ]),
+    ],
+  }),
+
   // #17/18 — guest_contribution_invite, dynamic URL button = share_token
   guest_contribution_invite: (lang, p) => ({
     name: `nuru_guest_contribution_invite_${lang}`,

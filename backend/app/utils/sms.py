@@ -735,3 +735,32 @@ def sms_booking_accepted(
         service_name=service_name,
         event_name=event_name,
     )
+
+
+# Pledge thank-you card SMS fallback (TZ only — same gating as other SMS).
+def sms_pledge_thank_you_card(
+    phone: str,
+    contributor_name: str,
+    event_name: str,
+    card_link: str,
+    *,
+    lang: str | None = None,
+):
+    L = (lang or "sw").lower()[:2]
+    if L == "en":
+        body = (
+            f"Thank you {contributor_name} for your pledge contribution to {event_name}. "
+            f"Open your thank you card here: {card_link}"
+        )
+    else:
+        body = (
+            f"Asante {contributor_name} kwa ahadi yako ya mchango kwenye {event_name}. "
+            f"Fungua kadi yako ya shukrani hapa: {card_link}"
+        )
+    try:
+        from services.SewmrSmsClient import SewmrSmsClient
+        SewmrSmsClient().send(phone, body)
+        return True
+    except Exception as exc:
+        print(f"[sms_pledge_thank_you_card] failed: {exc!r}")
+        return False

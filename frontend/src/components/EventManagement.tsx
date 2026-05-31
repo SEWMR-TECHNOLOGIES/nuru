@@ -19,6 +19,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import EventRSVP from './EventRSVP';
+import EventCardsTab from './events/EventCardsTab';
 import EventGuestList from './events/EventGuestList';
 import EventCommittee from './events/EventCommittee';
 import EventContributions from './events/EventContributions';
@@ -391,6 +392,7 @@ const EventManagement = () => {
             { value: 'committee', label: t('committee') },
             { value: 'contributions', label: t('contributions') },
             { value: 'guests', label: t('guests') },
+            { value: 'cards', label: 'Cards' },
             { value: 'rsvp', label: t('rsvp') },
             { value: 'schedule', label: t('schedule') || 'Schedule' },
             { value: 'meetings', label: 'Meetings' },
@@ -691,6 +693,12 @@ const EventManagement = () => {
         <TabsContent value="guests" className="space-y-6">
           <EventGuestList eventId={id!} permissions={permissions} />
         </TabsContent>
+
+        <TabsContent value="cards" className="space-y-6">
+          <EventCardsTab eventId={id!} />
+        </TabsContent>
+
+
 
         <TabsContent value="rsvp" className="space-y-6">
           <EventRSVP eventId={id || ''} eventTitle={eventTitle} permissions={permissions} />

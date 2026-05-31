@@ -15,8 +15,9 @@ import requests
 
 WHATSAPP_SIGNATURE = "\n-- Nuru: Keep your event together"
 
-SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+SUPABASE_URL = (os.getenv("EDGE_FUNCTION_URL", "") or os.getenv("SUPABASE_URL", "") or os.getenv("VITE_SUPABASE_URL", "")).rstrip("/")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "") or os.getenv("SUPABASE_PUBLISHABLE_KEY", "") or os.getenv("VITE_SUPABASE_PUBLISHABLE_KEY", "")
+CURRENT_FUNCTIONS_URL = "https://lmfprculxhspqxppscbn.supabase.co"
 WHATSAPP_SEND_URL = f"{SUPABASE_URL}/functions/v1/whatsapp-send" if SUPABASE_URL else ""
 
 
@@ -48,33 +49,41 @@ def _lang(value) -> str:
 
 def _send_whatsapp_sync(action: str, phone: str, params: dict):
     """Synchronous transport — only call from Celery workers."""
-    if not phone or not WHATSAPP_SEND_URL or not SUPABASE_ANON_KEY:
+    if not phone or not SUPABASE_ANON_KEY:
         return False
     international_phone = _normalize_phone(phone)
     if not international_phone:
         return False
+    urls = [WHATSAPP_SEND_URL] if WHATSAPP_SEND_URL else []
+    fallback_url = f"{CURRENT_FUNCTIONS_URL}/functions/v1/whatsapp-send"
+    if fallback_url not in urls:
+        urls.append(fallback_url)
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+        "apikey": SUPABASE_ANON_KEY,
+    }
+    payload = {"action": action, "phone": international_phone, "params": params}
     try:
-        resp = requests.post(
-            WHATSAPP_SEND_URL,
-            json={"action": action, "phone": international_phone, "params": params},
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
-                "apikey": SUPABASE_ANON_KEY,
-            },
-            timeout=15,
-        )
-        if not resp.ok:
-            print(f"[WhatsApp] Failed ({resp.status_code}) action={action}: {resp.text[:200]}")
-            return False
-        try:
-            data = resp.json()
-            if data.get("success") is False:
-                print(f"[WhatsApp] action={action} edge returned failure: {resp.text[:200]}")
+        for index, url in enumerate(urls):
+            resp = requests.post(url, json=payload, headers=headers, timeout=15)
+            body = resp.text[:200]
+            if not resp.ok:
+                is_stale_local_function = resp.status_code == 400 and "Unknown action" in body and index < len(urls) - 1
+                if is_stale_local_function:
+                    print(f"[WhatsApp] local function missing action={action}; retrying deployed function")
+                    continue
+                print(f"[WhatsApp] Failed ({resp.status_code}) action={action}: {body}")
                 return False
-        except Exception:
-            pass
-        return True
+            try:
+                data = resp.json()
+                if data.get("success") is False:
+                    print(f"[WhatsApp] action={action} edge returned failure: {body}")
+                    return False
+            except Exception:
+                pass
+            return True
+        return False
     except Exception as e:
         print(f"[WhatsApp] Error action={action} to {international_phone}: {e}")
         return False
@@ -533,4 +542,23 @@ def wa_event_reminder(*args, **kwargs):
         "event_date": kwargs.get("event_date", args[3] if len(args) > 3 else ""),
         "event_time": kwargs.get("event_time", args[4] if len(args) > 4 else ""),
         "location": kwargs.get("location", args[5] if len(args) > 5 else ""),
+    })
+
+
+# ──────────────────────────────────────────────
+# Pledge thank-you card (image header + 2 body params)
+# Templates: nuru_pledge_thank_you_card_sw / _en
+# ──────────────────────────────────────────────
+def wa_pledge_thank_you_card(
+    phone: str,
+    contributor_name: str,
+    event_name: str,
+    image_url: str,
+    lang: str = "sw",
+):
+    return _send_whatsapp("pledge_thank_you_card", phone, {
+        "contributor_name": contributor_name or "Friend",
+        "event_name": event_name or "the event",
+        "image_url": image_url or "",
+        "lang": _lang(lang),
     })

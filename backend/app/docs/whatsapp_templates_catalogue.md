@@ -1117,3 +1117,51 @@ purely a Meta Business Manager submission backlog.
 | `api/routes/offline_payments.py` | `vendor_otp_claim`, `vendor_otp_resend`, `vendor_confirmation_receipt[_full]` | ✔ Fixed in this pass: now picks `_full` variant when balance ≤ 0 and passes `amount_text`/`balance_text` instead of legacy `amount`/`remaining_msg`. |
 | `api/routes/users.py` | `wa_welcome_registered_by` | ✔ Passes `setup_token` + `lang`. |
 | `api/routes/meetings.py` | `wa_meeting_invitation` | ✔ Passes `meeting_redirect_token` + `lang`. |
+
+---
+
+## 47. nuru_pledge_thank_you_card_sw
+
+- **Language:** sw · **Status:** New (pending Meta approval) · **Category:** UTILITY
+- **Header:** IMAGE (rendered PNG of the event's thank-you card, served from `/api/v1/cards/public/{sent_id}.png`)
+- **Body:**
+```
+KADI YA SHUKRANI
+
+Habari {{1}}, asante sana kwa ahadi yako ya mchango kwa ajili ya {{2}}.
+
+Plan Smarter. Celebrate Better.
+```
+- **Placeholders (body):** `{{1}}` contributor_name · `{{2}}` event_name
+- **Buttons:** none
+- **Backend reference:** `utils/whatsapp.py::wa_pledge_thank_you_card` → `api/routes/event_cards.py` `POST /events/{id}/cards/{category}/send` (image_url is the public card render endpoint). SMS fallback: `utils/sms.py::sms_pledge_thank_you_card` sends a short message + landing URL.
+
+## 48. nuru_pledge_thank_you_card_en
+
+- **Language:** en · **Status:** New (pending Meta approval) · **Category:** UTILITY
+- **Header:** IMAGE (same source as #47)
+- **Body:**
+```
+THANK YOU CARD
+
+Hello {{1}}, thank you so much for your pledge towards {{2}}.
+
+Plan Smarter. Celebrate Better.
+```
+- **Placeholders (body):** `{{1}}` contributor_name · `{{2}}` event_name
+- **Buttons:** none
+- **Backend reference:** same as #47.
+
+
+### Submission notes (#47/#48)
+
+1. Category **UTILITY** (transactional acknowledgement, not marketing).
+2. Header sample image: any existing render at
+   `https://api.nuru.tz/api/v1/cards/public/<sent_id>.png` (1080 px, <5 MB).
+3. Submit both `_sw` and `_en` variants simultaneously.
+4. After approval, run a smoke send from
+   `POST /api/v1/events/{event_id}/cards/thank-you-for-pledging/send`.
+5. If renderer is offline the dispatcher already falls back to SMS-only with the public card landing link.
+
+Full submission spec lives in `backend/app/docs/meta_template_pledge_thank_you_card.md`.
+Storage & deployment notes live in `backend/app/docs/event_cards_storage_and_deployment.md`.
