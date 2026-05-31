@@ -600,6 +600,16 @@ def send_pledge_thank_you_cards(
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid contributor id in list")
 
+    # Frontend can render the final PNG in the browser (matches preview
+    # exactly, avoids 12 MB Illustrator SVG rasterisation on the VPS) and
+    # upload one URL per contributor. We then skip server-side rendering.
+    raw_pre = body.get("pre_rendered_images") or {}
+    pre_rendered: Dict[str, str] = {}
+    if isinstance(raw_pre, dict):
+        for k, v in raw_pre.items():
+            if isinstance(v, str) and v.strip():
+                pre_rendered[str(k)] = v.strip()
+
     contributors = (
         db.query(EventContributor)
         .options(joinedload(EventContributor.contributor))
@@ -619,6 +629,7 @@ def send_pledge_thank_you_cards(
     dispatch_event_card_id = active_card.id
 
     sent_card_ids: List[str] = []
+    sid_to_pre_rendered: Dict[str, str] = {}
     for ec in contributors:
         if not ec.contributor:
             continue
@@ -636,8 +647,11 @@ def send_pledge_thank_you_cards(
         db.commit()
         db.refresh(sent)
         sent_card_ids.append(str(sent.id))
+        pre_url = pre_rendered.get(str(ec.id))
+        if pre_url:
+            sid_to_pre_rendered[str(sent.id)] = pre_url
 
-    def _dispatch(dispatch_event_id: str, dispatch_category: str, dispatch_sent_card_ids: List[str], dispatch_sender_user_id: str):
+    def _dispatch(dispatch_event_id: str, dispatch_category: str, dispatch_sent_card_ids: List[str], dispatch_sender_user_id: str, pre_rendered_map: Dict[str, str]):
         from core.database import SessionLocal
         from services.share_links import host_for_currency, can_send_sms_for_currency
         from utils.whatsapp import wa_pledge_thank_you_card
@@ -692,31 +706,36 @@ def send_pledge_thank_you_cards(
                 fallback_image_url = f"{api_base}/api/v1/cards/public/{row.id}.png"
                 landing_url = f"https://{host}/cards/{row.id}"
 
-                # Always turn the final personalized SVG into a PNG before
-                # WhatsApp. Prefer local CairoSVG rendering to avoid edge
-                # function memory/CPU limits on Illustrator SVGs; the edge
-                # function is then used only as a storage uploader for PNG bytes.
-                # Falls back to edge SVG rasterization, then the public API PNG.
+                # Prefer the frontend-rendered PNG (already uploaded and
+                # publicly accessible). This avoids the 12 MB Illustrator SVG
+                # ever touching CairoSVG / resvg-wasm — both of which OOM on
+                # it. Server-side rendering remains as a fallback for clients
+                # that don't (or can't) pre-render in the browser.
                 image_url = fallback_image_url
-                try:
-                    from utils.whatsapp_cards import upload_card_png, upload_card_svg, upload_card_svg_url
-                    object_path = f"pledge-cards/{row.id}.png"
-                    svg, _ec, _tpl = _render_event_card_svg(s, ev, dispatch_category, contributor_name=row.recipient_name)
-                    png_bytes = _render_png_bytes(svg, tpl, width=1080)
-                    storage_url = None
-                    if png_bytes:
-                        cache_key = f"{row.id}.png"
-                        _storage.cache_put(cache_key, png_bytes)
-                        storage_url = upload_card_png(object_path, png_bytes)
-                    if not storage_url:
-                        storage_url = upload_card_svg(object_path, svg)
-                    if not storage_url:
-                        svg_url = f"{api_base}/api/v1/cards/public/{row.id}.svg"
-                        storage_url = upload_card_svg_url(object_path, svg_url)
-                    if storage_url:
-                        image_url = storage_url
-                except Exception as exc:
-                    print(f"[pledge_card_dispatch] pre-render/upload failed: {exc!r}")
+                pre_url = pre_rendered_map.get(str(row.id))
+                if pre_url:
+                    image_url = pre_url
+                    print(f"[pledge_card_dispatch] using pre-rendered url sid={row.id} url={pre_url}")
+                else:
+                    try:
+                        from utils.whatsapp_cards import upload_card_png, upload_card_svg, upload_card_svg_url
+                        object_path = f"pledge-cards/{row.id}.png"
+                        svg, _ec, _tpl = _render_event_card_svg(s, ev, dispatch_category, contributor_name=row.recipient_name)
+                        png_bytes = _render_png_bytes(svg, tpl, width=1080)
+                        storage_url = None
+                        if png_bytes:
+                            cache_key = f"{row.id}.png"
+                            _storage.cache_put(cache_key, png_bytes)
+                            storage_url = upload_card_png(object_path, png_bytes)
+                        if not storage_url:
+                            storage_url = upload_card_svg(object_path, svg)
+                        if not storage_url:
+                            svg_url = f"{api_base}/api/v1/cards/public/{row.id}.svg"
+                            storage_url = upload_card_svg_url(object_path, svg_url)
+                        if storage_url:
+                            image_url = storage_url
+                    except Exception as exc:
+                        print(f"[pledge_card_dispatch] pre-render/upload failed: {exc!r}")
 
                 row.rendered_card_url = image_url
                 s.commit()
@@ -779,9 +798,10 @@ def send_pledge_thank_you_cards(
             category,
             sent_card_ids,
             str(dispatch_sender_user_id),
+            sid_to_pre_rendered,
         )
     else:
-        _dispatch(str(dispatch_event_id), category, sent_card_ids, str(dispatch_sender_user_id))
+        _dispatch(str(dispatch_event_id), category, sent_card_ids, str(dispatch_sender_user_id), sid_to_pre_rendered)
 
     return standard_response(True, f"Queued {len(sent_card_ids)} thank-you cards.", {
         "queued": len(sent_card_ids),

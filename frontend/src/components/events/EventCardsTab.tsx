@@ -26,6 +26,8 @@ import {
   type CardTemplateDetail,
   type SavedEventCard,
 } from "@/lib/api/eventCards";
+import { uploadsApi } from "@/lib/api/uploads";
+import { renderSvgMarkupToPng } from "@/lib/cards/renderCardPng";
 import { useEventContributors } from "@/data/useContributors";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
@@ -302,17 +304,56 @@ export default function EventCardsTab({ eventId }: Props) {
 
   const onSend = useCallback(async () => {
     if (!activeCategory || selectedContributorIds.size === 0) return;
+    if (!activeTemplate?.svg) {
+      toast({ title: "Template not ready", description: "Reload the page and try again.", variant: "destructive" });
+      return;
+    }
     setSending(true);
     try {
-      await eventCardsApi.sendToContributors(eventId, activeCategory, Array.from(selectedContributorIds));
-      toast({ title: "Cards queued", description: `Sending to ${selectedContributorIds.size} contributor(s).` });
+      const meta = activeTemplate.metadata || {};
+      const defaults: Record<string, string> = {};
+      (meta.editable_fields || []).forEach((f) => { defaults[f.id] = f.default ?? ""; });
+      const placeholderId = meta.contributor_placeholder_id || "contributor_name_text";
+
+      const ids = Array.from(selectedContributorIds);
+      const idToName: Record<string, string> = {};
+      eventContributors.forEach((ec) => {
+        if (ids.includes(ec.id)) idToName[ec.id] = ec.contributor?.name || "Friend";
+      });
+
+      // Render + upload one PNG per contributor. Each card embeds that
+      // contributor's name exactly as the preview displays it, so WhatsApp
+      // receives a finished image — the backend never re-renders the SVG.
+      const preRendered: Record<string, string> = {};
+      for (const id of ids) {
+        const svg = buildPreviewSvg(
+          activeTemplate.svg,
+          activeTemplate.slug,
+          values,
+          defaults,
+          placeholderId,
+          idToName[id] || "Friend",
+          meta.fonts || [],
+        );
+        const blob = await renderSvgMarkupToPng(svg, { width: 1080, pixelRatio: 2 });
+        const file = new File([blob], `pledge-card-${id}.png`, { type: "image/png" });
+        const res = await uploadsApi.upload(file);
+        const url = res.data?.url;
+        if (!url) throw new Error(`Upload failed for contributor ${id}`);
+        // eslint-disable-next-line no-console
+        console.info("[pledge-card] uploaded", { contributor_id: id, url });
+        preRendered[id] = url;
+      }
+
+      await eventCardsApi.sendToContributors(eventId, activeCategory, ids, preRendered);
+      toast({ title: "Cards queued", description: `Sending to ${ids.length} contributor(s).` });
       setSendOpen(false);
     } catch (e: any) {
       toast({ title: "Send failed", description: e?.message, variant: "destructive" });
     } finally {
       setSending(false);
     }
-  }, [activeCategory, eventId, selectedContributorIds]);
+  }, [activeCategory, activeTemplate, eventId, selectedContributorIds, values, eventContributors]);
 
   const previewSvgMarkup = useMemo(() => {
     if (!activeTemplate?.svg) return null;

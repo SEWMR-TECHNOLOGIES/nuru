@@ -106,10 +106,14 @@ export const eventCardsApi = {
     eventId: string,
     category: string,
     contributorIds: string[],
+    preRenderedImages?: Record<string, string>,
   ) =>
     post<{ queued: number }>(
       `/events/${eventId}/cards/${encodeURIComponent(category)}/send`,
-      { contributor_ids: contributorIds },
+      {
+        contributor_ids: contributorIds,
+        pre_rendered_images: preRenderedImages || undefined,
+      },
     ),
 
   /** Direct URL helpers (these endpoints return image bytes, not JSON). */
