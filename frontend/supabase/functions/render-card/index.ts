@@ -5,6 +5,7 @@
 // Body:
 //   { kind: "invitation", event_id, guest_name, guest_id?, qr_value?, second_name?, force? }
 //   { kind: "ticket",     event_id, ticket_code, ticket_data?, force? }
+//   { kind: "upload",     path, png_b64? | svg_b64? | svg_url? }
 //
 // `ticket_data` is the same shape the mobile YourTicketScreen consumes.
 // If omitted, the function will fetch from FastAPI (NURU_API_BASE_URL).
@@ -296,17 +297,37 @@ function json(payload: unknown, status = 200): Response {
 async function handleUpload(body: any): Promise<Response> {
   const path: string = (body?.path || '').toString();
   const pngB64: string = (body?.png_b64 || '').toString();
-  if (!path || !pngB64) {
-    return json({ error: 'path and png_b64 are required' }, 400);
+  const svgB64: string = (body?.svg_b64 || '').toString();
+  const svgUrl: string = (body?.svg_url || '').toString();
+  if (!path || (!pngB64 && !svgB64 && !svgUrl)) {
+    return json({ error: 'path and png_b64, svg_b64, or svg_url are required' }, 400);
   }
   // Basic safety: confine uploads to the cards namespace
   if (path.includes('..') || path.startsWith('/')) {
     return json({ error: 'invalid path' }, 400);
   }
   try {
-    const bin = atob(pngB64);
-    const png = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) png[i] = bin.charCodeAt(i);
+    let png: Uint8Array;
+    if (pngB64) {
+      const bin = atob(pngB64);
+      png = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) png[i] = bin.charCodeAt(i);
+    } else {
+      let svg = '';
+      if (svgUrl) {
+        const source = new URL(svgUrl);
+        if (source.protocol !== 'https:') throw new Error('svg_url must be https');
+        const r = await fetch(source.toString());
+        if (!r.ok) throw new Error(`svg fetch failed: ${r.status}`);
+        svg = await r.text();
+      } else {
+        const svgBin = atob(svgB64);
+        const svgBytes = new Uint8Array(svgBin.length);
+        for (let i = 0; i < svgBin.length; i++) svgBytes[i] = svgBin.charCodeAt(i);
+        svg = new TextDecoder().decode(svgBytes);
+      }
+      png = await rasterize(svg, 1080);
+    }
     const url = await uploadPng(path, png);
     return json({ url, path, kind: 'upload' });
   } catch (e) {

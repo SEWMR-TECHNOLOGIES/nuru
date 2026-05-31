@@ -21,16 +21,23 @@ from core.celery_app import celery_app
 def send_action(self, action: str, phone: str, params: dict):
     """Generic WhatsApp send. ``action`` matches the edge-function dispatcher
     keys (e.g. ``"text"``, ``"invite"``, ``"contribution_recorded"``)."""
-    from utils.whatsapp import _send_whatsapp_sync as _send_whatsapp
+    from utils.whatsapp import _send_whatsapp_sync as _send_whatsapp, _normalize_phone, _mask_phone
+    tail = _mask_phone(_normalize_phone(phone or ""))
     try:
-        ok = _send_whatsapp(action, phone, params or {})
-        if ok:
-            print(f"[wa_dispatch] ok action={action} phone={phone[-4:] if phone else '?'}")
-        else:
-            print(f"[wa_dispatch] failed action={action} phone={phone[-4:] if phone else '?'}")
-        return {"ok": bool(ok), "action": action}
+        result = _send_whatsapp(action, phone, params or {})
+        if not isinstance(result, dict):
+            result = {"ok": bool(result)}
+        if result.get("ok") and result.get("message_id"):
+            print(f"[wa_dispatch] ok action={action} phone_tail={tail} wamid={result.get('message_id')}")
+            return {"ok": True, "action": action, "message_id": result.get("message_id")}
+        print(
+            f"[wa_dispatch] failed action={action} phone_tail={tail} "
+            f"status={result.get('status')} not_on_whatsapp={result.get('not_on_whatsapp')} "
+            f"error={(result.get('error') or '')[:200]}"
+        )
+        return {"ok": False, "action": action, **{k: v for k, v in result.items() if k != 'ok'}}
     except Exception as exc:  # noqa: BLE001
-        print(f"[wa_dispatch] retry action={action}: {exc}")
+        print(f"[wa_dispatch] retry action={action} phone_tail={tail}: {exc}")
         raise self.retry(exc=exc)
 
 
@@ -45,8 +52,9 @@ def send_text(self, phone: str, message: str):
     """Plain WhatsApp text (24h conversation window only)."""
     from utils.whatsapp import _send_whatsapp_sync as _send_whatsapp
     try:
-        ok = _send_whatsapp("text", phone, {"message": message})
-        return {"ok": bool(ok)}
+        result = _send_whatsapp("text", phone, {"message": message})
+        ok = bool(result.get("ok")) if isinstance(result, dict) else bool(result)
+        return {"ok": ok}
     except Exception as exc:  # noqa: BLE001
         raise self.retry(exc=exc)
 

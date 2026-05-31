@@ -678,6 +678,9 @@ function buildLegacyReminder(p: any) {
 
 function toWaImageLink(rawUrl: string): string {
   if (!rawUrl) return "";
+  if (rawUrl.includes("/storage/v1/object/public/invitation-media/") || rawUrl.includes("/api/v1/cards/public/")) {
+    return rawUrl;
+  }
   if (rawUrl.includes("wsrv.nl")) return rawUrl;
   const stripped = rawUrl.replace(/^https?:\/\//, "");
   return `https://wsrv.nl/?url=${encodeURIComponent(stripped)}&output=jpg&q=95&we`;

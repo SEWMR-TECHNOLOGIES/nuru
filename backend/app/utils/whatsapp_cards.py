@@ -80,6 +80,60 @@ def upload_card_png(path: str, png_bytes: bytes) -> str | None:
     return None
 
 
+def upload_card_svg(path: str, svg: str) -> str | None:
+    """Rasterize SVG in the render-card edge function, upload the resulting
+    PNG to public storage, and return the public URL. This avoids relying on
+    CairoSVG/system libraries inside the API server."""
+    import base64
+    urls = [RENDER_URL] if RENDER_URL else []
+    fallback_url = f"{CURRENT_FUNCTIONS_URL}/functions/v1/render-card"
+    if fallback_url not in urls:
+        urls.append(fallback_url)
+    if not urls or not svg:
+        return None
+    payload = {
+        "kind": "upload",
+        "path": path,
+        "svg_b64": base64.b64encode(svg.encode("utf-8")).decode("ascii"),
+    }
+    for url in urls:
+        try:
+            r = requests.post(url, json=payload, headers=_HEADERS, timeout=45)
+            if not r.ok:
+                print(f"[wa_cards] svg upload failed ({r.status_code}): {r.text[:200]}")
+                continue
+            data = r.json() or {}
+            print(f"[wa_cards] svg upload ok path={path} url={data.get('url')}")
+            return data.get("url")
+        except Exception as e:
+            print(f"[wa_cards] svg upload exception url={url}: {e}")
+    return None
+
+
+def upload_card_svg_url(path: str, svg_url: str) -> str | None:
+    """Ask render-card to fetch a public SVG URL, rasterize it, upload the
+    PNG, and return the public URL. Best for large template SVGs."""
+    urls = [RENDER_URL] if RENDER_URL else []
+    fallback_url = f"{CURRENT_FUNCTIONS_URL}/functions/v1/render-card"
+    if fallback_url not in urls:
+        urls.append(fallback_url)
+    if not urls or not svg_url:
+        return None
+    payload = {"kind": "upload", "path": path, "svg_url": svg_url}
+    for url in urls:
+        try:
+            r = requests.post(url, json=payload, headers=_HEADERS, timeout=60)
+            if not r.ok:
+                print(f"[wa_cards] svg url upload failed ({r.status_code}): {r.text[:200]}")
+                continue
+            data = r.json() or {}
+            print(f"[wa_cards] svg url upload ok path={path} url={data.get('url')}")
+            return data.get("url")
+        except Exception as e:
+            print(f"[wa_cards] svg url upload exception url={url}: {e}")
+    return None
+
+
 def _send(action: str, phone: str, params: dict) -> bool:
     urls = [SEND_URL] if SEND_URL else []
     fallback_url = f"{CURRENT_FUNCTIONS_URL}/functions/v1/whatsapp-send"
@@ -88,7 +142,8 @@ def _send(action: str, phone: str, params: dict) -> bool:
     if not urls:
         print("[wa_cards] send skipped: missing edge function URL")
         return False
-    print(f"[wa_cards] send action={action} phone={phone} params={params}")
+    phone_tail = (phone[-4:] if phone and len(phone) >= 4 else "?")
+    print(f"[wa_cards] send action={action} phone_tail={phone_tail} param_keys={sorted(list((params or {}).keys()))}")
     for url in urls:
         try:
             print(f"[wa_cards] send url={url}")

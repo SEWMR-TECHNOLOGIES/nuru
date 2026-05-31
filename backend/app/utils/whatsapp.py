@@ -24,14 +24,31 @@ WHATSAPP_SEND_URL = f"{SUPABASE_URL}/functions/v1/whatsapp-send" if SUPABASE_URL
 def _normalize_phone(phone: str) -> str:
     if not phone:
         return ""
-    phone = phone.strip().replace(" ", "")
-    if phone.startswith("+"):
-        return phone.lstrip("+")
-    if phone.startswith("0"):
-        return "255" + phone[1:]
-    if phone.startswith("255"):
-        return phone
-    return phone
+    # Strip whitespace, +, -, brackets, dots — keep digits only after a possible leading +
+    raw = str(phone).strip()
+    for ch in (" ", "+", "-", "(", ")", ".", "\u00a0"):
+        raw = raw.replace(ch, "")
+    if not raw.isdigit():
+        # keep digits only
+        raw = "".join(c for c in raw if c.isdigit())
+    if not raw:
+        return ""
+    # Tanzania local formats: 07XXXXXXXX / 06XXXXXXXX → 2557.../2556...
+    if raw.startswith("0") and len(raw) == 10:
+        return "255" + raw[1:]
+    if raw.startswith("255"):
+        return raw
+    return raw
+
+
+def _mask_phone(phone: str) -> str:
+    """Safe log representation: e.g. 2557...0805 (full intl prefix + last 4)."""
+    if not phone:
+        return "?"
+    p = str(phone)
+    if len(p) <= 4:
+        return "*" * len(p)
+    return f"{p[:4]}...{p[-4:]}"
 
 
 def _money(amount, currency: str = "TZS") -> str:
@@ -48,12 +65,17 @@ def _lang(value) -> str:
 
 
 def _send_whatsapp_sync(action: str, phone: str, params: dict):
-    """Synchronous transport — only call from Celery workers."""
+    """Synchronous transport — only call from Celery workers.
+
+    Returns a dict ``{ok, message_id, status, not_on_whatsapp, error}`` so
+    callers can log real WhatsApp/Meta acceptance instead of HTTP 200.
+    """
     if not phone or not SUPABASE_ANON_KEY:
-        return False
+        return {"ok": False, "error": "missing phone or anon key"}
     international_phone = _normalize_phone(phone)
     if not international_phone:
-        return False
+        return {"ok": False, "error": "phone normalization failed"}
+    phone_tail = _mask_phone(international_phone)
     urls = [WHATSAPP_SEND_URL] if WHATSAPP_SEND_URL else []
     fallback_url = f"{CURRENT_FUNCTIONS_URL}/functions/v1/whatsapp-send"
     if fallback_url not in urls:
@@ -64,29 +86,44 @@ def _send_whatsapp_sync(action: str, phone: str, params: dict):
         "apikey": SUPABASE_ANON_KEY,
     }
     payload = {"action": action, "phone": international_phone, "params": params}
+    param_keys = sorted(list((params or {}).keys()))
+    print(f"[WhatsApp] →edge action={action} phone_tail={phone_tail} param_keys={param_keys}")
     try:
         for index, url in enumerate(urls):
             resp = requests.post(url, json=payload, headers=headers, timeout=15)
-            body = resp.text[:200]
+            body = resp.text[:500]
             if not resp.ok:
                 is_stale_local_function = resp.status_code == 400 and "Unknown action" in body and index < len(urls) - 1
                 if is_stale_local_function:
                     print(f"[WhatsApp] local function missing action={action}; retrying deployed function")
                     continue
-                print(f"[WhatsApp] Failed ({resp.status_code}) action={action}: {body}")
-                return False
+                print(f"[WhatsApp] ←edge HTTP {resp.status_code} action={action} phone_tail={phone_tail} body={body}")
+                return {"ok": False, "status": resp.status_code, "error": body}
             try:
                 data = resp.json()
-                if data.get("success") is False:
-                    print(f"[WhatsApp] action={action} edge returned failure: {body}")
-                    return False
             except Exception:
-                pass
-            return True
-        return False
+                data = {}
+            success = data.get("success")
+            sent = data.get("sent")
+            message_id = data.get("message_id")
+            not_on_wa = bool(data.get("not_on_whatsapp"))
+            print(
+                f"[WhatsApp] ←edge HTTP {resp.status_code} action={action} phone_tail={phone_tail} "
+                f"success={success} sent={sent} message_id={message_id} not_on_whatsapp={not_on_wa} body={body}"
+            )
+            if success is False or sent is False or not message_id:
+                return {
+                    "ok": False,
+                    "status": resp.status_code,
+                    "message_id": message_id,
+                    "not_on_whatsapp": not_on_wa,
+                    "error": body,
+                }
+            return {"ok": True, "status": resp.status_code, "message_id": message_id}
+        return {"ok": False, "error": "no edge URL responded"}
     except Exception as e:
-        print(f"[WhatsApp] Error action={action} to {international_phone}: {e}")
-        return False
+        print(f"[WhatsApp] exception action={action} phone_tail={phone_tail}: {e}")
+        return {"ok": False, "error": str(e)}
 
 
 def _send_whatsapp(action: str, phone: str, params: dict):
@@ -104,7 +141,8 @@ def _send_whatsapp(action: str, phone: str, params: dict):
             return True
         except Exception as e:
             print(f"[WhatsApp] enqueue failed, sending inline: {e}")
-    return _send_whatsapp_sync(action, phone, params or {})
+    result = _send_whatsapp_sync(action, phone, params or {})
+    return bool(result.get("ok")) if isinstance(result, dict) else bool(result)
 
 
 def _send_whatsapp_text(phone: str, message: str):

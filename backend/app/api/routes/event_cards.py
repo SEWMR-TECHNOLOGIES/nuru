@@ -679,18 +679,28 @@ def send_pledge_thank_you_cards(
                 fallback_image_url = f"{api_base}/api/v1/cards/public/{row.id}.png"
                 landing_url = f"https://{host}/cards/{row.id}"
 
-                # Pre-render the card and upload to Supabase Storage so that
-                # Meta fetches a stable, public, correct-content-type PNG.
-                # Falls back to the api.nuru.tz endpoint if upload fails.
+                # Upload via the render-card edge function so Meta fetches a
+                # stable, public, correct-content-type PNG. Prefer edge-side
+                # SVG rasterization because the API host may not have CairoSVG.
+                # Falls back to local PNG render, then to the api.nuru.tz URL.
                 image_url = fallback_image_url
                 try:
-                    from utils.whatsapp_cards import upload_card_png
-                    svg, _ec, _tpl = _render_event_card_svg(s, ev, dispatch_category, contributor_name=row.recipient_name)
-                    png_bytes = _render_png_bytes(svg, tpl, width=1080)
-                    if png_bytes:
-                        cache_key = f"{row.id}.png"
-                        _storage.cache_put(cache_key, png_bytes)
-                        storage_url = upload_card_png(f"pledge-cards/{row.id}.png", png_bytes)
+                    from utils.whatsapp_cards import upload_card_png, upload_card_svg, upload_card_svg_url
+                    object_path = f"pledge-cards/{row.id}.png"
+                    svg_url = f"{api_base}/api/v1/cards/public/{row.id}.svg"
+                    storage_url = upload_card_svg_url(object_path, svg_url)
+                    svg = None
+                    if not storage_url:
+                        svg, _ec, _tpl = _render_event_card_svg(s, ev, dispatch_category, contributor_name=row.recipient_name)
+                        storage_url = upload_card_svg(object_path, svg)
+                    if not storage_url:
+                        if svg is None:
+                            svg, _ec, _tpl = _render_event_card_svg(s, ev, dispatch_category, contributor_name=row.recipient_name)
+                        png_bytes = _render_png_bytes(svg, tpl, width=1080)
+                        if png_bytes:
+                            cache_key = f"{row.id}.png"
+                            _storage.cache_put(cache_key, png_bytes)
+                            storage_url = upload_card_png(object_path, png_bytes)
                         if storage_url:
                             image_url = storage_url
                 except Exception as exc:
@@ -804,6 +814,29 @@ def public_card_png(sent_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=503, detail="PNG renderer unavailable")
     _storage.cache_put(cache_key, png)
     return Response(content=png, media_type="image/png")
+
+
+@router.get("/cards/public/{sent_id}.svg")
+def public_card_svg(sent_id: str, db: Session = Depends(get_db)):
+    try:
+        sid = uuid.UUID(sent_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid id")
+    row = db.query(SentEventCard).filter(SentEventCard.id == sid).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Not found")
+    ec = db.query(EventCard).filter(EventCard.id == row.event_card_id).first() if row.event_card_id else None
+    if not ec:
+        ec = db.query(EventCard).filter(
+            EventCard.event_id == row.event_id, EventCard.is_active.is_(True)
+        ).first()
+    if not ec:
+        raise HTTPException(status_code=404, detail="Card configuration missing")
+    event = db.query(Event).filter(Event.id == row.event_id).first()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    svg, _ec, _tpl = _render_event_card_svg(db, event, ec.category, contributor_name=row.recipient_name)
+    return Response(content=svg, media_type="image/svg+xml")
 
 
 @router.get("/cards/public/{sent_id}", response_class=HTMLResponse)
