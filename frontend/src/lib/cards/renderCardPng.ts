@@ -48,6 +48,12 @@ export async function renderSvgMarkupToPng(
   try {
     // Make sure web fonts referenced by the SVG @font-face rules are loaded
     // before we paint; otherwise the PNG falls back to system fonts.
+    // Explicitly preload every @font-face declared inside the SVG via the
+    // FontFace API. document.fonts.ready alone is not enough — fonts
+    // declared inside inline-SVG <style> are loaded lazily and may not be
+    // ready when html-to-image clones the node (Anthony Hunter script
+    // glyphs were rendering blank because of this).
+    await preloadSvgFonts(svgMarkup);
     try {
       if ((document as any).fonts?.ready) {
         await (document as any).fonts.ready;
@@ -57,7 +63,7 @@ export async function renderSvgMarkupToPng(
     }
     // Force layout + a frame so any late-arriving images are decoded.
     await new Promise((r) => requestAnimationFrame(() => r(null)));
-    await new Promise((r) => setTimeout(r, 80));
+    await new Promise((r) => setTimeout(r, 120));
 
     const target = (svgEl as unknown as HTMLElement) || host;
     const blob = await toBlob(target, {
@@ -74,3 +80,54 @@ export async function renderSvgMarkupToPng(
     host.remove();
   }
 }
+
+
+
+
+/** Parse every @font-face rule in the SVG <style> blocks and load each
+ *  font URL through the FontFace API so the family is registered on
+ *  document.fonts BEFORE html-to-image clones the DOM. Without this,
+ *  scripty fonts (Anthony Hunter) silently fall back to system fonts and
+ *  the captured PNG has blank gaps where styled headings should be. */
+async function preloadSvgFonts(svgMarkup: string): Promise<void> {
+  if (!(document as any).fonts?.add) return;
+  const fontFaceRe = /@font-face\s*{([^}]+)}/gi;
+  const familyRe = /font-family\s*:\s*['"]?([^;'"]+)['"]?/i;
+  const srcUrlRe = /url\(\s*['"]?([^'")]+)['"]?\s*\)(?:\s*format\(\s*['"]?([^'")]+)['"]?\s*\))?/gi;
+  const styleRe = /font-style\s*:\s*([a-z]+)/i;
+  const weightRe = /font-weight\s*:\s*([a-z0-9]+)/i;
+
+  const jobs: Promise<unknown>[] = [];
+  const seen = new Set<string>();
+  let m: RegExpExecArray | null;
+  while ((m = fontFaceRe.exec(svgMarkup))) {
+    const block = m[1];
+    const famMatch = block.match(familyRe);
+    if (!famMatch) continue;
+    const family = famMatch[1].trim();
+    const style = (block.match(styleRe)?.[1] || "normal").trim();
+    const weight = (block.match(weightRe)?.[1] || "400").trim();
+    srcUrlRe.lastIndex = 0;
+    let u: RegExpExecArray | null;
+    while ((u = srcUrlRe.exec(block))) {
+      const url = u[1];
+      if (!/^https?:\/\//i.test(url) && !url.startsWith("/")) continue;
+      const key = `${family}|${style}|${weight}|${url}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      try {
+        const face = new FontFace(family, `url(${url})`, { style, weight, display: "swap" } as FontFaceDescriptors);
+        jobs.push(
+          face
+            .load()
+            .then((loaded) => { (document as any).fonts.add(loaded); })
+            .catch(() => {}),
+        );
+      } catch {
+        /* invalid descriptor — skip */
+      }
+    }
+  }
+  if (jobs.length) await Promise.all(jobs);
+}
+
