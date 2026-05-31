@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
     const isTanzanian = cleanPhone.startsWith("255");
     if (isTanzanian && user_id) {
       try {
-        const NURU_API = Deno.env.get("NURU_API_BASE_URL") || "https://api.nuru.tz/api/v1";
+        const NURU_API = Deno.env.get("NURU_API_BASE_URL") || "https://nuruapi.nuru.tz/api/v1";
         const smsRes = await fetch(`${NURU_API}/users/request-otp`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

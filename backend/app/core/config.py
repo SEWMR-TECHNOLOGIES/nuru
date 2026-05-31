@@ -21,7 +21,7 @@ SEWMR_SMS_DEFAULT_SENDER_ID = os.getenv("SEWMR_SMS_DEFAULT_SENDER_ID", "")
 ADMIN_NOTIFY_PHONE = os.getenv("ADMIN_NOTIFY_PHONE", "255764413610")
 # Public base URL of this API — used to auto-build the SasaPay callback URL
 # (and any other webhook URL) when an explicit override is not provided.
-# Example: https://api.nuru.tz  →  callback becomes https://api.nuru.tz/api/v1/payments/callback
+# Example: https://nuruapi.nuru.tz  →  callback becomes https://nuruapi.nuru.tz/api/v1/payments/callback
 API_BASE_URL = os.getenv("API_BASE_URL", "").rstrip("/")
 UPLOAD_SERVICE_URL = "https://data.sewmrtechnologies.com/handle-file-uploads"
 DELETE_SERVICE_URL = "https://data.sewmrtechnologies.com/delete-file.php"

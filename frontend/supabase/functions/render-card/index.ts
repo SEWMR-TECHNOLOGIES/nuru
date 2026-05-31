@@ -110,10 +110,30 @@ async function qrPngDataUrl(value: string, size = 480, dark = '#111111', light =
   });
 }
 
+/**
+ * Strip XML constructs that `resvg-wasm` rejects but browsers tolerate.
+ * Adobe Illustrator-exported SVGs include a `<!DOCTYPE svg [ <!ENTITY ns_extend "..."> ... ]>`
+ * block plus `&ns_extend;` / `&ns_svg;` / `&ns_ai;` / `&ns_graphs;` entity references on
+ * attributes. resvg's XML parser fails with `unknown entity reference 'ns_extend'`.
+ * We drop the DOCTYPE entirely and remove any leftover `&ns_*;` references.
+ */
+function sanitizeSvg(svg: string): string {
+  let out = svg;
+  // Remove XML declaration variants we don't need
+  out = out.replace(/<\?xml[^?]*\?>/g, '');
+  // Remove the entire DOCTYPE block (including internal subset `[ ... ]`)
+  out = out.replace(/<!DOCTYPE[^>[]*(\[[\s\S]*?\])?[^>]*>/gi, '');
+  // Strip any `&ns_*;` entity references that survive (used as attribute values)
+  out = out.replace(/&ns_[a-zA-Z0-9_]+;/g, '');
+  // Strip stray XML comments containing entity refs that confuse the parser
+  return out.trim();
+}
+
 async function rasterize(svg: string, width = 1080): Promise<Uint8Array> {
   await ensureWasm();
   const fontBuffers = await loadFontBuffers();
-  const r = new Resvg(svg, {
+  const clean = sanitizeSvg(svg);
+  const r = new Resvg(clean, {
     fitTo: { mode: 'width', value: width },
     background: 'white',
     font: {
