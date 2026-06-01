@@ -22,11 +22,28 @@ def send_action(self, action: str, phone: str, params: dict):
     """Generic WhatsApp send. ``action`` matches the edge-function dispatcher
     keys (e.g. ``"text"``, ``"invite"``, ``"contribution_recorded"``)."""
     from utils.whatsapp import _send_whatsapp_sync as _send_whatsapp, _normalize_phone, _mask_phone
+    from utils.whatsapp_availability import record_send_outcome
+    from core.database import SessionLocal
     tail = _mask_phone(_normalize_phone(phone or ""))
     try:
         result = _send_whatsapp(action, phone, params or {})
         if not isinstance(result, dict):
             result = {"ok": bool(result)}
+        # Opportunistically learn the recipient's WhatsApp status from this
+        # real send — no extra Meta API call needed.
+        try:
+            if phone:
+                db = SessionLocal()
+                try:
+                    if result.get("ok") and result.get("message_id"):
+                        record_send_outcome(db, phone, delivered=True)
+                    elif result.get("not_on_whatsapp"):
+                        record_send_outcome(db, phone, delivered=False, not_on_whatsapp=True)
+                finally:
+                    db.close()
+        except Exception as _e:  # noqa: BLE001
+            print(f"[wa_dispatch] record_send_outcome skipped: {_e}")
+
         if result.get("ok") and result.get("message_id"):
             print(f"[wa_dispatch] ok action={action} phone_tail={tail} wamid={result.get('message_id')}")
             return {"ok": True, "action": action, "message_id": result.get("message_id")}

@@ -14,17 +14,16 @@ SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
 WHATSAPP_SEND_URL = f"{SUPABASE_URL}/functions/v1/whatsapp-send" if SUPABASE_URL else ""
 
 
-def check_whatsapp_number(phone: str) -> bool | None:
+def check_whatsapp_number(phone: str):
     """
     Check if a phone number is registered on WhatsApp
     by calling the whatsapp-send edge function with action=check_whatsapp.
 
-    Args:
-        phone: International phone number without + prefix (e.g., "255712345678")
-
     Returns:
-        True if confirmed on WhatsApp, False if confirmed not, None if unknown.
-        When None is returned, the caller should try sending directly.
+        True  → confirmed on WhatsApp
+        False → confirmed not on WhatsApp
+        None  → genuinely unknown (transient/provider error, retry later)
+        "config_error" → our WABA can't run the probe (don't retry soon)
     """
     if not WHATSAPP_SEND_URL or not SUPABASE_ANON_KEY:
         print("[WhatsApp Check] Missing SUPABASE_URL or SUPABASE_ANON_KEY")
@@ -44,10 +43,12 @@ def check_whatsapp_number(phone: str) -> bool | None:
 
         if resp.ok:
             data = resp.json()
+            if data.get("config_error"):
+                print(f"[WhatsApp Check] Config error: {data.get('error')}")
+                return "config_error"
             is_wa = data.get("is_whatsapp")
-            # "unknown" means the contacts API isn't available — try sending directly
             if is_wa == "unknown":
-                print(f"[WhatsApp Check] Contact lookup unavailable for {phone}, returning None")
+                print(f"[WhatsApp Check] Unknown for {phone}: {data.get('error')}")
                 return None
             return bool(is_wa)
         else:

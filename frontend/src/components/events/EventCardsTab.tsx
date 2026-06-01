@@ -35,6 +35,43 @@ interface Props {
   eventId: string;
 }
 
+type BatchStatus = "not_sent" | "sending" | "sent" | "partial_failure" | "failed" | "cancelled";
+
+interface BatchFailure {
+  recipient_id: string;
+  name: string;
+  reason: string;
+}
+
+interface BatchState {
+  batch_no: number;
+  recipient_ids: string[];
+  sent_ids: string[];
+  failed: BatchFailure[];
+  status: BatchStatus;
+  started_at?: string;
+  finished_at?: string;
+}
+
+interface BatchJob {
+  job_id: string;
+  event_id: string;
+  template_slug: string;
+  batch_size: number;
+  batches: BatchState[];
+}
+
+const BATCH_STORAGE_PREFIX = "nuru.cardBatchJob.";
+const loadBatchJob = (jobId: string): BatchJob | null => {
+  try {
+    const raw = localStorage.getItem(BATCH_STORAGE_PREFIX + jobId);
+    return raw ? (JSON.parse(raw) as BatchJob) : null;
+  } catch { return null; }
+};
+const saveBatchJob = (job: BatchJob) => {
+  try { localStorage.setItem(BATCH_STORAGE_PREFIX + job.job_id, JSON.stringify(job)); } catch { /* quota */ }
+};
+
 const escapeHtml = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
@@ -245,8 +282,12 @@ export default function EventCardsTab({ eventId }: Props) {
   const [saving, setSaving] = useState(false);
   const [previewBust, setPreviewBust] = useState(0);
   const [sendOpen, setSendOpen] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [sendProgress, setSendProgress] = useState<{ done: number; total: number } | null>(null);
+  const [sendStep, setSendStep] = useState<"pick" | "batches">("pick");
+  const [batchSize, setBatchSize] = useState<number>(20);
+  const [batches, setBatches] = useState<BatchState[]>([]);
+  const [activeBatchNo, setActiveBatchNo] = useState<number | null>(null);
+  const [activeBatchProgress, setActiveBatchProgress] = useState<{ done: number; total: number; currentName?: string } | null>(null);
+  const cancelRef = useRef<boolean>(false);
   const [contributorSearch, setContributorSearch] = useState("");
   const [selectedContributorIds, setSelectedContributorIds] = useState<Set<string>>(new Set());
 
@@ -362,6 +403,11 @@ export default function EventCardsTab({ eventId }: Props) {
     }
   }, [activeTemplate, activeCategory, eventId, values]);
 
+  const currentJobId = useMemo(
+    () => (activeTemplate?.slug ? `${eventId}-${activeTemplate.slug}` : ""),
+    [eventId, activeTemplate?.slug],
+  );
+
   const openSend = useCallback(() => {
     if (!savedCard) {
       toast({ title: "Save the card first", description: "Configure and save the card before sending." });
@@ -370,8 +416,18 @@ export default function EventCardsTab({ eventId }: Props) {
     if (!initialFetched.current) { fetchEventContributors(); initialFetched.current = true; }
     setSelectedContributorIds(new Set());
     setContributorSearch("");
+    // Resume any saved job for this template (so refresh keeps the report)
+    const existing = currentJobId ? loadBatchJob(currentJobId) : null;
+    if (existing && existing.batches.length > 0) {
+      setBatches(existing.batches);
+      setBatchSize(existing.batch_size);
+      setSendStep("batches");
+    } else {
+      setBatches([]);
+      setSendStep("pick");
+    }
     setSendOpen(true);
-  }, [savedCard, fetchEventContributors]);
+  }, [savedCard, fetchEventContributors, currentJobId]);
 
   const toggleContributor = (id: string) => {
     setSelectedContributorIds((prev) => {
@@ -414,16 +470,57 @@ export default function EventCardsTab({ eventId }: Props) {
     });
   };
 
-  const onSend = useCallback(async () => {
-    if (!activeCategory || selectedContributorIds.size === 0) return;
-    if (!activeTemplate?.svg) {
-      toast({ title: "Template not ready", description: "Reload the page and try again.", variant: "destructive" });
-      return;
-    }
-    setSending(true);
+  // Build batches from the currently selected contributors and move to step 2.
+  const continueToBatches = useCallback(() => {
+    if (selectedContributorIds.size === 0 || !activeTemplate?.slug) return;
     const ids = Array.from(selectedContributorIds);
-    setSendProgress({ done: 0, total: ids.length });
-    try {
+    const size = Math.max(1, batchSize);
+    const newBatches: BatchState[] = [];
+    for (let i = 0; i < ids.length; i += size) {
+      newBatches.push({
+        batch_no: newBatches.length + 1,
+        recipient_ids: ids.slice(i, i + size),
+        sent_ids: [],
+        failed: [],
+        status: "not_sent",
+      });
+    }
+    setBatches(newBatches);
+    if (currentJobId) {
+      saveBatchJob({
+        job_id: currentJobId,
+        event_id: eventId,
+        template_slug: activeTemplate.slug,
+        batch_size: size,
+        batches: newBatches,
+      });
+    }
+    setSendStep("batches");
+  }, [selectedContributorIds, batchSize, activeTemplate?.slug, currentJobId, eventId]);
+
+  const persistBatches = useCallback(
+    (next: BatchState[]) => {
+      setBatches(next);
+      if (!currentJobId || !activeTemplate?.slug) return;
+      saveBatchJob({
+        job_id: currentJobId,
+        event_id: eventId,
+        template_slug: activeTemplate.slug,
+        batch_size: batchSize,
+        batches: next,
+      });
+    },
+    [currentJobId, activeTemplate?.slug, eventId, batchSize],
+  );
+
+  // Render + upload + send a specific set of recipient ids. Used for both
+  // initial batch sends and "retry failed" — keeps the proven single-flow
+  // pipeline; only the input list changes.
+  const prepareAndSendIds = useCallback(
+    async (ids: string[]): Promise<{ sentIds: string[]; failed: BatchFailure[] }> => {
+      if (!activeTemplate?.svg || !activeCategory) {
+        return { sentIds: [], failed: ids.map((id) => ({ recipient_id: id, name: "", reason: "Template not ready" })) };
+      }
       const meta = activeTemplate.metadata || {};
       const defaults: Record<string, string> = {};
       (meta.editable_fields || []).forEach((f) => { defaults[f.id] = f.default ?? ""; });
@@ -434,52 +531,123 @@ export default function EventCardsTab({ eventId }: Props) {
         if (ids.includes(ec.id)) idToName[ec.id] = ec.contributor?.name || "Friend";
       });
 
-      // Render + upload in parallel with a bounded concurrency so 1k cards
-      // don't blow up the browser's main thread or saturate the network.
-      // 6 in flight keeps Chrome happy while completing ~10x faster than the
-      // previous sequential loop.
-      const CONCURRENCY = 6;
+      const failed: BatchFailure[] = [];
       const preRendered: Record<string, string> = {};
+      const total = ids.length;
       let done = 0;
       let cursor = 0;
+      const CONCURRENCY = 4;
 
       const worker = async () => {
         while (true) {
+          if (cancelRef.current) return;
           const i = cursor++;
           if (i >= ids.length) return;
           const id = ids[i];
-          const svg = buildPreviewSvg(
-            activeTemplate.svg,
-            activeTemplate.slug,
-            values,
-            defaults,
-            placeholderId,
-            idToName[id] || "Friend",
-            meta.fonts || [],
-          );
-          const blob = await renderSvgMarkupToPng(svg, { width: 1080, pixelRatio: 2 });
-          const file = new File([blob], `pledge-card-${id}.png`, { type: "image/png" });
-          const res = await uploadsApi.upload(file);
-          const url = res.data?.url;
-          if (!url) throw new Error(`Upload failed for contributor ${id}`);
-          preRendered[id] = url;
-          done += 1;
-          setSendProgress({ done, total: ids.length });
+          const name = idToName[id] || "Friend";
+          setActiveBatchProgress({ done, total, currentName: name });
+          try {
+            const svg = buildPreviewSvg(
+              activeTemplate.svg,
+              activeTemplate.slug,
+              values,
+              defaults,
+              placeholderId,
+              name,
+              meta.fonts || [],
+            );
+            const blob = await renderSvgMarkupToPng(svg, { width: 1080, pixelRatio: 2 });
+            const file = new File([blob], `pledge-card-${id}.png`, { type: "image/png" });
+            const res = await uploadsApi.upload(file);
+            const url = res.data?.url;
+            if (!url) throw new Error("Upload returned no URL");
+            preRendered[id] = url;
+          } catch (e: any) {
+            failed.push({ recipient_id: id, name, reason: e?.message || "Render/upload failed" });
+          } finally {
+            done += 1;
+            setActiveBatchProgress({ done, total, currentName: name });
+          }
         }
       };
 
       await Promise.all(Array.from({ length: Math.min(CONCURRENCY, ids.length) }, worker));
 
-      await eventCardsApi.sendToContributors(eventId, activeCategory, ids, preRendered);
-      toast({ title: "Cards queued", description: `Sending to ${ids.length} contributor(s).` });
-      setSendOpen(false);
-    } catch (e: any) {
-      toast({ title: "Send failed", description: e?.message, variant: "destructive" });
-    } finally {
-      setSending(false);
-      setSendProgress(null);
-    }
-  }, [activeCategory, activeTemplate, eventId, selectedContributorIds, values, eventContributors]);
+      const preparedIds = Object.keys(preRendered);
+      if (preparedIds.length === 0) {
+        return { sentIds: [], failed };
+      }
+      try {
+        await eventCardsApi.sendToContributors(eventId, activeCategory, preparedIds, preRendered);
+        return { sentIds: preparedIds, failed };
+      } catch (e: any) {
+        const reason = e?.message || "Send request failed";
+        preparedIds.forEach((id) => failed.push({ recipient_id: id, name: idToName[id] || "Friend", reason }));
+        return { sentIds: [], failed };
+      }
+    },
+    [activeTemplate, activeCategory, eventId, values, eventContributors],
+  );
+
+  const sendBatch = useCallback(
+    async (batchNo: number, opts: { retryOnly?: boolean } = {}) => {
+      const target = batches.find((b) => b.batch_no === batchNo);
+      if (!target) return;
+      const alreadySent = new Set(target.sent_ids);
+      const failedIds = new Set(target.failed.map((f) => f.recipient_id));
+      const ids = opts.retryOnly
+        ? target.recipient_ids.filter((id) => failedIds.has(id) && !alreadySent.has(id))
+        : target.recipient_ids.filter((id) => !alreadySent.has(id));
+      if (ids.length === 0) {
+        toast({ title: "Nothing to send", description: "All recipients in this batch are already sent." });
+        return;
+      }
+      cancelRef.current = false;
+      setActiveBatchNo(batchNo);
+      setActiveBatchProgress({ done: 0, total: ids.length });
+      const started_at = new Date().toISOString();
+      persistBatches(batches.map((b) => (b.batch_no === batchNo ? { ...b, status: "sending", started_at } : b)));
+      try {
+        const { sentIds, failed } = await prepareAndSendIds(ids);
+        const finished_at = new Date().toISOString();
+        const next = batches.map((b) => {
+          if (b.batch_no !== batchNo) return b;
+          const newSent = Array.from(new Set([...b.sent_ids, ...sentIds]));
+          // Drop previously-failed entries that are now retried successfully.
+          const retainedFailures = b.failed.filter((f) => !sentIds.includes(f.recipient_id));
+          const mergedFailures = [
+            ...retainedFailures.filter((f) => !failed.some((g) => g.recipient_id === f.recipient_id)),
+            ...failed,
+          ];
+          let status: BatchStatus;
+          if (cancelRef.current && newSent.length < b.recipient_ids.length) status = "cancelled";
+          else if (newSent.length === b.recipient_ids.length) status = "sent";
+          else if (newSent.length > 0) status = "partial_failure";
+          else status = "failed";
+          return { ...b, sent_ids: newSent, failed: mergedFailures, status, started_at, finished_at };
+        });
+        persistBatches(next);
+        toast({
+          title: `Batch ${batchNo} ${cancelRef.current ? "cancelled" : "completed"}`,
+          description: `${sentIds.length} sent, ${failed.length} failed`,
+        });
+      } catch (e: any) {
+        toast({ title: "Batch failed", description: e?.message, variant: "destructive" });
+      } finally {
+        cancelRef.current = false;
+        setActiveBatchNo(null);
+        setActiveBatchProgress(null);
+      }
+    },
+    [batches, persistBatches, prepareAndSendIds],
+  );
+
+  const cancelActiveBatch = useCallback(() => { cancelRef.current = true; }, []);
+
+  const goBackToPick = useCallback(() => {
+    setSendStep("pick");
+  }, []);
+
 
   const previewSvgMarkup = useMemo(() => {
     if (!activeTemplate?.svg) return null;
@@ -652,89 +820,312 @@ export default function EventCardsTab({ eventId }: Props) {
       )}
 
       {/* Send dialog */}
-      <Dialog open={sendOpen} onOpenChange={setSendOpen}>
-        <DialogContent className="max-w-lg">
+      <Dialog open={sendOpen} onOpenChange={(o) => { if (activeBatchNo === null) setSendOpen(o); }}>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Send card to contributors</DialogTitle>
+            <DialogTitle>
+              {sendStep === "pick" ? "Send card to contributors" : "Send in batches"}
+            </DialogTitle>
             <DialogDescription>
-              Pick the contributors who should receive this card. Each person gets a copy with their own name.
+              {sendStep === "pick"
+                ? "Pick contributors and choose a batch size. You'll send each batch manually."
+                : "Send each batch manually. The browser only processes one batch at a time."}
             </DialogDescription>
           </DialogHeader>
 
-          {eligibleContributors.length === 0 ? (
-            <p className="text-sm text-muted-foreground py-6 text-center">
-              No contributors with a pledge yet.
-            </p>
-          ) : (
-            <>
-              <div className="space-y-2">
-                <Input
-                  value={contributorSearch}
-                  onChange={(e) => setContributorSearch(e.target.value)}
-                  placeholder="Search by name or phone"
-                  autoComplete="off"
-                />
-                <label className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted cursor-pointer text-sm">
-                  <Checkbox
-                    checked={allFilteredSelected}
-                    onCheckedChange={toggleSelectAllFiltered}
+          {sendStep === "pick" && (
+            eligibleContributors.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-6 text-center">
+                No contributors with a pledge yet.
+              </p>
+            ) : (
+              <>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                      Group recipients into batches of:
+                    </label>
+                    <div className="flex gap-1">
+                      {[10, 20, 30, 50].map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setBatchSize(n)}
+                          className={`px-2.5 py-1 rounded-md text-xs font-medium border transition ${
+                            batchSize === n
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-background text-foreground border-border hover:bg-muted"
+                          }`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <Input
+                    value={contributorSearch}
+                    onChange={(e) => setContributorSearch(e.target.value)}
+                    placeholder="Search by name or phone"
+                    autoComplete="off"
                   />
-                  <span className="flex-1">
-                    {allFilteredSelected ? "Unselect all" : "Select all"}
-                    <span className="text-muted-foreground ml-1">
-                      ({filteredContributors.length}
-                      {contributorSearch ? ` of ${eligibleContributors.length}` : ""})
+                  <label className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted cursor-pointer text-sm">
+                    <Checkbox
+                      checked={allFilteredSelected}
+                      onCheckedChange={toggleSelectAllFiltered}
+                    />
+                    <span className="flex-1">
+                      {allFilteredSelected ? "Unselect all" : "Select all"}
+                      <span className="text-muted-foreground ml-1">
+                        ({filteredContributors.length}
+                        {contributorSearch ? ` of ${eligibleContributors.length}` : ""})
+                      </span>
                     </span>
-                  </span>
-                  {selectedContributorIds.size > 0 && (
-                    <span className="text-xs text-muted-foreground">
-                      {selectedContributorIds.size} selected
-                    </span>
-                  )}
-                </label>
-              </div>
-
-              <ScrollArea className="max-h-[50vh] pr-2">
-                <div className="space-y-1.5">
-                  {filteredContributors.length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-6 text-center">
-                      No contributors match "{contributorSearch}".
-                    </p>
-                  ) : (
-                    filteredContributors.map((ec) => {
-                      const id = ec.id;
-                      const checked = selectedContributorIds.has(id);
-                      const name = ec.contributor?.name || "Unnamed";
-                      const phone = ec.contributor?.phone || "";
-                      return (
-                        <label key={id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted cursor-pointer">
-                          <Checkbox checked={checked} onCheckedChange={() => toggleContributor(id)} />
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium truncate">{name}</p>
-                            {phone && <p className="text-xs text-muted-foreground truncate">{phone}</p>}
-                          </div>
-                        </label>
-                      );
-                    })
-                  )}
+                    {selectedContributorIds.size > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        {selectedContributorIds.size} selected
+                      </span>
+                    )}
+                  </label>
                 </div>
-              </ScrollArea>
-            </>
+
+                <ScrollArea className="max-h-[40vh] pr-2">
+                  <div className="space-y-1.5">
+                    {filteredContributors.length === 0 ? (
+                      <p className="text-sm text-muted-foreground py-6 text-center">
+                        No contributors match "{contributorSearch}".
+                      </p>
+                    ) : (
+                      filteredContributors.map((ec) => {
+                        const id = ec.id;
+                        const checked = selectedContributorIds.has(id);
+                        const name = ec.contributor?.name || "Unnamed";
+                        const phone = ec.contributor?.phone || "";
+                        return (
+                          <label key={id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted cursor-pointer">
+                            <Checkbox checked={checked} onCheckedChange={() => toggleContributor(id)} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate">{name}</p>
+                              {phone && <p className="text-xs text-muted-foreground truncate">{phone}</p>}
+                            </div>
+                          </label>
+                        );
+                      })
+                    )}
+                  </div>
+                </ScrollArea>
+              </>
+            )
+          )}
+
+          {sendStep === "batches" && (
+            <BatchesView
+              batches={batches}
+              batchSize={batchSize}
+              activeBatchNo={activeBatchNo}
+              activeBatchProgress={activeBatchProgress}
+              onSendBatch={(n) => sendBatch(n)}
+              onRetryFailed={(n) => sendBatch(n, { retryOnly: true })}
+              onResendAll={(n) => {
+                if (!window.confirm("Resend the entire batch? This may deliver the card a second time to recipients already marked as sent.")) return;
+                persistBatches(batches.map((b) => (b.batch_no === n ? { ...b, sent_ids: [], failed: [], status: "not_sent" } : b)));
+              }}
+              onClearReport={(n) => {
+                persistBatches(batches.map((b) => (b.batch_no === n ? { ...b, sent_ids: [], failed: [], status: "not_sent", started_at: undefined, finished_at: undefined } : b)));
+              }}
+              onCancelActive={cancelActiveBatch}
+            />
           )}
 
           <DialogFooter className="flex-col sm:flex-row gap-2">
-            {sending && sendProgress && (
-              <p className="text-xs text-muted-foreground sm:mr-auto">
-                Preparing {sendProgress.done}/{sendProgress.total} cards…
-              </p>
+            {sendStep === "pick" ? (
+              <>
+                <Button variant="outline" onClick={() => setSendOpen(false)}>Cancel</Button>
+                <Button onClick={continueToBatches} disabled={selectedContributorIds.size === 0}>
+                  Continue ({selectedContributorIds.size} → {Math.ceil(selectedContributorIds.size / Math.max(1, batchSize))} batch{Math.ceil(selectedContributorIds.size / Math.max(1, batchSize)) === 1 ? "" : "es"})
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button variant="outline" onClick={goBackToPick} disabled={activeBatchNo !== null}>
+                  Back to selection
+                </Button>
+                <Button variant="outline" onClick={() => setSendOpen(false)} disabled={activeBatchNo !== null}>
+                  Close
+                </Button>
+              </>
             )}
-            <Button variant="outline" onClick={() => setSendOpen(false)} disabled={sending}>Cancel</Button>
-            <Button onClick={onSend} disabled={sending || selectedContributorIds.size === 0}>
-              {sending ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Sending</> : `Send (${selectedContributorIds.size})`}
-            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+interface BatchesViewProps {
+  batches: BatchState[];
+  batchSize: number;
+  activeBatchNo: number | null;
+  activeBatchProgress: { done: number; total: number; currentName?: string } | null;
+  onSendBatch: (n: number) => void;
+  onRetryFailed: (n: number) => void;
+  onResendAll: (n: number) => void;
+  onClearReport: (n: number) => void;
+  onCancelActive: () => void;
+}
+
+const STATUS_LABELS: Record<BatchStatus, string> = {
+  not_sent: "Not sent",
+  sending: "Sending",
+  sent: "Sent",
+  partial_failure: "Partial failure",
+  failed: "Failed",
+  cancelled: "Cancelled",
+};
+
+const STATUS_BADGE: Record<BatchStatus, string> = {
+  not_sent: "bg-muted text-muted-foreground",
+  sending: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300",
+  sent: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300",
+  partial_failure: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
+  failed: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
+  cancelled: "bg-muted text-muted-foreground",
+};
+
+function BatchesView({
+  batches, batchSize, activeBatchNo, activeBatchProgress,
+  onSendBatch, onRetryFailed, onResendAll, onClearReport, onCancelActive,
+}: BatchesViewProps) {
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const toggle = (n: number) => setExpanded((p) => {
+    const next = new Set(p);
+    if (next.has(n)) next.delete(n); else next.add(n);
+    return next;
+  });
+
+  const totalSelected = batches.reduce((s, b) => s + b.recipient_ids.length, 0);
+  const totalSent = batches.reduce((s, b) => s + b.sent_ids.length, 0);
+  const totalFailed = batches.reduce((s, b) => s + b.failed.length, 0);
+  const totalPending = Math.max(0, totalSelected - totalSent - totalFailed);
+  const completed = batches.filter((b) => b.status === "sent").length;
+  const remaining = batches.length - completed;
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs space-y-1">
+        <p className="font-medium text-foreground">
+          {totalSelected} selected · {totalSent} sent · {totalFailed} failed · {totalPending} pending
+        </p>
+        <p className="text-muted-foreground">
+          {completed} of {batches.length} batches completed · {remaining} remaining · batch size {batchSize}
+        </p>
+      </div>
+
+      <ScrollArea className="max-h-[55vh] pr-2">
+        <div className="space-y-2">
+          {batches.map((b) => {
+            const start = (b.batch_no - 1) * batchSize + 1;
+            const end = start + b.recipient_ids.length - 1;
+            const sentCount = b.sent_ids.length;
+            const failedCount = b.failed.length;
+            const pendingCount = b.recipient_ids.length - sentCount - failedCount;
+            const isActive = activeBatchNo === b.batch_no;
+            const isOpen = expanded.has(b.batch_no);
+            return (
+              <div key={b.batch_no} className="rounded-lg border border-border p-3 space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">
+                      Batch {b.batch_no} · {start}–{end} of {totalSelected}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {b.recipient_ids.length} recipients · sent {sentCount} · failed {failedCount} · pending {pendingCount}
+                    </p>
+                  </div>
+                  <span className={`text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full font-medium ${STATUS_BADGE[b.status]}`}>
+                    {STATUS_LABELS[b.status]}
+                  </span>
+                </div>
+
+                {isActive && activeBatchProgress && (
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p>
+                      Preparing {activeBatchProgress.done} of {activeBatchProgress.total}
+                      {activeBatchProgress.currentName ? `: ${activeBatchProgress.currentName}` : ""}
+                    </p>
+                    <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary transition-all"
+                        style={{ width: `${activeBatchProgress.total ? (activeBatchProgress.done / activeBatchProgress.total) * 100 : 0}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-2">
+                  {b.status === "not_sent" && (
+                    <Button size="sm" onClick={() => onSendBatch(b.batch_no)} disabled={activeBatchNo !== null}>
+                      {isActive ? <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> Sending</> : "Send batch"}
+                    </Button>
+                  )}
+                  {(b.status === "partial_failure" || b.status === "cancelled") && pendingCount > 0 && (
+                    <Button size="sm" onClick={() => onSendBatch(b.batch_no)} disabled={activeBatchNo !== null}>
+                      Send remaining ({pendingCount})
+                    </Button>
+                  )}
+                  {failedCount > 0 && (
+                    <Button size="sm" variant="outline" onClick={() => onRetryFailed(b.batch_no)} disabled={activeBatchNo !== null}>
+                      Retry failed ({failedCount})
+                    </Button>
+                  )}
+                  {(b.status === "sent" || b.status === "partial_failure" || b.status === "failed" || b.status === "cancelled") && (
+                    <Button size="sm" variant="ghost" onClick={() => onResendAll(b.batch_no)} disabled={activeBatchNo !== null}>
+                      Resend all
+                    </Button>
+                  )}
+                  {b.status === "sent" && (
+                    <Button size="sm" variant="ghost" onClick={() => onClearReport(b.batch_no)} disabled={activeBatchNo !== null}>
+                      Clear report
+                    </Button>
+                  )}
+                  {isActive && (
+                    <Button size="sm" variant="outline" onClick={onCancelActive}>
+                      Cancel
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" onClick={() => toggle(b.batch_no)}>
+                    {isOpen ? "Hide recipients" : "View recipients"}
+                  </Button>
+                </div>
+
+                {isOpen && (
+                  <div className="text-xs text-muted-foreground space-y-1 pt-1 border-t border-border">
+                    <p className="font-medium text-foreground">Recipients ({b.recipient_ids.length})</p>
+                    <p className="break-all">{b.recipient_ids.join(", ")}</p>
+                    {b.failed.length > 0 && (
+                      <>
+                        <p className="font-medium text-foreground pt-1">Failed</p>
+                        <ul className="space-y-0.5">
+                          {b.failed.map((f) => (
+                            <li key={f.recipient_id}>
+                              {f.name || f.recipient_id} — {f.reason}
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                    {b.started_at && (
+                      <p className="pt-1">
+                        Started {new Date(b.started_at).toLocaleString()}
+                        {b.finished_at ? ` · Finished ${new Date(b.finished_at).toLocaleString()}` : ""}
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </ScrollArea>
     </div>
   );
 }

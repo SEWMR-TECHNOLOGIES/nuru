@@ -1,6 +1,6 @@
 ---
 
-# 📘 NURU PLATFORM - COMPLETE API DOCUMENTATION
+# 📘 NURU - COMPLETE API DOCUMENTATION
 
 ## Base Configuration
 ```

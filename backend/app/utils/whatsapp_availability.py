@@ -36,10 +36,13 @@ FRESH_WHATSAPP_DAYS = 60          # confirmed yes — recheck after ~2 months
 FRESH_NOT_WHATSAPP_DAYS = 45      # confirmed no — recheck after ~6 weeks
 FRESH_UNKNOWN_HOURS = 6           # unknown — try again soon
 FRESH_FAILED_HOURS = 12           # provider error — retry later
+FRESH_CONFIG_ERROR_DAYS = 7       # our config broke — don't spam the API
 
 
-def _next_check_after(status: str) -> datetime:
+def _next_check_after(status: str, config_error: bool = False) -> datetime:
     now = datetime.now(timezone.utc)
+    if config_error:
+        return now + timedelta(days=FRESH_CONFIG_ERROR_DAYS)
     if status == "whatsapp":
         return now + timedelta(days=FRESH_WHATSAPP_DAYS)
     if status == "not_whatsapp":
@@ -136,6 +139,7 @@ def check_whatsapp_availability(db: Session, raw_phone: str,
 
     result = check_whatsapp_number(row.normalized_phone)
     now = datetime.now(timezone.utc)
+    config_error = False
     if result is True:
         row.is_whatsapp = True
         row.status = "whatsapp"
@@ -146,16 +150,22 @@ def check_whatsapp_availability(db: Session, raw_phone: str,
         row.status = "not_whatsapp"
         row.provider_error_code = None
         row.provider_error_message = None
+    elif result == "config_error":
+        # Our WABA can't run the probe (e.g. hello_world template removed).
+        # Don't penalise the phone and don't burn quota retrying every 6h.
+        config_error = True
+        row.status = "unknown"
+        row.provider_error_message = "probe template unavailable on WABA"
     else:
         # Unknown / unreachable — keep prior is_whatsapp, mark failed for retry.
         row.status = "failed"
         row.provider_error_message = "provider returned unknown"
 
     row.last_checked_at = now
-    row.next_check_after = _next_check_after(row.status)
+    row.next_check_after = _next_check_after(row.status, config_error=config_error)
     db.commit()
     print(f"[wa_availability] checked phone_tail={phone_tail(row.normalized_phone)} "
-          f"status={row.status}")
+          f"status={row.status} config_error={config_error}")
     return _row_to_dict(row, raw_phone)
 
 
@@ -212,6 +222,43 @@ def statuses_by_phones(db: Session, phones: Iterable[Optional[str]],
                 "whatsapp_last_checked_at": None,
             }
     return out
+
+
+def record_send_outcome(db: Session, raw_phone: str, *, delivered: bool,
+                         not_on_whatsapp: bool = False,
+                         country: Optional[str] = None) -> None:
+    """
+    Opportunistic learner — call after a real WhatsApp send.
+
+    Meta has no silent lookup endpoint, so the most reliable signal that a
+    number is on WhatsApp comes from actual sends:
+      * delivered=True        → mark whatsapp
+      * not_on_whatsapp=True  → mark not_whatsapp (err 131026/131047)
+      * everything else       → leave as-is (transient failure)
+    """
+    try:
+        row = ensure_phone_status(db, raw_phone, country=country)
+        if row is None:
+            return
+        now = datetime.now(timezone.utc)
+        if delivered:
+            row.is_whatsapp = True
+            row.status = "whatsapp"
+            row.provider_error_code = None
+            row.provider_error_message = None
+        elif not_on_whatsapp:
+            row.is_whatsapp = False
+            row.status = "not_whatsapp"
+        else:
+            return
+        row.last_checked_at = now
+        row.next_check_after = _next_check_after(row.status)
+        db.commit()
+    except Exception as e:  # noqa: BLE001
+        print(f"[wa_availability] record_send_outcome failed: {e}")
+
+
+
 
 
 def status_for_phone(db: Session, raw_phone: Optional[str],
