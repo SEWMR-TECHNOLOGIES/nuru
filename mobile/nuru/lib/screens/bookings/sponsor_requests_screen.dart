@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/services/user_services_service.dart';
 import '../../core/utils/money_format.dart';
 import '../../core/widgets/nuru_refresh.dart';
+import '../../core/widgets/nuru_skeleton.dart';
 
 /// Vendor-side inbox of event sponsorship invitations.
 /// Mirrors the bookings screen structure: header, tabs (status filter), list.
@@ -180,17 +181,10 @@ class _SponsorRequestsScreenState extends State<SponsorRequestsScreen> {
   }
 
   Widget _skeleton() {
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+    return const NuruSkeletonEventList(
       itemCount: 4,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
-      itemBuilder: (_, __) => Container(
-        height: 110,
-        decoration: BoxDecoration(
-          color: AppColors.surfaceVariant,
-          borderRadius: BorderRadius.circular(16),
-        ),
-      ),
+      padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
+      physics: AlwaysScrollableScrollPhysics(),
     );
   }
 

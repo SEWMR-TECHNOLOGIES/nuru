@@ -9,7 +9,21 @@ import type { PaginatedResponse } from "./types";
 // TYPES
 // ============================================================================
 
-export interface UserContributor {
+export type WhatsAppAvailabilityStatus =
+  | "unknown"
+  | "checking"
+  | "whatsapp"
+  | "not_whatsapp"
+  | "failed"
+  | "invalid";
+
+export interface WhatsAppAvailability {
+  whatsapp_status: WhatsAppAvailabilityStatus;
+  is_whatsapp: boolean | null;
+  whatsapp_last_checked_at: string | null;
+}
+
+export interface UserContributor extends Partial<WhatsAppAvailability> {
   id: string;
   user_id: string;
   contributor_user_id?: string | null;
@@ -19,6 +33,8 @@ export interface UserContributor {
   notes?: string | null;
   /** Default secondary phone for contribution notifications. Comms-only — never used to map a Nuru user. */
   secondary_phone?: string | null;
+  /** WhatsApp availability for the secondary phone, if present. */
+  secondary_whatsapp?: WhatsAppAvailability | null;
   /** Default notification routing applied when adding to an event. */
   notify_target?: ContributorNotifyTarget;
   created_at?: string;

@@ -34,7 +34,34 @@ router = APIRouter(prefix="/user-contributors", tags=["User Contributors"])
 # Helpers
 # ──────────────────────────────────────────────
 
-def _contributor_dict(c: UserContributor) -> dict:
+def _wa_block(wa: Optional[dict]) -> dict:
+    """Always emit the same three WhatsApp fields so the frontend has a
+    stable shape (defaults to 'unknown' when we have no cached row yet)."""
+    if not wa:
+        return {
+            "whatsapp_status": "unknown",
+            "is_whatsapp": None,
+            "whatsapp_last_checked_at": None,
+        }
+    return {
+        "whatsapp_status": wa.get("whatsapp_status") or "unknown",
+        "is_whatsapp": wa.get("is_whatsapp"),
+        "whatsapp_last_checked_at": wa.get("whatsapp_last_checked_at"),
+    }
+
+
+def _contributor_dict(c: UserContributor, wa_map: Optional[dict] = None) -> dict:
+    from utils.phone_numbers import normalize_phone
+    wa_primary = None
+    wa_secondary = None
+    if wa_map:
+        if c.phone:
+            n = normalize_phone(c.phone).get("normalized")
+            wa_primary = wa_map.get(n) if n else None
+        sp = getattr(c, "secondary_phone", None)
+        if sp:
+            n2 = normalize_phone(sp).get("normalized")
+            wa_secondary = wa_map.get(n2) if n2 else None
     return {
         "id": str(c.id),
         "user_id": str(c.user_id),
@@ -48,6 +75,9 @@ def _contributor_dict(c: UserContributor) -> dict:
         "notify_target": getattr(c, "notify_target", None) or "primary",
         "created_at": c.created_at.isoformat() if c.created_at else None,
         "updated_at": c.updated_at.isoformat() if c.updated_at else None,
+        # WhatsApp availability (cached; never blocks request path)
+        **_wa_block(wa_primary),
+        "secondary_whatsapp": _wa_block(wa_secondary) if getattr(c, "secondary_phone", None) else None,
     }
 
 
@@ -74,7 +104,20 @@ def _find_user_by_phone(db: Session, phone: str):
     return matches[0] if matches else None
 
 
-def _event_contributor_dict(ec: EventContributor, show_recorder: bool = False) -> dict:
+def _collect_contributor_phones(contribs) -> list:
+    phones = []
+    for c in contribs:
+        p = getattr(c, "phone", None)
+        sp = getattr(c, "secondary_phone", None)
+        if p:
+            phones.append(p)
+        if sp:
+            phones.append(sp)
+    return phones
+
+
+def _event_contributor_dict(ec: EventContributor, show_recorder: bool = False,
+                            wa_map: Optional[dict] = None) -> dict:
     total_paid = sum(float(c.amount or 0) for c in ec.contributions if c.confirmation_status is None or c.confirmation_status == ContributionStatusEnum.confirmed)
     pledge = float(ec.pledge_amount or 0)
     has_link = bool(getattr(ec, "share_token_hash", None)) and not getattr(ec, "share_token_revoked_at", None)
@@ -82,7 +125,7 @@ def _event_contributor_dict(ec: EventContributor, show_recorder: bool = False) -
         "id": str(ec.id),
         "event_id": str(ec.event_id),
         "contributor_id": str(ec.contributor_id),
-        "contributor": _contributor_dict(ec.contributor) if ec.contributor else None,
+        "contributor": _contributor_dict(ec.contributor, wa_map=wa_map) if ec.contributor else None,
         "pledge_amount": pledge,
         "total_paid": total_paid,
         "balance": max(0.0, pledge - total_paid),
@@ -96,6 +139,7 @@ def _event_contributor_dict(ec: EventContributor, show_recorder: bool = False) -
         "created_at": ec.created_at.isoformat() if ec.created_at else None,
         "updated_at": ec.updated_at.isoformat() if ec.updated_at else None,
     }
+
 
 
 # ──────────────────────────────────────────────
@@ -347,8 +391,11 @@ def get_all_contributors(
 
     contributors = q.offset((page - 1) * limit).limit(limit).all()
 
+    from utils.whatsapp_availability import statuses_by_phones
+    wa_map = statuses_by_phones(db, _collect_contributor_phones(contributors))
+
     return standard_response(True, "Contributors fetched", {
-        "contributors": [_contributor_dict(c) for c in contributors],
+        "contributors": [_contributor_dict(c, wa_map=wa_map) for c in contributors],
         "pagination": {
             "page": page,
             "limit": limit,
@@ -770,6 +817,16 @@ def create_contributor(body: dict = Body(...), db: Session = Depends(get_db), cu
     db.add(c)
     db.commit()
 
+    # Queue WhatsApp availability checks (best-effort; never blocks).
+    try:
+        from tasks.whatsapp_availability import check_one_phone
+        if phone:
+            check_one_phone.delay(phone)
+        if secondary_raw:
+            check_one_phone.delay(secondary_raw)
+    except Exception:
+        pass
+
     return standard_response(True, "Contributor created", _contributor_dict(c))
 
 
@@ -802,6 +859,8 @@ def update_contributor(contributor_id: str, body: dict = Body(...), db: Session 
         c.name = new_name
     if "email" in body:
         c.email = (body["email"] or "").strip() or None
+    old_phone = c.phone
+    old_secondary = getattr(c, "secondary_phone", None)
     if "phone" in body:
         phone_val = (body["phone"] or "").strip() or None
         if phone_val:
@@ -847,6 +906,19 @@ def update_contributor(contributor_id: str, body: dict = Body(...), db: Session 
 
     c.updated_at = datetime.now(EAT)
     db.commit()
+
+    # When a phone changes, queue a fresh WhatsApp availability check for
+    # the new number(s). The old cache row stays put (it may still be valid
+    # for another contributor that shares the number).
+    try:
+        from tasks.whatsapp_availability import check_one_phone
+        if c.phone and c.phone != old_phone:
+            check_one_phone.delay(c.phone)
+        new_secondary = getattr(c, "secondary_phone", None)
+        if new_secondary and new_secondary != old_secondary:
+            check_one_phone.delay(new_secondary)
+    except Exception:
+        pass
 
     return standard_response(True, "Contributor updated", _contributor_dict(c))
 
@@ -950,7 +1022,10 @@ def get_event_contributors(
     else:
         ecs = []
 
-    ec_dicts = [_event_contributor_dict(ec) for ec in ecs]
+    from utils.whatsapp_availability import statuses_by_phones
+    all_contribs = [ec.contributor for ec in ecs if ec.contributor]
+    wa_map = statuses_by_phones(db, _collect_contributor_phones(all_contribs))
+    ec_dicts = [_event_contributor_dict(ec, wa_map=wa_map) for ec in ecs]
 
     # Compute summary from ALL event contributors (not just current page)
     all_ecs_for_summary = db.query(EventContributor).options(
@@ -963,10 +1038,18 @@ def get_event_contributors(
         if ec.id not in seen_summary:
             seen_summary.add(ec.id)
             unique_summary_ecs.append(ec)
-    all_dicts = [_event_contributor_dict(ec) for ec in unique_summary_ecs]
+    summary_contribs = [ec.contributor for ec in unique_summary_ecs if ec.contributor]
+    summary_wa_map = statuses_by_phones(db, _collect_contributor_phones(summary_contribs))
+    all_dicts = [_event_contributor_dict(ec, wa_map=summary_wa_map) for ec in unique_summary_ecs]
     total_pledged = sum(d["pledge_amount"] for d in all_dicts)
     total_paid = sum(d["total_paid"] for d in all_dicts)
     currency = _currency_code(db, event)
+
+    # WhatsApp availability rollup (uses primary phone)
+    wa_counts = {"whatsapp": 0, "not_whatsapp": 0, "unknown": 0, "checking": 0, "failed": 0}
+    for d in all_dicts:
+        st = ((d.get("contributor") or {}).get("whatsapp_status")) or "unknown"
+        wa_counts[st] = wa_counts.get(st, 0) + 1
 
     return standard_response(True, "Event contributors fetched", {
         "event_contributors": ec_dicts,
@@ -976,6 +1059,7 @@ def get_event_contributors(
             "total_balance": max(0, total_pledged - total_paid),
             "count": total,
             "currency": currency,
+            "whatsapp": wa_counts,
         },
         "pagination": {
             "page": page,

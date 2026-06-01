@@ -95,6 +95,9 @@ for router in all_routers:
 from api.routes.admin_monitoring import router as admin_monitoring_router
 app.include_router(admin_monitoring_router, prefix=API_PREFIX)
 
+from api.routes.admin_whatsapp_availability import router as admin_wa_avail_router
+app.include_router(admin_wa_avail_router, prefix=API_PREFIX)
+
 # Ensure card-templates routes are always mounted (safety fallback)
 registered_paths = {route.path for route in app.router.routes}
 if f"{API_PREFIX}/card-templates" not in registered_paths:

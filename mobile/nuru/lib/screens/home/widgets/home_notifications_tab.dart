@@ -14,6 +14,7 @@ import '../../../core/utils/haptics.dart';
 import '../../../core/widgets/swipe_action_tile.dart';
 import '../../../core/widgets/nuru_refresh.dart';
 import '../../../core/utils/notification_center.dart';
+import '../../../core/widgets/nuru_skeleton.dart';
 
 /// Notifications screen — premium redesign matching the reference mock.
 class HomeNotificationsTab extends StatefulWidget {
@@ -262,20 +263,36 @@ class _HomeNotificationsTabState extends State<HomeNotificationsTab> {
   }
 
   Widget _skeletonItem() {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(children: [
-        Container(width: 44, height: 44, decoration: BoxDecoration(
-          color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(12))),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(height: 12, width: 180, decoration: BoxDecoration(
-            color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(4))),
-          const SizedBox(height: 6),
-          Container(height: 10, width: 120, decoration: BoxDecoration(
-            color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(4))),
-        ])),
-      ]),
+    return const Padding(
+      padding: EdgeInsets.only(bottom: 12),
+      child: NuruSkeletonGroup(
+        child: Row(children: [
+          NuruSkeleton(
+            width: 44,
+            height: 44,
+            borderRadius: BorderRadius.all(Radius.circular(12)),
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                NuruSkeleton(
+                  width: 180,
+                  height: 12,
+                  borderRadius: BorderRadius.all(Radius.circular(4)),
+                ),
+                SizedBox(height: 8),
+                NuruSkeleton(
+                  width: 120,
+                  height: 10,
+                  borderRadius: BorderRadius.all(Radius.circular(4)),
+                ),
+              ],
+            ),
+          ),
+        ]),
+      ),
     );
   }
 

@@ -38,6 +38,7 @@ psycopg2-binary==2.9.10
 pyasn1==0.6.1
 pyasn1_modules==0.4.2
 pycparser==3.0
+phonenumbers==8.13.50
 pydantic==2.11.7
 pydantic_core==2.33.2
 PyJWT==2.10.1

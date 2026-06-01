@@ -24,6 +24,14 @@ export async function renderSvgMarkupToPng(
   const width = opts.width ?? 1080;
   const pixelRatio = opts.pixelRatio ?? 2;
 
+  // Inline every @font-face url() as a base64 data URI BEFORE we mount or
+  // capture. Without this, Firefox (and Safari) render the captured PNG
+  // with system fallbacks because html-to-image serialises the SVG into
+  // an isolated image context where document.fonts isn't shared and
+  // cross-origin font URLs aren't refetched. Chrome happened to work
+  // because its raster path reuses the live fonts; Firefox does not.
+  const inlinedSvg = await inlineSvgFontUrls(svgMarkup);
+
   // Mount off-screen but still painted (visibility:hidden would skip layout).
   const host = document.createElement("div");
   host.style.position = "fixed";
@@ -32,7 +40,7 @@ export async function renderSvgMarkupToPng(
   host.style.width = `${width}px`;
   host.style.pointerEvents = "none";
   host.style.background = "#ffffff";
-  host.innerHTML = svgMarkup;
+  host.innerHTML = inlinedSvg;
 
   const svgEl = host.querySelector("svg");
   if (svgEl) {
@@ -46,14 +54,9 @@ export async function renderSvgMarkupToPng(
   document.body.appendChild(host);
 
   try {
-    // Make sure web fonts referenced by the SVG @font-face rules are loaded
-    // before we paint; otherwise the PNG falls back to system fonts.
-    // Explicitly preload every @font-face declared inside the SVG via the
-    // FontFace API. document.fonts.ready alone is not enough — fonts
-    // declared inside inline-SVG <style> are loaded lazily and may not be
-    // ready when html-to-image clones the node (Anthony Hunter script
-    // glyphs were rendering blank because of this).
-    await preloadSvgFonts(svgMarkup);
+    // Belt-and-braces: also register each face on document.fonts so the
+    // off-screen DOM lays out with the right metrics before capture.
+    await preloadSvgFonts(inlinedSvg);
     try {
       if ((document as any).fonts?.ready) {
         await (document as any).fonts.ready;
@@ -70,8 +73,6 @@ export async function renderSvgMarkupToPng(
       pixelRatio,
       backgroundColor: "#ffffff",
       cacheBust: false,
-      // Anything that can't be fetched (e.g. CORS-blocked) is silently skipped
-      // rather than aborting the whole capture.
       skipFonts: false,
     });
     if (!blob) throw new Error("Card capture returned an empty image.");
@@ -80,6 +81,69 @@ export async function renderSvgMarkupToPng(
     host.remove();
   }
 }
+
+/** Fetch every http(s)/relative font URL referenced by @font-face inside
+ *  the SVG and rewrite each `url(...)` to a base64 data URI. The result
+ *  is a fully self-contained SVG that renders identically when html-to-
+ *  image serialises it into an Image for canvas rasterisation — the
+ *  approach that finally makes Firefox stop falling back to system
+ *  fonts for script faces like Anthony Hunter. */
+async function inlineSvgFontUrls(svgMarkup: string): Promise<string> {
+  const urls = new Set<string>();
+  const fontFaceRe = /@font-face\s*{([^}]+)}/gi;
+  const srcUrlRe = /url\(\s*['"]?([^'")]+)['"]?\s*\)/gi;
+  let m: RegExpExecArray | null;
+  while ((m = fontFaceRe.exec(svgMarkup))) {
+    let u: RegExpExecArray | null;
+    srcUrlRe.lastIndex = 0;
+    while ((u = srcUrlRe.exec(m[1]))) {
+      const url = u[1];
+      if (url.startsWith("data:")) continue;
+      if (/^https?:\/\//i.test(url) || url.startsWith("/")) urls.add(url);
+    }
+  }
+  if (urls.size === 0) return svgMarkup;
+
+  const dataMap = new Map<string, string>();
+  await Promise.all(
+    Array.from(urls).map(async (url) => {
+      try {
+        const r = await fetch(url, { credentials: "omit", mode: "cors" });
+        if (!r.ok) return;
+        const buf = await r.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let bin = "";
+        const chunk = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunk) {
+          bin += String.fromCharCode(...bytes.subarray(i, i + chunk));
+        }
+        const b64 = btoa(bin);
+        const lower = url.toLowerCase();
+        const mime = lower.endsWith(".woff2")
+          ? "font/woff2"
+          : lower.endsWith(".woff")
+          ? "font/woff"
+          : lower.endsWith(".otf")
+          ? "font/otf"
+          : "font/ttf";
+        dataMap.set(url, `data:${mime};base64,${b64}`);
+      } catch {
+        /* leave the original URL — preload pass will still try */
+      }
+    }),
+  );
+
+  let out = svgMarkup;
+  dataMap.forEach((dataUrl, url) => {
+    const esc = url.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    out = out.replace(
+      new RegExp(`url\\(\\s*['"]?${esc}['"]?\\s*\\)`, "g"),
+      `url('${dataUrl}')`,
+    );
+  });
+  return out;
+}
+
 
 
 

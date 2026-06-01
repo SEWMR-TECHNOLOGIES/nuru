@@ -12,6 +12,7 @@ import '../migration/migration_banner.dart';
 import 'booking_detail_screen.dart';
 import 'sponsor_requests_screen.dart';
 import '../../core/widgets/nuru_refresh.dart';
+import '../../core/widgets/nuru_skeleton.dart';
 
 enum BookingsMode { vendor, organizer }
 
@@ -417,17 +418,10 @@ class _StatusTabs extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────
 
 Widget _skeletonList() {
-  return ListView.separated(
-    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+  return const NuruSkeletonEventList(
     itemCount: 4,
-    separatorBuilder: (_, __) => const SizedBox(height: 12),
-    itemBuilder: (_, __) => Container(
-      height: 140,
-      decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
-        borderRadius: BorderRadius.circular(16),
-      ),
-    ),
+    padding: EdgeInsets.fromLTRB(16, 8, 16, 24),
+    physics: AlwaysScrollableScrollPhysics(),
   );
 }
 

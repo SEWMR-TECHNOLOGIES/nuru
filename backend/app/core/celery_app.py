@@ -48,6 +48,7 @@ celery_app = Celery(
         "tasks.push_dispatch",
         "tasks.reminder_dispatch",
         "tasks.contributor_imports",
+        "tasks.whatsapp_availability",
     ],
 )
 
@@ -149,6 +150,15 @@ celery_app.conf.update(
         "scan-due-reminder-automations": {
             "task": "tasks.reminder_dispatch.scan_due_automations",
             "schedule": crontab(minute="*/5"),
+        },
+        # WhatsApp availability cache — sweep unchecked + stale numbers.
+        "wa-availability-check-missing": {
+            "task": "tasks.whatsapp_availability.check_missing_statuses",
+            "schedule": crontab(minute="*/10"),
+        },
+        "wa-availability-refresh-stale": {
+            "task": "tasks.whatsapp_availability.refresh_stale_statuses",
+            "schedule": crontab(minute=15, hour="*/6"),
         },
     },
 )

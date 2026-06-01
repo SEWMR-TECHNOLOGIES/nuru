@@ -1,5 +1,5 @@
 import '../../core/utils/money_format.dart';
-import '../../core/widgets/nuru_loader.dart';
+import '../../core/widgets/nuru_skeleton.dart';
 import '../../core/widgets/nuru_refresh.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -614,7 +614,7 @@ class _EventPublicViewScreenState extends State<EventPublicViewScreen> {
           ],
         ),
         body: _loading && _event == null
-            ? const Center(child: NuruLoader(size: 42))
+            ? const NuruSkeletonEventDetail()
             : _event == null
             ? _emptyState()
             : Stack(children: [

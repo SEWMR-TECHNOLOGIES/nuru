@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/services/automations_service.dart';
 import '../../../core/widgets/app_snackbar.dart';
 import '../../../core/widgets/nuru_refresh_indicator.dart';
+import '../../../core/widgets/nuru_skeleton.dart';
 
 
 bool _apiOk(Map<String, dynamic> res) =>
@@ -253,18 +254,11 @@ class _EventAutomationsTabState extends State<EventAutomationsTab>
         ),
       );
 
-  Widget _skeleton() => ListView.separated(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-        itemCount: 3,
-        separatorBuilder: (_, __) => const SizedBox(height: 12),
-        itemBuilder: (_, __) => Container(
-          height: 110,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.borderLight),
-          ),
-        ),
+  Widget _skeleton() => const NuruSkeletonList(
+        itemCount: 4,
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 16),
+        showAvatar: false,
+        showTrailing: true,
       );
 }
 
@@ -1212,9 +1206,11 @@ class _AutomationDetailSheetState extends State<_AutomationDetailSheet> {
 
   Widget _runsView() {
     if (_loadingRuns) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 32),
-        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+      return const NuruSkeletonList(
+        itemCount: 3,
+        padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+        showAvatar: false,
+        showTrailing: true,
       );
     }
     if (_runs.isEmpty) {
@@ -1309,9 +1305,10 @@ class _AutomationDetailSheetState extends State<_AutomationDetailSheet> {
         ),
         Flexible(
           child: _loadingRecipients
-              ? const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 32),
-                  child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              ? const NuruSkeletonList(
+                  itemCount: 5,
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
+                  showTrailing: true,
                 )
               : _recipients.isEmpty
                   ? Padding(

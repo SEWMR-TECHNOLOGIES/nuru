@@ -155,6 +155,7 @@ def process_contributor_import_job(self, job_id: str) -> Dict[str, Any]:
         success_count = 0
         failure_count = 0
         notifications: List[Dict[str, Any]] = []
+        wa_phones: set[str] = set()
 
         for idx, row in enumerate(rows):
             row_num = idx + 1
@@ -171,6 +172,7 @@ def process_contributor_import_job(self, job_id: str) -> Dict[str, Any]:
                 if phone_raw:
                     try:
                         phone = validate_phone_number(phone_raw)
+                        wa_phones.add(phone)
                     except ValueError:
                         errors.append({
                             "row": row_num,
@@ -441,6 +443,16 @@ def process_contributor_import_job(self, job_id: str) -> Dict[str, Any]:
         else:
             job.status = "partially_completed"
         db.commit()
+
+
+        # Best-effort: queue WhatsApp availability checks for every unique
+        # phone discovered. Never blocks the import — failures are swallowed.
+        try:
+            from tasks.whatsapp_availability import enqueue_phones
+            if wa_phones:
+                enqueue_phones(list(wa_phones))
+        except Exception:
+            pass
 
         return {
             "ok": True,

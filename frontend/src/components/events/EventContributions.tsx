@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import readXlsxFile from 'read-excel-file';
 import { format } from 'date-fns';
 import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
+import { WhatsAppStatusBadge } from '@/components/whatsapp/WhatsAppStatusBadge';
 import { 
   DollarSign, Plus, Search, Filter, MoreVertical, Edit, Trash, Send, Download, TrendingUp, Users, Clock, Loader2, Eye, ChevronLeft, ChevronRight, UserPlus, Upload, FileSpreadsheet, AlertCircle, CheckCircle2, ShieldCheck, UserCheck, CalendarIcon, Link as LinkIcon
 } from 'lucide-react';
@@ -691,6 +692,19 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
         ) : null}
       </div>
 
+      {/* WhatsApp reachability rollup */}
+      {(summary as any).whatsapp && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <span className="font-medium">WhatsApp reach:</span>
+          <span className="inline-flex items-center gap-1.5"><WhatsAppStatusBadge status="whatsapp" />{(summary as any).whatsapp.whatsapp || 0}</span>
+          <span className="inline-flex items-center gap-1.5"><WhatsAppStatusBadge status="not_whatsapp" />{(summary as any).whatsapp.not_whatsapp || 0}</span>
+          <span className="inline-flex items-center gap-1.5"><WhatsAppStatusBadge status="unknown" />{((summary as any).whatsapp.unknown || 0) + ((summary as any).whatsapp.failed || 0)}</span>
+          {((summary as any).whatsapp.checking || 0) > 0 && (
+            <span className="inline-flex items-center gap-1.5"><WhatsAppStatusBadge status="checking" />{(summary as any).whatsapp.checking}</span>
+          )}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {eventBudget && eventBudget > 0 && (
           <Card><CardContent className="p-4">
@@ -900,7 +914,12 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
                     <td className="p-4">
                       <p className="font-medium">{ec.contributor?.name || 'Unknown'}</p>
                       {ec.contributor?.email && <p className="text-xs text-muted-foreground">{ec.contributor.email}</p>}
-                      {ec.contributor?.phone && <p className="text-xs text-muted-foreground">{ec.contributor.phone}</p>}
+                      {ec.contributor?.phone && (
+                        <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-0.5">
+                          <span>{ec.contributor.phone}</span>
+                          <WhatsAppStatusBadge status={ec.contributor.whatsapp_status} />
+                        </p>
+                      )}
                     </td>
                     <td className="p-4 text-right text-yellow-600 font-medium">{formatPrice(ec.pledge_amount)}</td>
                     <td className="p-4 text-right text-green-600 font-medium">{formatPrice(ec.total_paid)}</td>

@@ -85,11 +85,18 @@ async def update_profile(
         current_user.last_name = last_name.strip()[:50]
     if username and username.strip():
         current_user.username = username.strip()
+    old_user_phone = current_user.phone
     if phone and phone.strip():
         try:
             current_user.phone = validate_phone_number(phone.strip())
         except ValueError:
             pass  # Already validated above
+    if current_user.phone and current_user.phone != old_user_phone:
+        try:
+            from tasks.whatsapp_availability import check_one_phone
+            check_one_phone.delay(current_user.phone)
+        except Exception:
+            pass
 
     # Get or create profile
     profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.id).first()

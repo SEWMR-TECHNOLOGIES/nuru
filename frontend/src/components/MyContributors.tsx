@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useUserContributors } from '@/data/useUserContributors';
+import { WhatsAppStatusBadge } from '@/components/whatsapp/WhatsAppStatusBadge';
 import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { useWorkspaceMeta } from '@/hooks/useWorkspaceMeta';
 import { toast } from 'sonner';
@@ -159,8 +160,14 @@ const MyContributors = () => {
                 <div key={c.id} className="p-4 flex items-start justify-between gap-3 hover:bg-muted/50">
                   <div className="flex-1 min-w-0">
                     <p className="font-medium truncate">{c.name}</p>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
-                      {c.phone && <span className="text-xs text-muted-foreground flex items-center gap-1"><Phone className="w-3 h-3" />{c.phone}</span>}
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-1">
+                      {c.phone && (
+                        <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+                          <Phone className="w-3 h-3" />
+                          {c.phone}
+                          <WhatsAppStatusBadge status={c.whatsapp_status} />
+                        </span>
+                      )}
                       {c.email && <span className="text-xs text-muted-foreground flex items-center gap-1"><Mail className="w-3 h-3" />{c.email}</span>}
                     </div>
                     {c.notes && <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1"><StickyNote className="w-3 h-3" />{c.notes}</p>}

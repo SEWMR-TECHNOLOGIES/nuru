@@ -15,6 +15,7 @@ import '../../core/services/user_services_service.dart';
 import '../../core/services/app_update_service.dart';
 import '../../core/widgets/premium_button.dart';
 import '../../core/widgets/nuru_refresh.dart';
+import '../../core/widgets/nuru_skeleton.dart';
 import '../../providers/auth_provider.dart';
 import '../events/event_detail_screen.dart' show EventDetailScreen;
 import '../events/event_public_view_screen.dart';
@@ -880,7 +881,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             }
             if (index == 3) return _feedTab == 3 ? const TrendingRail() : const SizedBox.shrink();
             if (index == 4 && (_feedLoading || (listLen == 0 && !_feedFallbackTried && _feedTab == 0))) {
-              return Column(children: List.generate(3, (_) => const Padding(padding: EdgeInsets.only(bottom: 16), child: ShimmerCard(height: 220))));
+              return const NuruSkeletonPostList(itemCount: 3);
             }
             if (index == 4 && listLen == 0) {
               return EmptyState(
@@ -981,10 +982,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   : NuruRefresh(
                       onRefresh: () async => await _loadEvents(silent: true),
                       child: (_loading || _eventsLoading)
-                          ? ListView(
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              padding: const EdgeInsets.fromLTRB(16, 0, 16, 120),
-                              children: List.generate(4, (_) => const Padding(padding: EdgeInsets.only(bottom: 16), child: ShimmerCard(height: 180))),
+                          ? const NuruSkeletonEventList(
+                              itemCount: 4,
+                              padding: EdgeInsets.fromLTRB(16, 0, 16, 120),
+                              physics: AlwaysScrollableScrollPhysics(),
                             )
                           : events.isEmpty
                               ? ListView(

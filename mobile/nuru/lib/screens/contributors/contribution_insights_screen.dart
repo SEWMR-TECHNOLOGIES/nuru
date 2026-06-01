@@ -6,6 +6,7 @@ import '../../core/services/event_contributors_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/money_format.dart' show formatMoney, getActiveCurrency;
 import '../../core/widgets/nuru_subpage_app_bar.dart';
+import '../../core/widgets/nuru_skeleton.dart';
 
 /// Premium "Contribution Insights" screen — surfaces a friendly impact line,
 /// streak, top stats, a 12-month giving trend, payment-method breakdown,
@@ -67,27 +68,27 @@ class _ContributionInsightsScreenState extends State<ContributionInsightsScreen>
     );
   }
 
-  Widget _skeleton() => ListView(
-    padding: const EdgeInsets.all(16),
-    physics: const AlwaysScrollableScrollPhysics(),
-    children: [
-      Container(height: 140, decoration: _shimmerDeco()),
-      const SizedBox(height: 14),
-      Row(children: [
-        Expanded(child: Container(height: 88, decoration: _shimmerDeco())),
-        const SizedBox(width: 10),
-        Expanded(child: Container(height: 88, decoration: _shimmerDeco())),
-      ]),
-      const SizedBox(height: 14),
-      Container(height: 200, decoration: _shimmerDeco()),
-    ],
+  Widget _skeleton() => NuruSkeletonGroup(
+    child: ListView(
+      padding: const EdgeInsets.all(16),
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        NuruSkeleton.box(height: 140, radius: 16),
+        const SizedBox(height: 14),
+        const NuruSkeletonStats(count: 2, padding: EdgeInsets.zero),
+        const SizedBox(height: 14),
+        NuruSkeleton.box(height: 200, radius: 16),
+        const SizedBox(height: 14),
+        const NuruSkeletonList(
+          itemCount: 4,
+          padding: EdgeInsets.zero,
+          showTrailing: true,
+        ),
+      ],
+    ),
   );
 
-  BoxDecoration _shimmerDeco() => BoxDecoration(
-    color: AppColors.surfaceVariant,
-    borderRadius: BorderRadius.circular(18),
-    border: Border.all(color: AppColors.borderLight),
-  );
+
 
   Widget _errorState() => ListView(
     physics: const AlwaysScrollableScrollPhysics(),

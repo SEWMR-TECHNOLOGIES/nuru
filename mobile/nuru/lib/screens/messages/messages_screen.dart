@@ -25,6 +25,7 @@ import '../../core/widgets/app_snackbar.dart';
 import '../../providers/auth_provider.dart';
 import '../../core/l10n/l10n_helper.dart';
 import '../../core/widgets/nuru_refresh.dart';
+import '../../core/widgets/nuru_skeleton.dart';
 import '../../core/services/events_service.dart';
 import '../../core/services/social_service.dart';
 import '../../core/utils/prefetch_helper.dart';
@@ -1188,21 +1189,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
   }
 
   Widget _buildShimmer() {
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+    return const NuruSkeletonList(
       itemCount: 8,
-      itemBuilder: (_, __) => Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: Row(children: [
-          Container(width: 48, height: 48, decoration: const BoxDecoration(color: AppColors.surfaceVariant, shape: BoxShape.circle)),
-          const SizedBox(width: 14),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(height: 14, width: 120, decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(4))),
-            const SizedBox(height: 8),
-            Container(height: 10, width: 200, decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(4))),
-          ])),
-        ]),
-      ),
+      padding: EdgeInsets.fromLTRB(20, 0, 20, 24),
+      physics: AlwaysScrollableScrollPhysics(),
     );
   }
 

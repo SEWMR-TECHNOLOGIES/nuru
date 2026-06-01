@@ -51,6 +51,84 @@ const centerTextElement = (svg: string, id: string, centerX = 561) => {
   });
 };
 
+/**
+ * Replace the body of a multi-line `<text id="...">` element while
+ * preserving the original `<tspan>`-based line geometry. The Illustrator
+ * export hand-tunes each tspan's `x`/`y` (or `dy`) so the paragraph
+ * looks centered between the card's decorative leaves. If we naively
+ * dump the edited string in as a single line, the whole paragraph
+ * collapses onto one row and overflows the card width.
+ *
+ * Strategy: read the original tspan count + line-height + the average
+ * characters-per-line, word-wrap the new value across the same number
+ * of lines (or more if the user typed a longer paragraph), and emit
+ * fresh tspans that share `x="0"` so the parent `text-anchor="middle"`
+ * keeps every line visually centered around the card axis.
+ */
+const replaceMultilineText = (svg: string, id: string, newValue: string): string => {
+  const elRe = new RegExp(
+    `(<text\\b[^>]*\\bid\\s*=\\s*"${escapeRegExp(id)}"[^>]*>)([\\s\\S]*?)(</text>)`,
+    "i",
+  );
+  return svg.replace(elRe, (full, openTag: string, body: string, closeTag: string) => {
+    const tspanRe = /<tspan\b([^>]*)>([\s\S]*?)<\/tspan>/gi;
+    const tspans: { attrs: string; text: string }[] = [];
+    let mm: RegExpExecArray | null;
+    while ((mm = tspanRe.exec(body))) tspans.push({ attrs: mm[1], text: mm[2] });
+
+    // Single-line text (no tspans, or only one) — keep the old behaviour
+    // so titles/subtitles can keep their original anchor offsets.
+    if (tspans.length <= 1) {
+      return `${openTag}${escapeHtml(newValue)}${closeTag}`;
+    }
+
+    // Detect line height from the first two tspans (their `y` delta or `dy`).
+    let lineHeight = 33.84;
+    const yOf = (attrs: string) => {
+      const dy = parseFloat((attrs.match(/\bdy\s*=\s*"([-0-9.]+)"/i) || [])[1] || "");
+      if (!Number.isNaN(dy) && dy) return dy;
+      return parseFloat((attrs.match(/\by\s*=\s*"([-0-9.]+)"/i) || [])[1] || "0");
+    };
+    const y0 = yOf(tspans[0].attrs);
+    const y1 = yOf(tspans[1].attrs);
+    const delta = y1 - y0;
+    if (Math.abs(delta) > 0.5) lineHeight = Math.abs(delta);
+
+    // Reuse the first tspan's class so font sizing/colour stay identical.
+    const klass = (tspans[0].attrs.match(/\bclass\s*=\s*"([^"]*)"/i) || [])[1] || "";
+    const classAttr = klass ? ` class="${klass}"` : "";
+
+    // Estimate the visual line width from the original wrapping so the
+    // re-flow keeps the same paragraph silhouette.
+    const decoded = (s: string) => s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+    const lens = tspans.map((t) => decoded(t.text).trim().length).filter((n) => n > 0);
+    const avgLen = lens.length ? Math.round(lens.reduce((a, b) => a + b, 0) / lens.length) : 40;
+    const maxLineLen = Math.max(24, Math.round(avgLen * 1.05));
+
+    // Greedy word wrap.
+    const words = newValue.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
+    const lines: string[] = [];
+    let cur = "";
+    for (const w of words) {
+      if (!cur) { cur = w; continue; }
+      if ((cur + " " + w).length <= maxLineLen) cur += " " + w;
+      else { lines.push(cur); cur = w; }
+    }
+    if (cur) lines.push(cur);
+    if (!lines.length) lines.push("");
+
+    const tspansOut = lines
+      .map((ln, i) => {
+        const pos = i === 0 ? 'y="0"' : `dy="${lineHeight}"`;
+        return `<tspan x="0" ${pos}${classAttr}>${escapeHtml(ln)}</tspan>`;
+      })
+      .join("");
+
+    return `${openTag}${tspansOut}${closeTag}`;
+  });
+};
+
+
 /** Strip the XML declaration / DOCTYPE / Adobe Illustrator comments so the
  *  HTML parser doesn't render their trailing `]>` as visible text. */
 const sanitizeSvg = (raw: string) =>
@@ -76,19 +154,17 @@ function buildPreviewSvg(
   fonts: string[] = [],
 ): string {
   let svg = sanitizeSvg(rawSvg);
-  const replaceNodeText = (id: string, value: string) => {
-    const re = new RegExp(
-      `(<(text|tspan)\\b[^>]*\\bid\\s*=\\s*"${id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"[^>]*>)([\\s\\S]*?)(</\\2>)`,
-      "i",
-    );
-    svg = svg.replace(re, (_m, open, _tag, _body, close) => `${open}${escapeHtml(value)}${close}`);
-  };
+
   Object.entries(edits).forEach(([id, val]) => {
     const def = defaults[id] ?? "";
-    if ((val ?? "") !== def) replaceNodeText(id, val ?? "");
+    if ((val ?? "") === def) return;
+    // Multi-tspan paragraphs need word-wrap into the same line geometry,
+    // otherwise the whole paragraph collapses onto one line and overflows.
+    // Single-line titles fall through replaceMultilineText's fast path.
+    svg = replaceMultilineText(svg, id, val ?? "");
   });
   if (contributorPlaceholderId && contributorName) {
-    replaceNodeText(contributorPlaceholderId, contributorName);
+    svg = replaceMultilineText(svg, contributorPlaceholderId, contributorName);
   }
   if (fonts.length) {
     // Emit @font-face under several family-name aliases so SVGs authored in

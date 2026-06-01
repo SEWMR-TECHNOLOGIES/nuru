@@ -13,6 +13,7 @@ import '../../core/services/ticketing_service.dart';
 import '../../core/services/report_generator.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/event_cover_image.dart';
+import '../../core/widgets/nuru_skeleton.dart';
 import '../../providers/auth_provider.dart';
 import '../photos/my_photo_libraries_screen.dart';
 import '../meetings/meetings_calendar_sheet.dart';
@@ -534,9 +535,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         body:
             (_loading && _event == null) ||
                 (!_permissionsResolved && _event != null)
-            ? const Center(
-                child: CircularProgressIndicator(color: AppColors.primary),
-              )
+            ? const NuruSkeletonEventDetail()
             : _buildContent(),
       ),
     );

@@ -159,6 +159,7 @@ class NuruSkeletonList extends StatelessWidget {
   final EdgeInsets padding;
   final bool showAvatar;
   final bool showTrailing;
+  final ScrollPhysics? physics;
 
   const NuruSkeletonList({
     super.key,
@@ -166,6 +167,7 @@ class NuruSkeletonList extends StatelessWidget {
     this.padding = const EdgeInsets.fromLTRB(20, 16, 20, 24),
     this.showAvatar = true,
     this.showTrailing = false,
+    this.physics,
   });
 
   @override
@@ -173,7 +175,7 @@ class NuruSkeletonList extends StatelessWidget {
     return NuruSkeletonGroup(
       child: ListView.separated(
         padding: padding,
-        physics: const NeverScrollableScrollPhysics(),
+        physics: physics ?? const NeverScrollableScrollPhysics(),
         itemCount: itemCount,
         separatorBuilder: (_, __) => const SizedBox(height: 14),
         itemBuilder: (_, __) => Row(
@@ -207,10 +209,12 @@ class NuruSkeletonList extends StatelessWidget {
 class NuruSkeletonEventList extends StatelessWidget {
   final int itemCount;
   final EdgeInsets padding;
+  final ScrollPhysics? physics;
   const NuruSkeletonEventList({
     super.key,
     this.itemCount = 4,
     this.padding = const EdgeInsets.fromLTRB(20, 16, 20, 24),
+    this.physics,
   });
 
   @override
@@ -218,7 +222,7 @@ class NuruSkeletonEventList extends StatelessWidget {
     return NuruSkeletonGroup(
       child: ListView.separated(
         padding: padding,
-        physics: const NeverScrollableScrollPhysics(),
+        physics: physics ?? const NeverScrollableScrollPhysics(),
         itemCount: itemCount,
         separatorBuilder: (_, __) => const SizedBox(height: 14),
         itemBuilder: (_, __) => Container(
@@ -417,6 +421,129 @@ class NuruSkeletonMessages extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// Feed post-card skeleton: avatar + name/handle + media block + action row.
+/// Visually matches `MomentCard` so the feed swap is seamless.
+class NuruSkeletonPostCard extends StatelessWidget {
+  final double mediaHeight;
+  const NuruSkeletonPostCard({super.key, this.mediaHeight = 220});
+
+  @override
+  Widget build(BuildContext context) {
+    return NuruSkeletonGroup(
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: const Color(0xFFF0F0F4)),
+        ),
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                NuruSkeleton.circle(size: 40),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      NuruSkeleton.text(width: 130, height: 12),
+                      const SizedBox(height: 8),
+                      NuruSkeleton.text(width: 80, height: 10),
+                    ],
+                  ),
+                ),
+                NuruSkeleton.box(width: 22, height: 22, radius: 6),
+              ],
+            ),
+            const SizedBox(height: 12),
+            NuruSkeleton.text(width: double.infinity, height: 10),
+            const SizedBox(height: 6),
+            NuruSkeleton.text(width: 220, height: 10),
+            const SizedBox(height: 14),
+            NuruSkeleton.box(height: mediaHeight, radius: 14),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                NuruSkeleton.box(width: 60, height: 22, radius: 11),
+                const SizedBox(width: 10),
+                NuruSkeleton.box(width: 60, height: 22, radius: 11),
+                const SizedBox(width: 10),
+                NuruSkeleton.box(width: 60, height: 22, radius: 11),
+                const Spacer(),
+                NuruSkeleton.box(width: 22, height: 22, radius: 6),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Vertical list of post-card skeletons for the home feed.
+class NuruSkeletonPostList extends StatelessWidget {
+  final int itemCount;
+  final EdgeInsets padding;
+  const NuruSkeletonPostList({
+    super.key,
+    this.itemCount = 3,
+    this.padding = EdgeInsets.zero,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return NuruSkeletonGroup(
+      child: Padding(
+        padding: padding,
+        child: Column(
+          children: List.generate(
+            itemCount,
+            (_) => const Padding(
+              padding: EdgeInsets.only(bottom: 16),
+              child: NuruSkeletonPostCard(),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Event detail screen skeleton: cover + title + meta + stats + tabs + list.
+class NuruSkeletonEventDetail extends StatelessWidget {
+  const NuruSkeletonEventDetail({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return NuruSkeletonGroup(
+      child: ListView(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.zero,
+        children: [
+          NuruSkeleton.box(height: 220, radius: 0),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                NuruSkeleton.text(width: 220, height: 18),
+                const SizedBox(height: 12),
+                NuruSkeleton.text(width: 160, height: 12),
+                const SizedBox(height: 8),
+                NuruSkeleton.text(width: 120, height: 12),
+              ],
+            ),
+          ),
+          const NuruSkeletonStats(count: 3),
+          const NuruSkeletonList(itemCount: 4, showAvatar: false),
+        ],
       ),
     );
   }
