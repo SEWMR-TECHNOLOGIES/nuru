@@ -821,7 +821,7 @@ export default function EventCardsTab({ eventId }: Props) {
 
       {/* Send dialog */}
       <Dialog open={sendOpen} onOpenChange={(o) => { if (activeBatchNo === null) setSendOpen(o); }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {sendStep === "pick" ? "Send card to contributors" : "Send in batches"}
@@ -923,6 +923,9 @@ export default function EventCardsTab({ eventId }: Props) {
               batchSize={batchSize}
               activeBatchNo={activeBatchNo}
               activeBatchProgress={activeBatchProgress}
+              recipientNames={Object.fromEntries(
+                eligibleContributors.map((ec) => [ec.id, ec.contributor?.name || "Unnamed"])
+              )}
               onSendBatch={(n) => sendBatch(n)}
               onRetryFailed={(n) => sendBatch(n, { retryOnly: true })}
               onResendAll={(n) => {
@@ -966,6 +969,7 @@ interface BatchesViewProps {
   batchSize: number;
   activeBatchNo: number | null;
   activeBatchProgress: { done: number; total: number; currentName?: string } | null;
+  recipientNames: Record<string, string>;
   onSendBatch: (n: number) => void;
   onRetryFailed: (n: number) => void;
   onResendAll: (n: number) => void;
@@ -992,7 +996,7 @@ const STATUS_BADGE: Record<BatchStatus, string> = {
 };
 
 function BatchesView({
-  batches, batchSize, activeBatchNo, activeBatchProgress,
+  batches, batchSize, activeBatchNo, activeBatchProgress, recipientNames,
   onSendBatch, onRetryFailed, onResendAll, onClearReport, onCancelActive,
 }: BatchesViewProps) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -1100,7 +1104,7 @@ function BatchesView({
                 {isOpen && (
                   <div className="text-xs text-muted-foreground space-y-1 pt-1 border-t border-border">
                     <p className="font-medium text-foreground">Recipients ({b.recipient_ids.length})</p>
-                    <p className="break-all">{b.recipient_ids.join(", ")}</p>
+                    <p className="break-words">{b.recipient_ids.map((id) => recipientNames[id] || id).join(", ")}</p>
                     {b.failed.length > 0 && (
                       <>
                         <p className="font-medium text-foreground pt-1">Failed</p>
