@@ -1,38 +1,95 @@
 /**
- * Browser-side card-to-PNG renderer for pledge thank-you cards.
+ * Browser-side card renderer for pledge thank-you cards.
+ *
+ * Two public APIs:
+ *
+ *  1. `renderSvgMarkupToPng(svgMarkup, opts)` — legacy one-shot renderer
+ *     kept for callers that render a single card.
+ *
+ *  2. `createCardRenderJob(templateSvg, opts)` — preferred for bulk sends.
+ *     Performs the expensive work once (font inlining, `document.fonts.ready`,
+ *     mounting a persistent off-screen host) and then accepts per-recipient
+ *     `render({ token, value })` calls that only swap dynamic text and
+ *     capture the host. After the batch finishes, call `.dispose()` to
+ *     release the DOM node.
  *
  * Why this exists: the Illustrator-exported pledge card SVG is ~12 MB with
  * dozens of embedded base64 images. Rendering it through `cairosvg` on the
  * VPS or `resvg-wasm` in a Supabase Edge Function blows past memory/CPU
- * limits and the WhatsApp template ends up with a broken image header.
- *
- * The browser already paints the exact preview the organiser approved, so
- * we capture *that* DOM as a PNG using `html-to-image`, upload the bytes
- * to backend storage, and hand the final URL to WhatsApp.
+ * limits and the WhatsApp template ends up with a broken image header. The
+ * browser already paints the exact preview the organiser approved, so we
+ * capture that DOM and upload the bytes.
  */
 import { toBlob } from "html-to-image";
 
-/**
- * Render an SVG markup string to a PNG blob at the given pixel ratio.
- * Uses a temporarily mounted off-screen DOM node so html-to-image can
- * embed fonts and resolve relative URLs.
- */
+export interface RenderOutputOpts {
+  /** Final CSS width fed to html-to-image. Default 1080. */
+  width?: number;
+  /** Device-pixel-ratio multiplier. Default 1 (1080px output). */
+  pixelRatio?: number;
+  /** Output mime — "image/jpeg" is ~3-5× smaller than PNG. */
+  mimeType?: "image/png" | "image/jpeg";
+  /** JPEG/WEBP quality 0..1. Default 0.9. */
+  quality?: number;
+}
+
+export interface RenderJobOpts extends RenderOutputOpts {
+  /** Hard cap per render. Default 10 000 ms. */
+  timeoutMs?: number;
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/* Legacy single-shot renderer — still used by some callers.                 */
+/* ────────────────────────────────────────────────────────────────────────── */
+
 export async function renderSvgMarkupToPng(
   svgMarkup: string,
-  opts: { width?: number; pixelRatio?: number } = {},
+  opts: RenderOutputOpts = {},
 ): Promise<Blob> {
+  const job = await createCardRenderJob(svgMarkup, opts);
+  try {
+    return await job.captureCurrent();
+  } finally {
+    job.dispose();
+  }
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/* Reusable render job — preferred for bulk sends.                           */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+export interface CardRenderJob {
+  /**
+   * Replace every occurrence of `token` in the prepared SVG with `value`,
+   * mount it into the persistent host, and capture a blob. Subsequent
+   * calls reuse the inlined-font template — only the token swap happens.
+   */
+  render(swap: { token: string; value: string }): Promise<Blob>;
+  /** Capture whatever is currently mounted (used by the legacy API). */
+  captureCurrent(): Promise<Blob>;
+  /** Release the DOM host. Safe to call multiple times. */
+  dispose(): void;
+}
+
+export async function createCardRenderJob(
+  templateSvg: string,
+  opts: RenderJobOpts = {},
+): Promise<CardRenderJob> {
   const width = opts.width ?? 1080;
-  const pixelRatio = opts.pixelRatio ?? 2;
+  const pixelRatio = opts.pixelRatio ?? 1;
+  const mimeType = opts.mimeType ?? "image/jpeg";
+  const quality = opts.quality ?? 0.9;
+  const timeoutMs = opts.timeoutMs ?? 10_000;
 
-  // Inline every @font-face url() as a base64 data URI BEFORE we mount or
-  // capture. Without this, Firefox (and Safari) render the captured PNG
-  // with system fallbacks because html-to-image serialises the SVG into
-  // an isolated image context where document.fonts isn't shared and
-  // cross-origin font URLs aren't refetched. Chrome happened to work
-  // because its raster path reuses the live fonts; Firefox does not.
-  const inlinedSvg = await inlineSvgFontUrls(svgMarkup);
+  // ── One-time heavy work ────────────────────────────────────────────
+  // Inline @font-face URLs to data URIs so the html-to-image image
+  // context renders the right glyphs (Firefox/Safari otherwise fall
+  // back to system fonts because their canvas raster path doesn't
+  // share document.fonts).
+  const preparedSvg = await inlineSvgFontUrls(templateSvg);
 
-  // Mount off-screen but still painted (visibility:hidden would skip layout).
+  // Persistent off-screen host — reused across every render() call so
+  // we don't re-mount/remove a heavy SVG per recipient.
   const host = document.createElement("div");
   host.style.position = "fixed";
   host.style.left = "-100000px";
@@ -40,54 +97,115 @@ export async function renderSvgMarkupToPng(
   host.style.width = `${width}px`;
   host.style.pointerEvents = "none";
   host.style.background = "#ffffff";
-  host.innerHTML = inlinedSvg;
-
-  const svgEl = host.querySelector("svg");
-  if (svgEl) {
-    // Lock the captured surface to a known width while preserving aspect.
-    svgEl.setAttribute("width", String(width));
-    svgEl.removeAttribute("height");
-    svgEl.style.display = "block";
-    svgEl.style.width = `${width}px`;
-    svgEl.style.height = "auto";
-  }
   document.body.appendChild(host);
 
+  // Register fonts on document.fonts once so layout uses correct metrics.
+  await preloadSvgFonts(preparedSvg);
   try {
-    // Belt-and-braces: also register each face on document.fonts so the
-    // off-screen DOM lays out with the right metrics before capture.
-    await preloadSvgFonts(inlinedSvg);
-    try {
-      if ((document as any).fonts?.ready) {
-        await (document as any).fonts.ready;
-      }
-    } catch {
-      /* font loader unavailable — best effort */
-    }
-    // Force layout + a frame so any late-arriving images are decoded.
-    await new Promise((r) => requestAnimationFrame(() => r(null)));
-    await new Promise((r) => setTimeout(r, 120));
+    if ((document as any).fonts?.ready) await (document as any).fonts.ready;
+  } catch {
+    /* font loader unavailable — best effort */
+  }
 
-    const target = (svgEl as unknown as HTMLElement) || host;
-    const blob = await toBlob(target, {
+  let disposed = false;
+  let lastMarkup = "";
+
+  const mount = (svg: string) => {
+    host.innerHTML = svg;
+    const svgEl = host.querySelector("svg");
+    if (svgEl) {
+      svgEl.setAttribute("width", String(width));
+      svgEl.removeAttribute("height");
+      (svgEl as unknown as HTMLElement).style.display = "block";
+      (svgEl as unknown as HTMLElement).style.width = `${width}px`;
+      (svgEl as unknown as HTMLElement).style.height = "auto";
+    }
+    lastMarkup = svg;
+  };
+
+  // Mount the prepared template once so the first render() call is fast.
+  mount(preparedSvg);
+
+  const capture = async (): Promise<Blob> => {
+    if (disposed) throw new Error("Render job already disposed");
+    const target =
+      (host.querySelector("svg") as unknown as HTMLElement) || host;
+
+    // Yield one frame so any late-decoded images / fonts settle.
+    await new Promise((r) => requestAnimationFrame(() => r(null)));
+
+    const blobPromise = toBlob(target, {
       pixelRatio,
       backgroundColor: "#ffffff",
       cacheBust: false,
       skipFonts: false,
-    });
+      type: mimeType,
+      quality,
+    } as Parameters<typeof toBlob>[1]);
+
+    const blob = await withTimeout(blobPromise, timeoutMs, "Card render timed out");
     if (!blob) throw new Error("Card capture returned an empty image.");
     return blob;
-  } finally {
-    host.remove();
-  }
+  };
+
+  return {
+    async render({ token, value }) {
+      if (!token) {
+        // No swap requested — capture current mount.
+        return capture();
+      }
+      const escaped = escapeXml(value);
+      const swapped = lastMarkup === preparedSvg
+        ? preparedSvg.split(token).join(escaped)
+        : preparedSvg.split(token).join(escaped);
+      mount(swapped);
+      return capture();
+    },
+    captureCurrent: capture,
+    dispose() {
+      if (disposed) return;
+      disposed = true;
+      try {
+        host.innerHTML = "";
+        host.remove();
+      } catch {
+        /* ignore */
+      }
+    },
+  };
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/* Helpers                                                                   */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+function escapeXml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(label)), ms);
+    p.then(
+      (v) => {
+        clearTimeout(t);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(t);
+        reject(e);
+      },
+    );
+  });
 }
 
 /** Fetch every http(s)/relative font URL referenced by @font-face inside
- *  the SVG and rewrite each `url(...)` to a base64 data URI. The result
- *  is a fully self-contained SVG that renders identically when html-to-
- *  image serialises it into an Image for canvas rasterisation — the
- *  approach that finally makes Firefox stop falling back to system
- *  fonts for script faces like Anthony Hunter. */
+ *  the SVG and rewrite each `url(...)` to a base64 data URI. */
 async function inlineSvgFontUrls(svgMarkup: string): Promise<string> {
   const urls = new Set<string>();
   const fontFaceRe = /@font-face\s*{([^}]+)}/gi;
@@ -144,15 +262,6 @@ async function inlineSvgFontUrls(svgMarkup: string): Promise<string> {
   return out;
 }
 
-
-
-
-
-/** Parse every @font-face rule in the SVG <style> blocks and load each
- *  font URL through the FontFace API so the family is registered on
- *  document.fonts BEFORE html-to-image clones the DOM. Without this,
- *  scripty fonts (Anthony Hunter) silently fall back to system fonts and
- *  the captured PNG has blank gaps where styled headings should be. */
 async function preloadSvgFonts(svgMarkup: string): Promise<void> {
   if (!(document as any).fonts?.add) return;
   const fontFaceRe = /@font-face\s*{([^}]+)}/gi;
@@ -175,8 +284,12 @@ async function preloadSvgFonts(svgMarkup: string): Promise<void> {
     let u: RegExpExecArray | null;
     while ((u = srcUrlRe.exec(block))) {
       const url = u[1];
-      if (!/^https?:\/\//i.test(url) && !url.startsWith("/")) continue;
-      const key = `${family}|${style}|${weight}|${url}`;
+      // Accept data: URIs too, since inlineSvgFontUrls just rewrote remote
+      // URLs into base64. Without this, the preload pass silently skips
+      // every face after inlining and document.fonts never registers them.
+      const acceptable = url.startsWith("data:") || /^https?:\/\//i.test(url) || url.startsWith("/");
+      if (!acceptable) continue;
+      const key = `${family}|${style}|${weight}|${url.slice(0, 64)}`;
       if (seen.has(key)) continue;
       seen.add(key);
       try {
@@ -194,4 +307,3 @@ async function preloadSvgFonts(svgMarkup: string): Promise<void> {
   }
   if (jobs.length) await Promise.all(jobs);
 }
-

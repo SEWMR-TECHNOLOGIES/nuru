@@ -27,7 +27,7 @@ import {
   type SavedEventCard,
 } from "@/lib/api/eventCards";
 import { uploadsApi } from "@/lib/api/uploads";
-import { renderSvgMarkupToPng } from "@/lib/cards/renderCardPng";
+import { createCardRenderJob } from "@/lib/cards/renderCardPng";
 import { useEventContributors } from "@/data/useContributors";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
@@ -283,10 +283,23 @@ export default function EventCardsTab({ eventId }: Props) {
   const [previewBust, setPreviewBust] = useState(0);
   const [sendOpen, setSendOpen] = useState(false);
   const [sendStep, setSendStep] = useState<"pick" | "batches">("pick");
-  const [batchSize, setBatchSize] = useState<number>(20);
+  const [batchSize, setBatchSize] = useState<number>(10);
   const [batches, setBatches] = useState<BatchState[]>([]);
   const [activeBatchNo, setActiveBatchNo] = useState<number | null>(null);
-  const [activeBatchProgress, setActiveBatchProgress] = useState<{ done: number; total: number; currentName?: string } | null>(null);
+  const [activeBatchProgress, setActiveBatchProgress] = useState<
+    | {
+        done: number;
+        total: number;
+        prepared: number;
+        uploaded: number;
+        failed: number;
+        currentName?: string;
+        avgMs?: number;
+        etaMs?: number;
+        phase: "preparing" | "sending" | "done";
+      }
+    | null
+  >(null);
   const cancelRef = useRef<boolean>(false);
   const [contributorSearch, setContributorSearch] = useState("");
   const [selectedContributorIds, setSelectedContributorIds] = useState<Set<string>>(new Set());
@@ -516,6 +529,16 @@ export default function EventCardsTab({ eventId }: Props) {
   // Render + upload + send a specific set of recipient ids. Used for both
   // initial batch sends and "retry failed" — keeps the proven single-flow
   // pipeline; only the input list changes.
+  //
+  // Performance design:
+  //   - Build the template SVG ONCE per call with a unique token in place
+  //     of the contributor name. Fonts get inlined once via the reusable
+  //     render job, document.fonts.ready waited on once, and a single
+  //     off-screen DOM host is reused for every recipient.
+  //   - Per recipient: swap the token, capture to JPEG, upload, release.
+  //   - Default concurrency is 1: canvas rasterisation is CPU heavy and
+  //     parallel canvases starve the UI thread. Two workers occasionally
+  //     produce smeared output on older devices.
   const prepareAndSendIds = useCallback(
     async (ids: string[]): Promise<{ sentIds: string[]; failed: BatchFailure[] }> => {
       if (!activeTemplate?.svg || !activeCategory) {
@@ -531,12 +554,63 @@ export default function EventCardsTab({ eventId }: Props) {
         if (ids.includes(ec.id)) idToName[ec.id] = ec.contributor?.name || "Friend";
       });
 
+      // ── 1. Build the prepared template ONCE ─────────────────────
+      // We inject a unique token instead of the recipient name so the
+      // expensive buildPreviewSvg work (sanitise, multi-tspan re-wrap,
+      // font face emission, centering) only runs a single time per batch.
+      const NAME_TOKEN = "__NURU_NAME_TOKEN_7F3A__";
+      const preparedTemplateSvg = buildPreviewSvg(
+        activeTemplate.svg,
+        activeTemplate.slug,
+        values,
+        defaults,
+        placeholderId,
+        NAME_TOKEN,
+        meta.fonts || [],
+      );
+
+      // ── 2. Spin up a single reusable render job ─────────────────
+      // This inlines @font-face URLs to data URIs ONCE, mounts ONE
+      // off-screen host, and waits for document.fonts.ready ONCE.
+      let job: Awaited<ReturnType<typeof createCardRenderJob>>;
+      try {
+        job = await createCardRenderJob(preparedTemplateSvg, {
+          width: 1080,
+          pixelRatio: 1,            // 1080px final — JPEG keeps it sharp on WhatsApp
+          mimeType: "image/jpeg",   // ~3-5× smaller than PNG, no transparency needed
+          quality: 0.9,
+          timeoutMs: 10_000,
+        });
+      } catch (e: any) {
+        return {
+          sentIds: [],
+          failed: ids.map((id) => ({
+            recipient_id: id,
+            name: idToName[id] || "Friend",
+            reason: `Template prep failed: ${e?.message || e}`,
+          })),
+        };
+      }
+
       const failed: BatchFailure[] = [];
       const preRendered: Record<string, string> = {};
       const total = ids.length;
+      const timings: number[] = [];
       let done = 0;
+      let prepared = 0;
+      let uploaded = 0;
       let cursor = 0;
-      const CONCURRENCY = 4;
+      const CONCURRENCY = 1; // sequential: most reliable & responsive
+
+      const updateProgress = (currentName?: string, phase: "preparing" | "sending" = "preparing") => {
+        const avgMs = timings.length ? timings.reduce((a, b) => a + b, 0) / timings.length : undefined;
+        const remaining = Math.max(0, total - done);
+        const etaMs = avgMs ? avgMs * remaining : undefined;
+        setActiveBatchProgress({
+          done, total, prepared, uploaded, failed: failed.length, currentName, avgMs, etaMs, phase,
+        });
+      };
+      updateProgress();
 
       const worker = async () => {
         while (true) {
@@ -545,38 +619,55 @@ export default function EventCardsTab({ eventId }: Props) {
           if (i >= ids.length) return;
           const id = ids[i];
           const name = idToName[id] || "Friend";
-          setActiveBatchProgress({ done, total, currentName: name });
+          updateProgress(name);
+          const tStart = performance.now();
+          let renderMs = 0;
+          let uploadMs = 0;
+          let sizeKb = 0;
           try {
-            const svg = buildPreviewSvg(
-              activeTemplate.svg,
-              activeTemplate.slug,
-              values,
-              defaults,
-              placeholderId,
-              name,
-              meta.fonts || [],
-            );
-            const blob = await renderSvgMarkupToPng(svg, { width: 1080, pixelRatio: 2 });
-            const file = new File([blob], `pledge-card-${id}.png`, { type: "image/png" });
+            const tRender = performance.now();
+            const blob = await job.render({ token: NAME_TOKEN, value: name });
+            renderMs = performance.now() - tRender;
+            sizeKb = Math.round(blob.size / 1024);
+            prepared += 1;
+
+            const tUp = performance.now();
+            const file = new File([blob], `pledge-card-${id}.jpg`, { type: blob.type || "image/jpeg" });
             const res = await uploadsApi.upload(file);
+            uploadMs = performance.now() - tUp;
             const url = res.data?.url;
             if (!url) throw new Error("Upload returned no URL");
             preRendered[id] = url;
+            uploaded += 1;
           } catch (e: any) {
             failed.push({ recipient_id: id, name, reason: e?.message || "Render/upload failed" });
           } finally {
+            const totalMs = performance.now() - tStart;
+            timings.push(totalMs);
             done += 1;
-            setActiveBatchProgress({ done, total, currentName: name });
+            if (import.meta.env.DEV) {
+              // eslint-disable-next-line no-console
+              console.log(
+                `[card_prepare_perf] recipient=${name} renderMs=${Math.round(renderMs)} ` +
+                `uploadMs=${Math.round(uploadMs)} totalMs=${Math.round(totalMs)} sizeKb=${sizeKb}`,
+              );
+            }
+            updateProgress(name);
           }
         }
       };
 
-      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, ids.length) }, worker));
+      try {
+        await Promise.all(Array.from({ length: Math.min(CONCURRENCY, ids.length) }, worker));
+      } finally {
+        job.dispose();
+      }
 
       const preparedIds = Object.keys(preRendered);
       if (preparedIds.length === 0) {
         return { sentIds: [], failed };
       }
+      updateProgress(undefined, "sending");
       try {
         await eventCardsApi.sendToContributors(eventId, activeCategory, preparedIds, preRendered);
         return { sentIds: preparedIds, failed };
@@ -604,7 +695,7 @@ export default function EventCardsTab({ eventId }: Props) {
       }
       cancelRef.current = false;
       setActiveBatchNo(batchNo);
-      setActiveBatchProgress({ done: 0, total: ids.length });
+      setActiveBatchProgress({ done: 0, total: ids.length, prepared: 0, uploaded: 0, failed: 0, phase: "preparing" });
       const started_at = new Date().toISOString();
       persistBatches(batches.map((b) => (b.batch_no === batchNo ? { ...b, status: "sending", started_at } : b)));
       try {
@@ -846,7 +937,7 @@ export default function EventCardsTab({ eventId }: Props) {
                       Group recipients into batches of:
                     </label>
                     <div className="flex gap-1">
-                      {[10, 20, 30, 50].map((n) => (
+                      {[5, 10, 20, 30, 50].map((n) => (
                         <button
                           key={n}
                           type="button"
@@ -968,7 +1059,19 @@ interface BatchesViewProps {
   batches: BatchState[];
   batchSize: number;
   activeBatchNo: number | null;
-  activeBatchProgress: { done: number; total: number; currentName?: string } | null;
+  activeBatchProgress:
+    | {
+        done: number;
+        total: number;
+        prepared: number;
+        uploaded: number;
+        failed: number;
+        currentName?: string;
+        avgMs?: number;
+        etaMs?: number;
+        phase: "preparing" | "sending" | "done";
+      }
+    | null;
   recipientNames: Record<string, string>;
   onSendBatch: (n: number) => void;
   onRetryFailed: (n: number) => void;
@@ -1052,10 +1155,22 @@ function BatchesView({
 
                 {isActive && activeBatchProgress && (
                   <div className="text-xs text-muted-foreground space-y-1">
-                    <p>
-                      Preparing {activeBatchProgress.done} of {activeBatchProgress.total}
-                      {activeBatchProgress.currentName ? `: ${activeBatchProgress.currentName}` : ""}
+                    <p className="font-medium text-foreground">
+                      {activeBatchProgress.phase === "sending"
+                        ? `Sending prepared cards…`
+                        : `Card ${Math.min(activeBatchProgress.done + 1, activeBatchProgress.total)} of ${activeBatchProgress.total}${activeBatchProgress.currentName ? `: ${activeBatchProgress.currentName}` : ""}`}
                     </p>
+                    <p>
+                      Prepared {activeBatchProgress.prepared} · Uploaded {activeBatchProgress.uploaded} · Failed {activeBatchProgress.failed} · Pending {Math.max(0, activeBatchProgress.total - activeBatchProgress.done)}
+                    </p>
+                    {activeBatchProgress.avgMs !== undefined && (
+                      <p>
+                        Average: {(activeBatchProgress.avgMs / 1000).toFixed(1)}s/card
+                        {activeBatchProgress.etaMs !== undefined && activeBatchProgress.etaMs > 0
+                          ? ` · ETA ${Math.max(1, Math.round(activeBatchProgress.etaMs / 1000))}s`
+                          : ""}
+                      </p>
+                    )}
                     <div className="h-1.5 w-full bg-muted rounded-full overflow-hidden">
                       <div
                         className="h-full bg-primary transition-all"
