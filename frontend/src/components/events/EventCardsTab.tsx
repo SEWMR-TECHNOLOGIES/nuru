@@ -912,8 +912,8 @@ export default function EventCardsTab({ eventId }: Props) {
 
       {/* Send dialog */}
       <Dialog open={sendOpen} onOpenChange={(o) => { if (activeBatchNo === null) setSendOpen(o); }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-2xl h-[90vh] flex flex-col p-0 gap-0">
+          <DialogHeader className="px-6 pt-6 pb-3 shrink-0 border-b border-border">
             <DialogTitle>
               {sendStep === "pick" ? "Send card to contributors" : "Send in batches"}
             </DialogTitle>
@@ -924,6 +924,7 @@ export default function EventCardsTab({ eventId }: Props) {
             </DialogDescription>
           </DialogHeader>
 
+          <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
           {sendStep === "pick" && (
             eligibleContributors.length === 0 ? (
               <p className="text-sm text-muted-foreground py-6 text-center">
@@ -979,31 +980,29 @@ export default function EventCardsTab({ eventId }: Props) {
                   </label>
                 </div>
 
-                <ScrollArea className="max-h-[40vh] pr-2">
-                  <div className="space-y-1.5">
-                    {filteredContributors.length === 0 ? (
-                      <p className="text-sm text-muted-foreground py-6 text-center">
-                        No contributors match "{contributorSearch}".
-                      </p>
-                    ) : (
-                      filteredContributors.map((ec) => {
-                        const id = ec.id;
-                        const checked = selectedContributorIds.has(id);
-                        const name = ec.contributor?.name || "Unnamed";
-                        const phone = ec.contributor?.phone || "";
-                        return (
-                          <label key={id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted cursor-pointer">
-                            <Checkbox checked={checked} onCheckedChange={() => toggleContributor(id)} />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate">{name}</p>
-                              {phone && <p className="text-xs text-muted-foreground truncate">{phone}</p>}
-                            </div>
-                          </label>
-                        );
-                      })
-                    )}
-                  </div>
-                </ScrollArea>
+                <div className="mt-3 space-y-1.5">
+                  {filteredContributors.length === 0 ? (
+                    <p className="text-sm text-muted-foreground py-6 text-center">
+                      No contributors match "{contributorSearch}".
+                    </p>
+                  ) : (
+                    filteredContributors.map((ec) => {
+                      const id = ec.id;
+                      const checked = selectedContributorIds.has(id);
+                      const name = ec.contributor?.name || "Unnamed";
+                      const phone = ec.contributor?.phone || "";
+                      return (
+                        <label key={id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted cursor-pointer">
+                          <Checkbox checked={checked} onCheckedChange={() => toggleContributor(id)} />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{name}</p>
+                            {phone && <p className="text-xs text-muted-foreground truncate">{phone}</p>}
+                          </div>
+                        </label>
+                      );
+                    })
+                  )}
+                </div>
               </>
             )
           )}
@@ -1014,8 +1013,8 @@ export default function EventCardsTab({ eventId }: Props) {
               batchSize={batchSize}
               activeBatchNo={activeBatchNo}
               activeBatchProgress={activeBatchProgress}
-              recipientNames={Object.fromEntries(
-                eligibleContributors.map((ec) => [ec.id, ec.contributor?.name || "Unnamed"])
+              recipientInfo={Object.fromEntries(
+                eligibleContributors.map((ec) => [ec.id, { name: ec.contributor?.name || "Unnamed", phone: ec.contributor?.phone || "" }])
               )}
               onSendBatch={(n) => sendBatch(n)}
               onRetryFailed={(n) => sendBatch(n, { retryOnly: true })}
@@ -1029,8 +1028,9 @@ export default function EventCardsTab({ eventId }: Props) {
               onCancelActive={cancelActiveBatch}
             />
           )}
+          </div>
 
-          <DialogFooter className="flex-col sm:flex-row gap-2">
+          <DialogFooter className="flex-col sm:flex-row gap-2 px-6 py-4 border-t border-border shrink-0">
             {sendStep === "pick" ? (
               <>
                 <Button variant="outline" onClick={() => setSendOpen(false)}>Cancel</Button>
@@ -1072,7 +1072,7 @@ interface BatchesViewProps {
         phase: "preparing" | "sending" | "done";
       }
     | null;
-  recipientNames: Record<string, string>;
+  recipientInfo: Record<string, { name: string; phone: string }>;
   onSendBatch: (n: number) => void;
   onRetryFailed: (n: number) => void;
   onResendAll: (n: number) => void;
@@ -1099,7 +1099,7 @@ const STATUS_BADGE: Record<BatchStatus, string> = {
 };
 
 function BatchesView({
-  batches, batchSize, activeBatchNo, activeBatchProgress, recipientNames,
+  batches, batchSize, activeBatchNo, activeBatchProgress, recipientInfo,
   onSendBatch, onRetryFailed, onResendAll, onClearReport, onCancelActive,
 }: BatchesViewProps) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -1127,8 +1127,7 @@ function BatchesView({
         </p>
       </div>
 
-      <ScrollArea className="max-h-[55vh] pr-2">
-        <div className="space-y-2">
+      <div className="space-y-2">
           {batches.map((b) => {
             const start = (b.batch_no - 1) * batchSize + 1;
             const end = start + b.recipient_ids.length - 1;
@@ -1219,19 +1218,23 @@ function BatchesView({
                 {isOpen && (
                   <div className="text-xs text-muted-foreground space-y-1 pt-1 border-t border-border">
                     <p className="font-medium text-foreground">Recipients ({b.recipient_ids.length})</p>
-                    <p className="break-words">{b.recipient_ids.map((id) => recipientNames[id] || id).join(", ")}</p>
-                    {b.failed.length > 0 && (
-                      <>
-                        <p className="font-medium text-foreground pt-1">Failed</p>
-                        <ul className="space-y-0.5">
-                          {b.failed.map((f) => (
-                            <li key={f.recipient_id}>
-                              {f.name || f.recipient_id} — {f.reason}
-                            </li>
-                          ))}
-                        </ul>
-                      </>
-                    )}
+                    <ul className="space-y-0.5">
+                      {b.recipient_ids.map((id) => {
+                        const info = recipientInfo[id];
+                        const sent = b.sent_ids.includes(id);
+                        const failed = b.failed.find((f) => f.recipient_id === id);
+                        return (
+                          <li key={id} className="flex items-baseline gap-2">
+                            <span className={`inline-block w-1.5 h-1.5 rounded-full shrink-0 ${failed ? "bg-red-500" : sent ? "bg-green-500" : "bg-muted-foreground/40"}`} />
+                            <span className="flex-1 break-words">
+                              <span className="text-foreground">{info?.name || id}</span>
+                              {info?.phone && <span className="text-muted-foreground"> · {info.phone}</span>}
+                              {failed && <span className="text-red-600 dark:text-red-400"> — {failed.reason}</span>}
+                            </span>
+                          </li>
+                        );
+                      })}
+                    </ul>
                     {b.started_at && (
                       <p className="pt-1">
                         Started {new Date(b.started_at).toLocaleString()}
@@ -1244,7 +1247,6 @@ function BatchesView({
             );
           })}
         </div>
-      </ScrollArea>
     </div>
   );
 }

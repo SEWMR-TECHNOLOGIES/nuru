@@ -743,38 +743,68 @@ def send_pledge_thank_you_cards(
                 channels = []
                 phone = row.recipient_phone
                 ok_wa = False
+                wa_message_id = None
+                wa_error = None
+                wa_not_on_whatsapp = False
                 if phone:
                     try:
-                        wa_pledge_thank_you_card(
-                            phone=phone,
-                            contributor_name=row.recipient_name,
-                            event_name=ev.name or "the event",
-                            image_url=image_url,
-                            lang=lang,
-                        )
-                        ok_wa = True
-                        channels.append("whatsapp")
+                        from utils.whatsapp import _send_whatsapp_sync
+                        wa_result = _send_whatsapp_sync("pledge_thank_you_card", phone, {
+                            "contributor_name": row.recipient_name or "Friend",
+                            "event_name": ev.name or "the event",
+                            "image_url": image_url or "",
+                            "lang": "en" if lang == "en" else "sw",
+                        }) or {}
+                        ok_wa = bool(wa_result.get("ok"))
+                        wa_message_id = wa_result.get("message_id")
+                        wa_not_on_whatsapp = bool(wa_result.get("not_on_whatsapp"))
+                        wa_error = None if ok_wa else (wa_result.get("error") or "send failed")
+                        if ok_wa:
+                            channels.append("whatsapp")
                     except Exception as exc:
-                        row.error_message = f"wa: {exc}"
+                        wa_error = f"exception: {exc}"
                 ok_sms = False
+                sms_error = None
                 if phone and sms_ok:
                     try:
-                        sms_pledge_thank_you_card(
+                        ok_sms = bool(sms_pledge_thank_you_card(
                             phone=phone,
                             contributor_name=row.recipient_name,
                             event_name=ev.name or "the event",
                             card_link=landing_url,
                             lang=lang,
-                        )
-                        ok_sms = True
-                        channels.append("sms")
+                        ))
+                        if ok_sms:
+                            channels.append("sms")
+                        else:
+                            sms_error = "sms send returned false"
                     except Exception as exc:
-                        row.error_message = (row.error_message or "") + f" sms: {exc}"
+                        sms_error = f"exception: {exc}"
 
+                if wa_message_id:
+                    row.whatsapp_message_id = wa_message_id
+                error_parts = []
+                if wa_error:
+                    error_parts.append(f"wa: {wa_error}")
+                if wa_not_on_whatsapp:
+                    error_parts.append("wa: not_on_whatsapp")
+                if sms_error:
+                    error_parts.append(f"sms: {sms_error}")
+                row.error_message = " | ".join(error_parts) if error_parts else None
                 row.delivery_channel = "+".join(channels) or "none"
                 row.delivery_status = "sent" if (ok_wa or ok_sms) else "failed"
                 row.sent_at = datetime.utcnow()
                 s.commit()
+
+                # Structured per-recipient delivery report for troubleshooting.
+                phone_mask = (phone[:5] + "***" + phone[-3:]) if phone and len(phone) > 8 else (phone or "")
+                print(
+                    f"[pledge_card_dispatch_report] sid={row.id} event_id={ev.id} "
+                    f"contributor_id={row.contributor_id} name={row.recipient_name!r} "
+                    f"phone={phone_mask} status={row.delivery_status} channel={row.delivery_channel} "
+                    f"wa_ok={ok_wa} wa_message_id={wa_message_id} wa_not_on_whatsapp={wa_not_on_whatsapp} "
+                    f"wa_error={wa_error!r} sms_ok={ok_sms} sms_error={sms_error!r} image_url={image_url}"
+                )
         except Exception as exc:
             try:
                 for sid in dispatch_sent_card_ids:
