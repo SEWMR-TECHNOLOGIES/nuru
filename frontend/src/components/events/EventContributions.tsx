@@ -696,9 +696,9 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
       {(summary as any).whatsapp && (
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span className="font-medium">WhatsApp reach:</span>
-          <span className="inline-flex items-center gap-1.5"><WhatsAppStatusBadge status="whatsapp" />{(summary as any).whatsapp.whatsapp || 0}</span>
-          <span className="inline-flex items-center gap-1.5"><WhatsAppStatusBadge status="not_whatsapp" />{(summary as any).whatsapp.not_whatsapp || 0}</span>
-          <span className="inline-flex items-center gap-1.5"><WhatsAppStatusBadge status="unknown" />{((summary as any).whatsapp.unknown || 0) + ((summary as any).whatsapp.failed || 0)}</span>
+          <span className="inline-flex items-center gap-1.5"><WhatsAppStatusBadge status="available" />{((summary as any).whatsapp.whatsapp || 0) + ((summary as any).whatsapp.available || 0)}</span>
+          <span className="inline-flex items-center gap-1.5"><WhatsAppStatusBadge status="unavailable" />{((summary as any).whatsapp.not_whatsapp || 0) + ((summary as any).whatsapp.unavailable || 0)}</span>
+          <span className="inline-flex items-center gap-1.5"><WhatsAppStatusBadge status="unknown" showUnknown />{((summary as any).whatsapp.unknown || 0) + ((summary as any).whatsapp.failed || 0) + ((summary as any).whatsapp.error || 0)}</span>
           {((summary as any).whatsapp.checking || 0) > 0 && (
             <span className="inline-flex items-center gap-1.5"><WhatsAppStatusBadge status="checking" />{(summary as any).whatsapp.checking}</span>
           )}

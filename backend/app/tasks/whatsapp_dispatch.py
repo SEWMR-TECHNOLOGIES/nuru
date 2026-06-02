@@ -5,8 +5,10 @@ Moves blocking calls to the WhatsApp Cloud API (graph.facebook.com) out of
 the request lifecycle. Every ``wa_*`` helper in :mod:`utils.whatsapp` now
 enqueues one of these tasks instead of calling ``requests.post`` inline.
 
-Workers retry transient provider failures up to 3 times and never crash the
-caller — failures are logged with a structured ``[wa_dispatch]`` prefix.
+After every real send we feed the result into
+``utils.whatsapp_availability.record_send_outcome`` so we learn each
+recipient's WhatsApp availability naturally — without ever sending a
+hello_world or silent probe.
 """
 from core.celery_app import celery_app
 
@@ -29,28 +31,49 @@ def send_action(self, action: str, phone: str, params: dict):
         result = _send_whatsapp(action, phone, params or {})
         if not isinstance(result, dict):
             result = {"ok": bool(result)}
-        # Opportunistically learn the recipient's WhatsApp status from this
-        # real send — no extra Meta API call needed.
+
+        # Opportunistic learner — uses the real provider response. No probe.
         try:
             if phone:
                 db = SessionLocal()
                 try:
                     if result.get("ok") and result.get("message_id"):
-                        record_send_outcome(db, phone, delivered=True)
+                        record_send_outcome(
+                            db, phone,
+                            message_id=str(result.get("message_id")),
+                            action=action,
+                        )
                     elif result.get("not_on_whatsapp"):
-                        record_send_outcome(db, phone, delivered=False, not_on_whatsapp=True)
+                        record_send_outcome(
+                            db, phone,
+                            not_on_whatsapp=True,
+                            error_code=str(result.get("error_code") or "131026"),
+                            error_message=(result.get("error") or "recipient not on WhatsApp"),
+                            action=action,
+                        )
+                    elif not result.get("ok"):
+                        # Provider/system error — don't punish the phone.
+                        record_send_outcome(
+                            db, phone,
+                            error_code=str(result.get("error_code") or result.get("status") or ""),
+                            error_message=(result.get("error") or "send failed"),
+                            action=action,
+                        )
                 finally:
                     db.close()
         except Exception as _e:  # noqa: BLE001
             print(f"[wa_dispatch] record_send_outcome skipped: {_e}")
 
         if result.get("ok") and result.get("message_id"):
-            print(f"[wa_dispatch] ok action={action} phone_tail={tail} wamid={result.get('message_id')}")
+            print(
+                f"[wa_dispatch] ok action={action} phone_tail={tail} "
+                f"wamid={result.get('message_id')}"
+            )
             return {"ok": True, "action": action, "message_id": result.get("message_id")}
         print(
             f"[wa_dispatch] failed action={action} phone_tail={tail} "
             f"status={result.get('status')} not_on_whatsapp={result.get('not_on_whatsapp')} "
-            f"error={(result.get('error') or '')[:200]}"
+            f"error_code={result.get('error_code')} error={(result.get('error') or '')[:200]}"
         )
         return {"ok": False, "action": action, **{k: v for k, v in result.items() if k != 'ok'}}
     except Exception as exc:  # noqa: BLE001
@@ -68,9 +91,27 @@ def send_action(self, action: str, phone: str, params: dict):
 def send_text(self, phone: str, message: str):
     """Plain WhatsApp text (24h conversation window only)."""
     from utils.whatsapp import _send_whatsapp_sync as _send_whatsapp
+    from utils.whatsapp_availability import record_send_outcome
+    from core.database import SessionLocal
     try:
         result = _send_whatsapp("text", phone, {"message": message})
         ok = bool(result.get("ok")) if isinstance(result, dict) else bool(result)
+        try:
+            if phone and isinstance(result, dict):
+                db = SessionLocal()
+                try:
+                    if ok and result.get("message_id"):
+                        record_send_outcome(db, phone,
+                                            message_id=str(result.get("message_id")),
+                                            action="text")
+                    elif result.get("not_on_whatsapp"):
+                        record_send_outcome(db, phone, not_on_whatsapp=True,
+                                            error_code=str(result.get("error_code") or "131026"),
+                                            action="text")
+                finally:
+                    db.close()
+        except Exception as _e:  # noqa: BLE001
+            print(f"[wa_dispatch] record_send_outcome skipped: {_e}")
         return {"ok": ok}
     except Exception as exc:  # noqa: BLE001
         raise self.retry(exc=exc)

@@ -517,7 +517,15 @@ Deno.serve(async (req) => {
           result = await sendImageMessage(phone, params?.image_url || "", params?.caption || "", WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
           break;
         case "check_whatsapp":
-          result = await checkWhatsAppBySending(phone, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+          // POLICY: active WhatsApp probing is disabled. Meta has no silent
+          // lookup and we will not spam users with hello_world. Availability
+          // is learned opportunistically from real Nuru sends.
+          result = {
+            is_whatsapp: "unknown",
+            wa_id: null,
+            disabled: true,
+            error: "active probing disabled — availability learned from real sends",
+          };
           break;
 
         default:
@@ -644,41 +652,9 @@ async function sendImageMessage(phone: string, imageUrl: string, caption: string
   return { sent: true, message_id: data.messages?.[0]?.id };
 }
 
-async function checkWhatsAppBySending(phone: string, accessToken: string, phoneNumberId: string) {
-  // NOTE: Meta's Cloud API has no silent "is on WhatsApp" lookup. Any probe
-  // delivers a real message. We try `hello_world` (the universal default
-  // template) only because it's a no-op marketing template approved on every
-  // fresh WABA. If it has been removed from this WABA we surface a config
-  // error so the backend stops retrying and the UI can hide the pill — we
-  // will NOT silently spam users by switching to a real notification.
-  const res = await fetch(`${GRAPH_API}/${phoneNumberId}/messages`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "template",
-      template: { name: "hello_world", language: { code: "en_US" } },
-    }),
-  });
-  const data = await res.json();
-  if (res.ok) return { is_whatsapp: true, wa_id: data.contacts?.[0]?.wa_id || phone };
-  const errorCode = data?.error?.code;
-  // 131026 = receiver not on WhatsApp · 131047 = re-engagement (still on WA)
-  if (errorCode === 131026) return { is_whatsapp: false, wa_id: null };
-  if (errorCode === 131047) return { is_whatsapp: true, wa_id: phone };
-  // 132001 = template doesn't exist on this WABA. This is OUR config issue,
-  // not a verdict about the phone. Tell the backend to stop retrying.
-  if (errorCode === 132001) {
-    return {
-      is_whatsapp: "unknown",
-      wa_id: null,
-      config_error: true,
-      error: "probe template `hello_world` is not approved on this WhatsApp Business Account",
-    };
-  }
-  return { is_whatsapp: "unknown", wa_id: null, error: data?.error?.message };
-}
+// checkWhatsAppBySending was removed. We no longer probe with hello_world
+// or any other template — availability is learned only from real Nuru sends
+// (OTP, invitation, contribution receipt, pledge reminder, etc.).
 
 // ── Legacy/Rich-media builders (kept verbatim — out of catalogue scope) ──
 function buildLegacyReminder(p: any) {

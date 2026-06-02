@@ -1,22 +1,40 @@
 """
 whatsapp_availability
 =====================
-Reusable helpers for checking + caching whether a phone number is
-registered on WhatsApp.
+WhatsApp availability cache. Policy:
+
+* We DO NOT actively probe Meta to check if a number is on WhatsApp.
+  Meta has no silent lookup — every probe is a real message. We will not
+  spam users with `hello_world` or any other template purely to learn
+  their status.
+
+* Availability is learned opportunistically from REAL Nuru sends:
+  invitation, OTP, contribution receipt, pledge reminder, thank-you card,
+  meeting invite, vendor / booking notification, etc.
+
+  * Provider returned a real message id (preferably ``wamid.*``)
+        → status="available", is_whatsapp=True
+  * Provider returned 131026 / 131047 / explicit "not on WhatsApp"
+        → status="unavailable", is_whatsapp=False
+  * Anything else (config error, template issue, auth, media fetch,
+    provider outage) → status="error" / "unknown" with provider error
+    captured but is_whatsapp left as-is. Phone is NEVER punished for
+    our system problems.
 
 Public API:
   - ensure_phone_status(db, raw_phone, country=None)
-      → upserts a PhoneWhatsAppStatus row and returns it.
-  - get_or_create_status(db, normalized_phone)
-  - check_whatsapp_availability(phone, country=None)
-      → high-level: normalize → cache lookup → provider check → upsert.
+        upsert an "unknown" row. Does NOT call the provider.
+  - record_send_outcome(db, raw_phone, *, message_id=None,
+                        not_on_whatsapp=False, error_code=None,
+                        error_message=None, action=None)
+        called from the WhatsApp dispatch task after every real send.
   - statuses_by_phones(db, phones, country=None)
-      → bulk dict {normalized_phone: status_dict} for API serialization.
+        bulk cache lookup for API serializers.
+  - status_for_phone(db, raw_phone, country=None)
+        single-phone convenience wrapper.
 
-The actual provider call lives in `utils.whatsapp_check.check_whatsapp_number`
-which calls the Supabase `whatsapp-send` edge function. We do **not** mark a
-number as WhatsApp just because a Celery send succeeded — only when the
-provider returns a definitive answer.
+Legacy names kept as no-ops / cache reads so existing imports don't break:
+  - check_whatsapp_availability(...)  → cache-only lookup
 """
 from __future__ import annotations
 
@@ -28,43 +46,38 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from models.phone_whatsapp import PhoneWhatsAppStatus
 from utils.phone_numbers import normalize_phone, phone_tail
-from utils.whatsapp_check import check_whatsapp_number
 
 
 # Freshness windows
-FRESH_WHATSAPP_DAYS = 60          # confirmed yes — recheck after ~2 months
-FRESH_NOT_WHATSAPP_DAYS = 45      # confirmed no — recheck after ~6 weeks
-FRESH_UNKNOWN_HOURS = 6           # unknown — try again soon
-FRESH_FAILED_HOURS = 12           # provider error — retry later
-FRESH_CONFIG_ERROR_DAYS = 7       # our config broke — don't spam the API
+FRESH_AVAILABLE_DAYS = 60        # confirmed on WhatsApp — trust for ~2 months
+FRESH_UNAVAILABLE_DAYS = 30      # confirmed not on WhatsApp — re-evaluate after ~1 month
+FRESH_ERROR_DAYS = 3             # provider/system error — wait, don't penalise phone
+FRESH_UNKNOWN_DAYS = 7           # untouched cache row — long backoff, no probing
+
+# Status vocabulary written to the DB
+ST_AVAILABLE = "available"
+ST_UNAVAILABLE = "unavailable"
+ST_UNKNOWN = "unknown"
+ST_ERROR = "error"
+
+# Meta error codes that DEFINITIVELY mean "recipient is not on WhatsApp"
+NOT_ON_WHATSAPP_CODES = {"131026", "131047"}
 
 
-def _next_check_after(status: str, config_error: bool = False) -> datetime:
+def _next_check_after(status: str) -> datetime:
     now = datetime.now(timezone.utc)
-    if config_error:
-        return now + timedelta(days=FRESH_CONFIG_ERROR_DAYS)
-    if status == "whatsapp":
-        return now + timedelta(days=FRESH_WHATSAPP_DAYS)
-    if status == "not_whatsapp":
-        return now + timedelta(days=FRESH_NOT_WHATSAPP_DAYS)
-    if status == "failed":
-        return now + timedelta(hours=FRESH_FAILED_HOURS)
-    return now + timedelta(hours=FRESH_UNKNOWN_HOURS)
+    if status == ST_AVAILABLE:
+        return now + timedelta(days=FRESH_AVAILABLE_DAYS)
+    if status == ST_UNAVAILABLE:
+        return now + timedelta(days=FRESH_UNAVAILABLE_DAYS)
+    if status == ST_ERROR:
+        return now + timedelta(days=FRESH_ERROR_DAYS)
+    return now + timedelta(days=FRESH_UNKNOWN_DAYS)
 
 
-def _is_fresh(row: PhoneWhatsAppStatus) -> bool:
-    if not row.last_checked_at:
-        return False
-    if row.status in ("unknown", "checking"):
-        return False
-    if not row.next_check_after:
-        return False
-    nca = row.next_check_after
-    if nca.tzinfo is None:
-        nca = nca.replace(tzinfo=timezone.utc)
-    return nca > datetime.now(timezone.utc)
-
-
+# ──────────────────────────────────────────────
+# Upsert helpers
+# ──────────────────────────────────────────────
 def ensure_phone_status(db: Session, raw_phone: str,
                         country: Optional[str] = None) -> Optional[PhoneWhatsAppStatus]:
     """Insert (or fetch) the cache row for a phone. Never calls the provider."""
@@ -81,7 +94,6 @@ def ensure_phone_status(db: Session, raw_phone: str,
     if existing:
         return existing
 
-    # Upsert to avoid races when two requests add the same number at once.
     stmt = pg_insert(PhoneWhatsAppStatus).values(
         raw_phone=norm.get("raw"),
         normalized_phone=normalized,
@@ -89,7 +101,7 @@ def ensure_phone_status(db: Session, raw_phone: str,
         national_number=norm.get("national_number") or None,
         normalization_status=norm.get("normalization_status") or "ok",
         normalization_error=norm.get("normalization_error"),
-        status="unknown",
+        status=ST_UNKNOWN,
     ).on_conflict_do_nothing(index_elements=["normalized_phone"])
     db.execute(stmt)
     db.commit()
@@ -100,14 +112,27 @@ def ensure_phone_status(db: Session, raw_phone: str,
     )
 
 
+# ──────────────────────────────────────────────
+# Cache reads (used by APIs)
+# ──────────────────────────────────────────────
+def _row_to_dict(row: PhoneWhatsAppStatus, raw_phone: Optional[str] = None) -> dict:
+    return {
+        "phone": raw_phone or row.raw_phone or row.normalized_phone,
+        "normalized_phone": row.normalized_phone,
+        "whatsapp_status": row.status or ST_UNKNOWN,
+        "is_whatsapp": row.is_whatsapp,
+        "whatsapp_last_checked_at": row.last_checked_at.isoformat()
+            if row.last_checked_at else None,
+    }
+
+
 def check_whatsapp_availability(db: Session, raw_phone: str,
                                 country: Optional[str] = None,
-                                force: bool = False) -> dict:
+                                force: bool = False) -> dict:  # noqa: ARG001
     """
-    Normalize → look up cache → (maybe) hit provider → return status dict.
-
-    Safe to call from request paths (will return cached value without
-    blocking on the network). Background tasks pass `force=True` to refresh.
+    Cache-only lookup. Kept for backwards-compatibility with old callers —
+    `force` is ignored because active probing is disabled by policy.
+    Always returns whatever the cache has (or seeds an "unknown" row).
     """
     norm = normalize_phone(raw_phone, country=country)
     if not norm.get("ok"):
@@ -118,79 +143,27 @@ def check_whatsapp_availability(db: Session, raw_phone: str,
             "is_whatsapp": None,
             "whatsapp_last_checked_at": None,
         }
-
     row = ensure_phone_status(db, raw_phone, country=country)
     if row is None:
         return {
             "phone": raw_phone,
             "normalized_phone": norm["normalized"],
-            "whatsapp_status": "unknown",
+            "whatsapp_status": ST_UNKNOWN,
             "is_whatsapp": None,
             "whatsapp_last_checked_at": None,
         }
-
-    if not force and _is_fresh(row):
-        return _row_to_dict(row, raw_phone)
-
-    # Hit the provider.
-    row.status = "checking"
-    row.check_attempts = (row.check_attempts or 0) + 1
-    db.commit()
-
-    result = check_whatsapp_number(row.normalized_phone)
-    now = datetime.now(timezone.utc)
-    config_error = False
-    if result is True:
-        row.is_whatsapp = True
-        row.status = "whatsapp"
-        row.provider_error_code = None
-        row.provider_error_message = None
-    elif result is False:
-        row.is_whatsapp = False
-        row.status = "not_whatsapp"
-        row.provider_error_code = None
-        row.provider_error_message = None
-    elif result == "config_error":
-        # Our WABA can't run the probe (e.g. hello_world template removed).
-        # Don't penalise the phone and don't burn quota retrying every 6h.
-        config_error = True
-        row.status = "unknown"
-        row.provider_error_message = "probe template unavailable on WABA"
-    else:
-        # Unknown / unreachable — keep prior is_whatsapp, mark failed for retry.
-        row.status = "failed"
-        row.provider_error_message = "provider returned unknown"
-
-    row.last_checked_at = now
-    row.next_check_after = _next_check_after(row.status, config_error=config_error)
-    db.commit()
-    print(f"[wa_availability] checked phone_tail={phone_tail(row.normalized_phone)} "
-          f"status={row.status} config_error={config_error}")
     return _row_to_dict(row, raw_phone)
-
-
-def _row_to_dict(row: PhoneWhatsAppStatus, raw_phone: Optional[str] = None) -> dict:
-    return {
-        "phone": raw_phone or row.raw_phone or row.normalized_phone,
-        "normalized_phone": row.normalized_phone,
-        "whatsapp_status": row.status or "unknown",
-        "is_whatsapp": row.is_whatsapp,
-        "whatsapp_last_checked_at": row.last_checked_at.isoformat()
-            if row.last_checked_at else None,
-    }
 
 
 def statuses_by_phones(db: Session, phones: Iterable[Optional[str]],
                        country: Optional[str] = None) -> dict:
     """
-    Bulk lookup helper for API serializers. Returns
-        { normalized_phone: status_dict }
-    for every input phone that normalises successfully. Never hits the
-    provider — only reads the cache.
+    Bulk cache lookup. Never hits the provider.
+    Returns { normalized_phone: status_dict }.
     """
     out: dict = {}
     keys = []
-    raw_for_key = {}
+    raw_for_key: dict = {}
     for raw in phones:
         if not raw:
             continue
@@ -210,72 +183,103 @@ def statuses_by_phones(db: Session, phones: Iterable[Optional[str]],
     )
     for r in rows:
         out[r.normalized_phone] = _row_to_dict(r, raw_for_key.get(r.normalized_phone))
-    # For keys with no cached row yet, return an explicit "unknown" stub so
-    # the frontend can show a neutral badge without an extra request.
     for n in keys:
         if n not in out:
             out[n] = {
                 "phone": raw_for_key.get(n),
                 "normalized_phone": n,
-                "whatsapp_status": "unknown",
+                "whatsapp_status": ST_UNKNOWN,
                 "is_whatsapp": None,
                 "whatsapp_last_checked_at": None,
             }
     return out
 
 
-def record_send_outcome(db: Session, raw_phone: str, *, delivered: bool,
-                         not_on_whatsapp: bool = False,
-                         country: Optional[str] = None) -> None:
-    """
-    Opportunistic learner — call after a real WhatsApp send.
-
-    Meta has no silent lookup endpoint, so the most reliable signal that a
-    number is on WhatsApp comes from actual sends:
-      * delivered=True        → mark whatsapp
-      * not_on_whatsapp=True  → mark not_whatsapp (err 131026/131047)
-      * everything else       → leave as-is (transient failure)
-    """
-    try:
-        row = ensure_phone_status(db, raw_phone, country=country)
-        if row is None:
-            return
-        now = datetime.now(timezone.utc)
-        if delivered:
-            row.is_whatsapp = True
-            row.status = "whatsapp"
-            row.provider_error_code = None
-            row.provider_error_message = None
-        elif not_on_whatsapp:
-            row.is_whatsapp = False
-            row.status = "not_whatsapp"
-        else:
-            return
-        row.last_checked_at = now
-        row.next_check_after = _next_check_after(row.status)
-        db.commit()
-    except Exception as e:  # noqa: BLE001
-        print(f"[wa_availability] record_send_outcome failed: {e}")
-
-
-
-
-
 def status_for_phone(db: Session, raw_phone: Optional[str],
                      country: Optional[str] = None) -> dict:
-    """Single-phone convenience wrapper around `statuses_by_phones`."""
     if not raw_phone:
         return {
             "phone": None, "normalized_phone": None,
-            "whatsapp_status": "unknown", "is_whatsapp": None,
+            "whatsapp_status": ST_UNKNOWN, "is_whatsapp": None,
             "whatsapp_last_checked_at": None,
         }
     bulk = statuses_by_phones(db, [raw_phone], country=country)
     if not bulk:
         return {
             "phone": raw_phone, "normalized_phone": None,
-            "whatsapp_status": "unknown", "is_whatsapp": None,
+            "whatsapp_status": ST_UNKNOWN, "is_whatsapp": None,
             "whatsapp_last_checked_at": None,
         }
-    # single entry
     return next(iter(bulk.values()))
+
+
+# ──────────────────────────────────────────────
+# Opportunistic learner — call after every real Nuru WhatsApp send
+# ──────────────────────────────────────────────
+def record_send_outcome(
+    db: Session,
+    raw_phone: str,
+    *,
+    message_id: Optional[str] = None,
+    not_on_whatsapp: bool = False,
+    error_code: Optional[str] = None,
+    error_message: Optional[str] = None,
+    action: Optional[str] = None,
+    country: Optional[str] = None,
+) -> None:
+    """
+    Update phone_whatsapp_statuses based on the outcome of a REAL Nuru send.
+
+    * message_id present (preferably ``wamid.*``)
+          → status="available", is_whatsapp=True
+    * not_on_whatsapp=True OR error_code ∈ {131026, 131047}
+          → status="unavailable", is_whatsapp=False
+    * any other error
+          → status="error", is_whatsapp unchanged, error stored.
+          We do NOT mark the phone as unavailable for a system / config /
+          template / auth / media / outage issue.
+    """
+    try:
+        row = ensure_phone_status(db, raw_phone, country=country)
+        if row is None:
+            return
+
+        now = datetime.now(timezone.utc)
+        tail = phone_tail(row.normalized_phone)
+        ec = str(error_code) if error_code is not None else None
+        updated = False
+
+        if message_id:
+            row.is_whatsapp = True
+            row.status = ST_AVAILABLE
+            row.provider_response_code = "200"
+            row.provider_error_code = None
+            row.provider_error_message = None
+            updated = True
+        elif not_on_whatsapp or (ec in NOT_ON_WHATSAPP_CODES):
+            row.is_whatsapp = False
+            row.status = ST_UNAVAILABLE
+            row.provider_error_code = ec
+            row.provider_error_message = error_message
+            updated = True
+        elif ec or error_message:
+            # System / config / template / auth / media / outage — do not
+            # punish the phone, but remember the error and back off.
+            row.status = ST_ERROR
+            row.provider_error_code = ec
+            row.provider_error_message = error_message
+            updated = True
+        else:
+            # No signal at all — leave row untouched.
+            return
+
+        row.last_checked_at = now
+        row.next_check_after = _next_check_after(row.status)
+        db.commit()
+        print(
+            f"[wa_availability] learned phone_tail={tail} status={row.status} "
+            f"source=real_send action={action or '-'} "
+            f"message_id={message_id or '-'} error_code={ec or '-'} updated={updated}"
+        )
+    except Exception as e:  # noqa: BLE001
+        print(f"[wa_availability] record_send_outcome failed: {e}")

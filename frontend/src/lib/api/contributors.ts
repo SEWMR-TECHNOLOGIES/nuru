@@ -10,12 +10,16 @@ import type { PaginatedResponse } from "./types";
 // ============================================================================
 
 export type WhatsAppAvailabilityStatus =
+  | "available"
+  | "unavailable"
   | "unknown"
+  | "error"
   | "checking"
+  | "invalid"
+  // Legacy values still returned by some endpoints — kept for compatibility.
   | "whatsapp"
   | "not_whatsapp"
-  | "failed"
-  | "invalid";
+  | "failed";
 
 export interface WhatsAppAvailability {
   whatsapp_status: WhatsAppAvailabilityStatus;

@@ -34,8 +34,16 @@ export interface RenderOutputOpts {
 }
 
 export interface RenderJobOpts extends RenderOutputOpts {
-  /** Hard cap per render. Default 10 000 ms. */
+  /** Hard cap per render. Default 30 000 ms. */
   timeoutMs?: number;
+}
+
+/** Remove any leaked off-screen render hosts (used by "Reset renderer"). */
+export function purgeLeakedRenderHosts(): number {
+  const hosts = document.querySelectorAll<HTMLElement>("[data-nuru-card-render-host]");
+  let n = 0;
+  hosts.forEach((h) => { try { h.innerHTML = ""; h.remove(); n += 1; } catch { /* ignore */ } });
+  return n;
 }
 
 /* ────────────────────────────────────────────────────────────────────────── */
@@ -79,7 +87,7 @@ export async function createCardRenderJob(
   const pixelRatio = opts.pixelRatio ?? 1;
   const mimeType = opts.mimeType ?? "image/jpeg";
   const quality = opts.quality ?? 0.9;
-  const timeoutMs = opts.timeoutMs ?? 10_000;
+  const timeoutMs = opts.timeoutMs ?? 30_000;
 
   // ── One-time heavy work ────────────────────────────────────────────
   // Inline @font-face URLs to data URIs so the html-to-image image
@@ -97,6 +105,7 @@ export async function createCardRenderJob(
   host.style.width = `${width}px`;
   host.style.pointerEvents = "none";
   host.style.background = "#ffffff";
+  host.setAttribute("data-nuru-card-render-host", "1");
   document.body.appendChild(host);
 
   // Register fonts on document.fonts once so layout uses correct metrics.

@@ -151,14 +151,9 @@ celery_app.conf.update(
             "task": "tasks.reminder_dispatch.scan_due_automations",
             "schedule": crontab(minute="*/5"),
         },
-        # WhatsApp availability cache — sweep unchecked + stale numbers.
-        "wa-availability-check-missing": {
-            "task": "tasks.whatsapp_availability.check_missing_statuses",
-            "schedule": crontab(minute="*/10"),
-        },
-        "wa-availability-refresh-stale": {
-            "task": "tasks.whatsapp_availability.refresh_stale_statuses",
-            "schedule": crontab(minute=15, hour="*/6"),
-        },
+        # WhatsApp availability — active probing is disabled by policy.
+        # Availability is learned opportunistically from real Nuru sends,
+        # so no beat schedule is required here.
+
     },
 )

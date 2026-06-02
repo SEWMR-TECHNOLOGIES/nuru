@@ -6,45 +6,69 @@ interface Props {
   className?: string;
   /** When true, render only the dot + screen-reader text (for dense lists). */
   compact?: boolean;
+  /**
+   * Render the badge for "unknown"/"error" states. Default false — for numbers
+   * Nuru has never successfully messaged we prefer to show nothing rather than
+   * a noisy "Unknown" pill on every contributor row. Set true for legends or
+   * admin views where the neutral state must still be visible.
+   */
+  showUnknown?: boolean;
 }
 
-const LABELS: Record<WhatsAppAvailabilityStatus, string> = {
-  whatsapp: "WhatsApp",
-  not_whatsapp: "Not on WhatsApp",
-  unknown: "Unknown",
+// Normalize legacy + new vocabulary into a single set of UI states.
+type UiState = "available" | "unavailable" | "checking" | "invalid" | "unknown";
+
+function toUiState(s?: WhatsAppAvailabilityStatus | null): UiState {
+  switch (s) {
+    case "available":
+    case "whatsapp":
+      return "available";
+    case "unavailable":
+    case "not_whatsapp":
+      return "unavailable";
+    case "checking":
+      return "checking";
+    case "invalid":
+      return "invalid";
+    default:
+      // unknown, error, failed, null, undefined → neutral
+      return "unknown";
+  }
+}
+
+const LABELS: Record<UiState, string> = {
+  available: "WhatsApp",
+  unavailable: "Not on WhatsApp",
   checking: "Checking…",
-  failed: "Unknown",
   invalid: "Invalid number",
+  unknown: "Unknown",
 };
 
-// Subtle, theme-aware tones. We deliberately avoid loud colors so the badge
-// never overpowers the contributor row.
-const TONES: Record<WhatsAppAvailabilityStatus, string> = {
-  whatsapp:
+const TONES: Record<UiState, string> = {
+  available:
     "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-900",
-  not_whatsapp:
+  unavailable:
     "bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900",
-  unknown:
-    "bg-muted text-muted-foreground border-border",
   checking:
     "bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-900",
-  failed:
-    "bg-muted text-muted-foreground border-border",
   invalid:
     "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900",
+  unknown: "bg-muted text-muted-foreground border-border",
 };
 
-const DOTS: Record<WhatsAppAvailabilityStatus, string> = {
-  whatsapp: "bg-emerald-500",
-  not_whatsapp: "bg-rose-500",
-  unknown: "bg-muted-foreground/50",
+const DOTS: Record<UiState, string> = {
+  available: "bg-emerald-500",
+  unavailable: "bg-rose-500",
   checking: "bg-sky-500 animate-pulse",
-  failed: "bg-muted-foreground/50",
   invalid: "bg-amber-500",
+  unknown: "bg-muted-foreground/50",
 };
 
-export function WhatsAppStatusBadge({ status, className, compact }: Props) {
-  const s: WhatsAppAvailabilityStatus = status || "unknown";
+export function WhatsAppStatusBadge({ status, className, compact, showUnknown }: Props) {
+  const s = toUiState(status);
+  // Policy: numbers Nuru hasn't successfully messaged yet show nothing.
+  if (s === "unknown" && !showUnknown) return null;
+
   if (compact) {
     return (
       <span

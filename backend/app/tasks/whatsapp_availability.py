@@ -1,71 +1,48 @@
 """
 WhatsApp availability Celery tasks
 ==================================
-- check_one_phone(raw_phone, country=None)
-    Queue from request-path code whenever a new phone is added.
-- enqueue_phones(phones, country=None)
-    Convenience batch enqueuer used by bulk imports.
-- check_missing_statuses()
-    Beat-scheduled. Picks up any rows still in 'unknown'/'checking' status
-    and queues per-phone checks.
-- refresh_stale_statuses()
-    Beat-scheduled. Picks up rows whose next_check_after has elapsed.
-- backfill_all_phones()
-    Admin-trigger. Scans users/contributors/guests/vendor business phones
-    and inserts unique normalized numbers into phone_whatsapp_statuses.
+POLICY: We do NOT actively probe Meta. There is no silent WhatsApp lookup
+and we refuse to spam users with `hello_world` or any other template just
+to learn their availability. Availability is learned opportunistically
+from real Nuru sends — see ``utils.whatsapp_availability.record_send_outcome``.
 
-Rate limits are conservative so we don't hammer Meta/the edge function.
+What stays here:
+  - enqueue_phones(...)        seeds cache rows ("unknown") for a batch of phones
+  - backfill_all_phones(...)   admin trigger — scans every phone field and
+                               inserts unique normalized rows as "unknown".
+                               Never sends WhatsApp messages.
+
+What was removed:
+  - check_one_phone            (was: send hello_world to learn status)
+  - check_missing_statuses     (was: beat-scheduled probe sweep)
+  - refresh_stale_statuses     (was: beat-scheduled probe refresh)
+
+Stubs for the removed names are kept so old beat configs / imports don't
+crash; they simply log and exit.
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from typing import Iterable, Optional
 
-from sqlalchemy import or_, and_
+from sqlalchemy import or_
 
 from core.celery_app import celery_app
 from core.database import SessionLocal
-from models.phone_whatsapp import PhoneWhatsAppStatus
-from utils.phone_numbers import normalize_phone, phone_tail
-from utils.whatsapp_availability import (
-    ensure_phone_status,
-    check_whatsapp_availability,
-)
-
-
-_BATCH_LIMIT = 200
+from utils.phone_numbers import normalize_phone
+from utils.whatsapp_availability import ensure_phone_status
 
 
 # ──────────────────────────────────────────────
-# Per-phone check
-# ──────────────────────────────────────────────
-@celery_app.task(
-    name="tasks.whatsapp_availability.check_one_phone",
-    rate_limit="60/m",
-    autoretry_for=(Exception,),
-    retry_backoff=True,
-    max_retries=3,
-)
-def check_one_phone(raw_phone: str, country: Optional[str] = None,
-                    force: bool = False) -> dict:
-    if not raw_phone:
-        return {"ok": False, "reason": "empty"}
-    db = SessionLocal()
-    try:
-        result = check_whatsapp_availability(db, raw_phone,
-                                             country=country, force=force)
-        return {"ok": True, **result}
-    finally:
-        db.close()
-
-
-# ──────────────────────────────────────────────
-# Batch enqueuer
+# Seeder — no provider calls, ever
 # ──────────────────────────────────────────────
 def enqueue_phones(phones: Iterable[str], country: Optional[str] = None) -> int:
-    """Queue check_one_phone for every unique normalizable phone."""
+    """Insert "unknown" cache rows for every unique normalizable phone.
+
+    Does NOT send any WhatsApp messages. Availability will be learned
+    later from real Nuru sends to these numbers.
+    """
     seen: set[str] = set()
-    queued = 0
+    seeded = 0
     db = SessionLocal()
     try:
         for raw in phones:
@@ -78,73 +55,58 @@ def enqueue_phones(phones: Iterable[str], country: Optional[str] = None) -> int:
             if n in seen:
                 continue
             seen.add(n)
-            # ensure a row exists so the frontend sees "unknown" immediately
             ensure_phone_status(db, raw, country=country)
-            check_one_phone.delay(n, country)
-            queued += 1
+            seeded += 1
     finally:
         db.close()
-    return queued
+    return seeded
 
 
 # ──────────────────────────────────────────────
-# Beat — scan for unchecked / stale rows
+# Disabled stubs (kept for backwards compatibility)
 # ──────────────────────────────────────────────
-@celery_app.task(name="tasks.whatsapp_availability.check_missing_statuses")
-def check_missing_statuses(limit: int = _BATCH_LIMIT) -> dict:
+@celery_app.task(name="tasks.whatsapp_availability.check_one_phone")
+def check_one_phone(raw_phone: str, country: Optional[str] = None,
+                    force: bool = False) -> dict:  # noqa: ARG001
+    """Disabled. Only seeds the cache row — never sends a probe."""
+    if not raw_phone:
+        return {"ok": False, "reason": "empty"}
     db = SessionLocal()
     try:
-        rows = (
-            db.query(PhoneWhatsAppStatus.normalized_phone)
-            .filter(PhoneWhatsAppStatus.status.in_(["unknown", "checking"]))
-            .filter(PhoneWhatsAppStatus.normalization_status == "ok")
-            .order_by(PhoneWhatsAppStatus.created_at.asc())
-            .limit(limit)
-            .all()
-        )
-        for (phone,) in rows:
-            check_one_phone.delay(phone)
-        return {"queued": len(rows)}
+        ensure_phone_status(db, raw_phone, country=country)
     finally:
         db.close()
+    return {"ok": True, "probed": False, "reason": "active probing disabled"}
+
+
+@celery_app.task(name="tasks.whatsapp_availability.check_missing_statuses")
+def check_missing_statuses(limit: int = 0) -> dict:  # noqa: ARG001
+    print("[wa_availability] check_missing_statuses skipped — active probing disabled")
+    return {"queued": 0, "disabled": True}
 
 
 @celery_app.task(name="tasks.whatsapp_availability.refresh_stale_statuses")
-def refresh_stale_statuses(limit: int = _BATCH_LIMIT) -> dict:
-    db = SessionLocal()
-    try:
-        now = datetime.now(timezone.utc)
-        rows = (
-            db.query(PhoneWhatsAppStatus.normalized_phone)
-            .filter(PhoneWhatsAppStatus.normalization_status == "ok")
-            .filter(PhoneWhatsAppStatus.next_check_after.isnot(None))
-            .filter(PhoneWhatsAppStatus.next_check_after < now)
-            .order_by(PhoneWhatsAppStatus.next_check_after.asc())
-            .limit(limit)
-            .all()
-        )
-        for (phone,) in rows:
-            check_one_phone.delay(phone, None, True)
-        return {"queued": len(rows)}
-    finally:
-        db.close()
+def refresh_stale_statuses(limit: int = 0) -> dict:  # noqa: ARG001
+    print("[wa_availability] refresh_stale_statuses skipped — active probing disabled")
+    return {"queued": 0, "disabled": True}
 
 
 # ──────────────────────────────────────────────
-# Backfill — scan every phone field across the platform
+# Backfill — seed unknown rows for every known phone field
 # ──────────────────────────────────────────────
 @celery_app.task(name="tasks.whatsapp_availability.backfill_all_phones")
-def backfill_all_phones(queue_checks: bool = True, limit: int = 5000) -> dict:
+def backfill_all_phones(queue_checks: bool = False,  # noqa: ARG001
+                        limit: int = 5000) -> dict:
     """
-    Scan all known phone-bearing tables, insert unique normalized rows into
-    phone_whatsapp_statuses, and (optionally) enqueue WhatsApp checks for
-    new rows. Skips invalid numbers gracefully.
+    Scan all known phone-bearing tables and insert unique normalized rows
+    into phone_whatsapp_statuses with status='unknown'. Never sends
+    WhatsApp messages — ``queue_checks`` is accepted for compatibility but
+    always ignored.
     """
     db = SessionLocal()
     stats = {"scanned": 0, "inserted": 0, "existing": 0,
-             "invalid": 0, "queued": 0}
+             "invalid": 0, "queued": 0, "probed": False}
     try:
-        # Lazy imports to avoid models-package import cycles at task start.
         from models import (
             User, UserContributor, EventContributor, AttendeeProfile,
             EventGuestPlusOne, EventCommitteeMember, ServiceBusinessPhone,
@@ -190,7 +152,7 @@ def backfill_all_phones(queue_checks: bool = True, limit: int = 5000) -> dict:
             pass
 
         seen: set[str] = set()
-        for label, primary, secondary in sources:
+        for _label, primary, secondary in sources:
             for raw in (primary, secondary):
                 if not raw:
                     continue
@@ -203,21 +165,12 @@ def backfill_all_phones(queue_checks: bool = True, limit: int = 5000) -> dict:
                 if n in seen:
                     continue
                 seen.add(n)
-                existing = (
-                    db.query(PhoneWhatsAppStatus.id)
-                    .filter(PhoneWhatsAppStatus.normalized_phone == n)
-                    .first()
-                )
-                if existing:
-                    stats["existing"] += 1
-                    continue
+                # ensure_phone_status returns the row whether it pre-existed
+                # or was just inserted; we don't need to discriminate here.
                 ensure_phone_status(db, raw)
                 stats["inserted"] += 1
-                if queue_checks:
-                    check_one_phone.delay(n)
-                    stats["queued"] += 1
 
-        print(f"[wa_availability] backfill done: {stats}")
+        print(f"[wa_availability] backfill done (no probing): {stats}")
         return stats
     finally:
         db.close()

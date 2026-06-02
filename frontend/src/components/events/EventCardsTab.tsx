@@ -27,7 +27,7 @@ import {
   type SavedEventCard,
 } from "@/lib/api/eventCards";
 import { uploadsApi } from "@/lib/api/uploads";
-import { createCardRenderJob } from "@/lib/cards/renderCardPng";
+import { createCardRenderJob, purgeLeakedRenderHosts } from "@/lib/cards/renderCardPng";
 import { useEventContributors } from "@/data/useContributors";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 
@@ -35,7 +35,7 @@ interface Props {
   eventId: string;
 }
 
-type BatchStatus = "not_sent" | "sending" | "sent" | "partial_failure" | "failed" | "cancelled";
+type BatchStatus = "not_sent" | "sending" | "sent" | "partial_failure" | "failed" | "cancelled" | "renderer_stuck";
 
 interface BatchFailure {
   recipient_id: string;
@@ -540,9 +540,14 @@ export default function EventCardsTab({ eventId }: Props) {
   //     parallel canvases starve the UI thread. Two workers occasionally
   //     produce smeared output on older devices.
   const prepareAndSendIds = useCallback(
-    async (ids: string[]): Promise<{ sentIds: string[]; failed: BatchFailure[] }> => {
+    async (
+      ids: string[],
+      opts: { batchNo: number; mode?: "normal" | "safe" } = { batchNo: 0 },
+    ): Promise<{ sentIds: string[]; failed: BatchFailure[]; rendererStuck: boolean; unattempted: string[] }> => {
+      const mode = opts.mode ?? "normal";
+      const batchNo = opts.batchNo;
       if (!activeTemplate?.svg || !activeCategory) {
-        return { sentIds: [], failed: ids.map((id) => ({ recipient_id: id, name: "", reason: "Template not ready" })) };
+        return { sentIds: [], failed: ids.map((id) => ({ recipient_id: id, name: "", reason: "Template not ready" })), rendererStuck: false, unattempted: [] };
       }
       const meta = activeTemplate.metadata || {};
       const defaults: Record<string, string> = {};
@@ -554,10 +559,6 @@ export default function EventCardsTab({ eventId }: Props) {
         if (ids.includes(ec.id)) idToName[ec.id] = ec.contributor?.name || "Friend";
       });
 
-      // ── 1. Build the prepared template ONCE ─────────────────────
-      // We inject a unique token instead of the recipient name so the
-      // expensive buildPreviewSvg work (sanitise, multi-tspan re-wrap,
-      // font face emission, centering) only runs a single time per batch.
       const NAME_TOKEN = "__NURU_NAME_TOKEN_7F3A__";
       const preparedTemplateSvg = buildPreviewSvg(
         activeTemplate.svg,
@@ -569,18 +570,35 @@ export default function EventCardsTab({ eventId }: Props) {
         meta.fonts || [],
       );
 
-      // ── 2. Spin up a single reusable render job ─────────────────
-      // This inlines @font-face URLs to data URIs ONCE, mounts ONE
-      // off-screen host, and waits for document.fonts.ready ONCE.
-      let job: Awaited<ReturnType<typeof createCardRenderJob>>;
+      const TIMEOUT_MS = 30_000;
+      const RENDER_OPTS = {
+        width: 1080,
+        pixelRatio: mode === "safe" ? 1 : 1,
+        mimeType: "image/jpeg" as const,
+        quality: 0.9,
+        timeoutMs: TIMEOUT_MS,
+      };
+
+      // Build one shared job for normal mode; safe mode rebuilds per recipient.
+      let sharedJob: Awaited<ReturnType<typeof createCardRenderJob>> | null = null;
+      const buildJob = async () => createCardRenderJob(preparedTemplateSvg, RENDER_OPTS);
+
+      // Preflight render — confirm the renderer can produce at least one card
+      // before we mark the whole batch as failed.
       try {
-        job = await createCardRenderJob(preparedTemplateSvg, {
-          width: 1080,
-          pixelRatio: 1,            // 1080px final — JPEG keeps it sharp on WhatsApp
-          mimeType: "image/jpeg",   // ~3-5× smaller than PNG, no transparency needed
-          quality: 0.9,
-          timeoutMs: 10_000,
-        });
+        const preflight = await buildJob();
+        try {
+          const firstName = idToName[ids[0]] || "Friend";
+          await preflight.render({ token: NAME_TOKEN, value: firstName });
+          if (mode === "normal") sharedJob = preflight; else preflight.dispose();
+        } catch (e: any) {
+          preflight.dispose();
+          purgeLeakedRenderHosts();
+          if (import.meta.env.DEV) {
+            console.warn(`[card_renderer_preflight_failed] batch=${batchNo} reason=${e?.message || e}`);
+          }
+          return { sentIds: [], failed: [], rendererStuck: true, unattempted: ids };
+        }
       } catch (e: any) {
         return {
           sentIds: [],
@@ -589,6 +607,8 @@ export default function EventCardsTab({ eventId }: Props) {
             name: idToName[id] || "Friend",
             reason: `Template prep failed: ${e?.message || e}`,
           })),
+          rendererStuck: false,
+          unattempted: [],
         };
       }
 
@@ -599,24 +619,21 @@ export default function EventCardsTab({ eventId }: Props) {
       let done = 0;
       let prepared = 0;
       let uploaded = 0;
-      let cursor = 0;
-      const CONCURRENCY = 1; // sequential: most reliable & responsive
+      let consecutiveTimeouts = 0;
+      let rendererStuck = false;
+      let stuckAtIndex = ids.length;
 
       const updateProgress = (currentName?: string, phase: "preparing" | "sending" = "preparing") => {
         const avgMs = timings.length ? timings.reduce((a, b) => a + b, 0) / timings.length : undefined;
         const remaining = Math.max(0, total - done);
         const etaMs = avgMs ? avgMs * remaining : undefined;
-        setActiveBatchProgress({
-          done, total, prepared, uploaded, failed: failed.length, currentName, avgMs, etaMs, phase,
-        });
+        setActiveBatchProgress({ done, total, prepared, uploaded, failed: failed.length, currentName, avgMs, etaMs, phase });
       };
       updateProgress();
 
-      const worker = async () => {
-        while (true) {
-          if (cancelRef.current) return;
-          const i = cursor++;
-          if (i >= ids.length) return;
+      try {
+        for (let i = 0; i < ids.length; i++) {
+          if (cancelRef.current) { stuckAtIndex = i; break; }
           const id = ids[i];
           const name = idToName[id] || "Friend";
           updateProgress(name);
@@ -624,13 +641,27 @@ export default function EventCardsTab({ eventId }: Props) {
           let renderMs = 0;
           let uploadMs = 0;
           let sizeKb = 0;
+          let timedOut = false;
+          let cleanupOk = true;
+
+          if (import.meta.env.DEV) console.log(`[card_prepare_start] batch=${batchNo} recipient=${name}`);
+
+          // Per-recipient job for safe mode (full cleanup between cards).
+          let job = sharedJob;
           try {
+            if (mode === "safe") {
+              job = await buildJob();
+            }
+            if (!job) throw new Error("Render job not initialised");
+
+            if (import.meta.env.DEV) console.log(`[card_prepare_stage] batch=${batchNo} recipient=${name} stage=render_canvas`);
             const tRender = performance.now();
             const blob = await job.render({ token: NAME_TOKEN, value: name });
             renderMs = performance.now() - tRender;
             sizeKb = Math.round(blob.size / 1024);
             prepared += 1;
 
+            if (import.meta.env.DEV) console.log(`[card_prepare_stage] batch=${batchNo} recipient=${name} stage=upload`);
             const tUp = performance.now();
             const file = new File([blob], `pledge-card-${id}.jpg`, { type: blob.type || "image/jpeg" });
             const res = await uploadsApi.upload(file);
@@ -639,54 +670,103 @@ export default function EventCardsTab({ eventId }: Props) {
             if (!url) throw new Error("Upload returned no URL");
             preRendered[id] = url;
             uploaded += 1;
+            consecutiveTimeouts = 0;
           } catch (e: any) {
-            failed.push({ recipient_id: id, name, reason: e?.message || "Render/upload failed" });
+            const msg: string = e?.message || "Render/upload failed";
+            timedOut = /timed out/i.test(msg);
+            const reason = timedOut
+              ? "Rendering took too long. Try Safe retry or a smaller batch."
+              : msg;
+            failed.push({ recipient_id: id, name, reason });
+            if (timedOut) {
+              consecutiveTimeouts += 1;
+              if (import.meta.env.DEV) {
+                console.warn(
+                  `[card_prepare_timeout] batch=${batchNo} recipient=${name} timeoutMs=${TIMEOUT_MS} stage=render_canvas cleanupOk=${cleanupOk}`,
+                );
+              }
+            } else {
+              consecutiveTimeouts = 0;
+            }
           } finally {
+            // Per-recipient cleanup (always for safe mode; on timeout for normal).
+            if (mode === "safe" || timedOut) {
+              try {
+                if (mode === "safe" && job) job.dispose();
+                if (timedOut && mode === "normal" && sharedJob) {
+                  sharedJob.dispose();
+                  sharedJob = null;
+                }
+                purgeLeakedRenderHosts();
+                await new Promise((r) => requestAnimationFrame(() => r(null)));
+                await new Promise((r) => setTimeout(r, mode === "safe" ? 300 : 150));
+                if (import.meta.env.DEV) console.log(`[card_prepare_cleanup] batch=${batchNo} recipient=${name} ok=true`);
+              } catch {
+                cleanupOk = false;
+              }
+            }
+
             const totalMs = performance.now() - tStart;
             timings.push(totalMs);
             done += 1;
             if (import.meta.env.DEV) {
-              // eslint-disable-next-line no-console
               console.log(
-                `[card_prepare_perf] recipient=${name} renderMs=${Math.round(renderMs)} ` +
-                `uploadMs=${Math.round(uploadMs)} totalMs=${Math.round(totalMs)} sizeKb=${sizeKb}`,
+                `[card_prepare_done] batch=${batchNo} recipient=${name} renderMs=${Math.round(renderMs)} uploadMs=${Math.round(uploadMs)} totalMs=${Math.round(totalMs)} sizeKb=${sizeKb}`,
               );
             }
             updateProgress(name);
           }
-        }
-      };
 
-      try {
-        await Promise.all(Array.from({ length: Math.min(CONCURRENCY, ids.length) }, worker));
+          // Detect stuck renderer: 3 consecutive timeouts → stop batch.
+          if (consecutiveTimeouts >= 3) {
+            rendererStuck = true;
+            stuckAtIndex = i + 1;
+            if (import.meta.env.DEV) {
+              console.warn(`[card_renderer_stuck] batch=${batchNo} consecutiveTimeouts=3 action=stop_batch`);
+            }
+            break;
+          }
+
+          // For normal mode: rebuild the shared job if it was disposed on a timeout.
+          if (mode === "normal" && !sharedJob) {
+            try { sharedJob = await buildJob(); } catch { rendererStuck = true; break; }
+          }
+        }
       } finally {
-        job.dispose();
+        if (sharedJob) sharedJob.dispose();
+        purgeLeakedRenderHosts();
       }
+
+      const unattempted = rendererStuck ? ids.slice(stuckAtIndex) : [];
+      // Remove failures that were actually unattempted (shouldn't happen, defensive).
+      const attemptedFailed = failed.filter((f) => !unattempted.includes(f.recipient_id));
 
       const preparedIds = Object.keys(preRendered);
       if (preparedIds.length === 0) {
-        return { sentIds: [], failed };
+        return { sentIds: [], failed: attemptedFailed, rendererStuck, unattempted };
       }
       updateProgress(undefined, "sending");
       try {
         await eventCardsApi.sendToContributors(eventId, activeCategory, preparedIds, preRendered);
-        return { sentIds: preparedIds, failed };
+        return { sentIds: preparedIds, failed: attemptedFailed, rendererStuck, unattempted };
       } catch (e: any) {
         const reason = e?.message || "Send request failed";
-        preparedIds.forEach((id) => failed.push({ recipient_id: id, name: idToName[id] || "Friend", reason }));
-        return { sentIds: [], failed };
+        preparedIds.forEach((id) => attemptedFailed.push({ recipient_id: id, name: idToName[id] || "Friend", reason }));
+        return { sentIds: [], failed: attemptedFailed, rendererStuck, unattempted };
       }
     },
     [activeTemplate, activeCategory, eventId, values, eventContributors],
   );
 
   const sendBatch = useCallback(
-    async (batchNo: number, opts: { retryOnly?: boolean } = {}) => {
+    async (batchNo: number, opts: { retryOnly?: boolean; mode?: "normal" | "safe" } = {}) => {
       const target = batches.find((b) => b.batch_no === batchNo);
       if (!target) return;
       const alreadySent = new Set(target.sent_ids);
       const failedIds = new Set(target.failed.map((f) => f.recipient_id));
-      const ids = opts.retryOnly
+      // Safe mode includes failed + pending (everything not already sent).
+      // Normal "Retry failed only" includes just failed entries.
+      const ids = opts.retryOnly && opts.mode !== "safe"
         ? target.recipient_ids.filter((id) => failedIds.has(id) && !alreadySent.has(id))
         : target.recipient_ids.filter((id) => !alreadySent.has(id));
       if (ids.length === 0) {
@@ -699,29 +779,38 @@ export default function EventCardsTab({ eventId }: Props) {
       const started_at = new Date().toISOString();
       persistBatches(batches.map((b) => (b.batch_no === batchNo ? { ...b, status: "sending", started_at } : b)));
       try {
-        const { sentIds, failed } = await prepareAndSendIds(ids);
+        const { sentIds, failed, rendererStuck, unattempted } = await prepareAndSendIds(ids, { batchNo, mode: opts.mode });
         const finished_at = new Date().toISOString();
+        const unattemptedSet = new Set(unattempted);
         const next = batches.map((b) => {
           if (b.batch_no !== batchNo) return b;
           const newSent = Array.from(new Set([...b.sent_ids, ...sentIds]));
-          // Drop previously-failed entries that are now retried successfully.
-          const retainedFailures = b.failed.filter((f) => !sentIds.includes(f.recipient_id));
+          const retainedFailures = b.failed.filter((f) => !sentIds.includes(f.recipient_id) && !unattemptedSet.has(f.recipient_id));
           const mergedFailures = [
             ...retainedFailures.filter((f) => !failed.some((g) => g.recipient_id === f.recipient_id)),
             ...failed,
           ];
           let status: BatchStatus;
-          if (cancelRef.current && newSent.length < b.recipient_ids.length) status = "cancelled";
+          if (rendererStuck) status = "renderer_stuck";
+          else if (cancelRef.current && newSent.length < b.recipient_ids.length) status = "cancelled";
           else if (newSent.length === b.recipient_ids.length) status = "sent";
           else if (newSent.length > 0) status = "partial_failure";
           else status = "failed";
           return { ...b, sent_ids: newSent, failed: mergedFailures, status, started_at, finished_at };
         });
         persistBatches(next);
-        toast({
-          title: `Batch ${batchNo} ${cancelRef.current ? "cancelled" : "completed"}`,
-          description: `${sentIds.length} sent, ${failed.length} failed`,
-        });
+        if (rendererStuck) {
+          toast({
+            title: `Batch ${batchNo} stopped`,
+            description: "Rendering appears stuck. We stopped this batch to protect your browser. Reset renderer and retry remaining in Safe mode.",
+            variant: "destructive",
+          });
+        } else {
+          toast({
+            title: `Batch ${batchNo} ${cancelRef.current ? "cancelled" : "completed"}`,
+            description: `${sentIds.length} sent, ${failed.length} failed`,
+          });
+        }
       } catch (e: any) {
         toast({ title: "Batch failed", description: e?.message, variant: "destructive" });
       } finally {
@@ -732,6 +821,12 @@ export default function EventCardsTab({ eventId }: Props) {
     },
     [batches, persistBatches, prepareAndSendIds],
   );
+
+  const resetRenderer = useCallback(() => {
+    const removed = purgeLeakedRenderHosts();
+    if (import.meta.env.DEV) console.log(`[card_renderer_reset] ok=true removedHosts=${removed}`);
+    toast({ title: "Renderer reset", description: "Hidden render host cleared. You can retry now." });
+  }, []);
 
   const cancelActiveBatch = useCallback(() => { cancelRef.current = true; }, []);
 
@@ -1018,6 +1113,8 @@ export default function EventCardsTab({ eventId }: Props) {
               )}
               onSendBatch={(n) => sendBatch(n)}
               onRetryFailed={(n) => sendBatch(n, { retryOnly: true })}
+              onSafeRetry={(n) => sendBatch(n, { retryOnly: true, mode: "safe" })}
+              onResetRenderer={resetRenderer}
               onResendAll={(n) => {
                 if (!window.confirm("Resend the entire batch? This may deliver the card a second time to recipients already marked as sent.")) return;
                 persistBatches(batches.map((b) => (b.batch_no === n ? { ...b, sent_ids: [], failed: [], status: "not_sent" } : b)));
@@ -1075,6 +1172,8 @@ interface BatchesViewProps {
   recipientInfo: Record<string, { name: string; phone: string }>;
   onSendBatch: (n: number) => void;
   onRetryFailed: (n: number) => void;
+  onSafeRetry: (n: number) => void;
+  onResetRenderer: () => void;
   onResendAll: (n: number) => void;
   onClearReport: (n: number) => void;
   onCancelActive: () => void;
@@ -1087,6 +1186,7 @@ const STATUS_LABELS: Record<BatchStatus, string> = {
   partial_failure: "Partial failure",
   failed: "Failed",
   cancelled: "Cancelled",
+  renderer_stuck: "Renderer stuck",
 };
 
 const STATUS_BADGE: Record<BatchStatus, string> = {
@@ -1096,11 +1196,12 @@ const STATUS_BADGE: Record<BatchStatus, string> = {
   partial_failure: "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
   failed: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300",
   cancelled: "bg-muted text-muted-foreground",
+  renderer_stuck: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300",
 };
 
 function BatchesView({
   batches, batchSize, activeBatchNo, activeBatchProgress, recipientInfo,
-  onSendBatch, onRetryFailed, onResendAll, onClearReport, onCancelActive,
+  onSendBatch, onRetryFailed, onSafeRetry, onResetRenderer, onResendAll, onClearReport, onCancelActive,
 }: BatchesViewProps) {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const toggle = (n: number) => setExpanded((p) => {
@@ -1125,6 +1226,11 @@ function BatchesView({
         <p className="text-muted-foreground">
           {completed} of {batches.length} batches completed · {remaining} remaining · batch size {batchSize}
         </p>
+        <div className="pt-1">
+          <Button size="sm" variant="outline" onClick={onResetRenderer} disabled={activeBatchNo !== null}>
+            Reset renderer
+          </Button>
+        </div>
       </div>
 
       <div className="space-y-2">
@@ -1185,17 +1291,22 @@ function BatchesView({
                       {isActive ? <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> Sending</> : "Send batch"}
                     </Button>
                   )}
-                  {(b.status === "partial_failure" || b.status === "cancelled") && pendingCount > 0 && (
+                  {(b.status === "partial_failure" || b.status === "cancelled" || b.status === "renderer_stuck") && pendingCount > 0 && (
                     <Button size="sm" onClick={() => onSendBatch(b.batch_no)} disabled={activeBatchNo !== null}>
                       Send remaining ({pendingCount})
                     </Button>
                   )}
                   {failedCount > 0 && (
                     <Button size="sm" variant="outline" onClick={() => onRetryFailed(b.batch_no)} disabled={activeBatchNo !== null}>
-                      Retry failed ({failedCount})
+                      Retry failed only ({failedCount})
                     </Button>
                   )}
-                  {(b.status === "sent" || b.status === "partial_failure" || b.status === "failed" || b.status === "cancelled") && (
+                  {(failedCount > 0 || (b.status === "renderer_stuck" && pendingCount > 0)) && (
+                    <Button size="sm" variant="outline" onClick={() => onSafeRetry(b.batch_no)} disabled={activeBatchNo !== null}>
+                      Safe retry failed/pending
+                    </Button>
+                  )}
+                  {(b.status === "sent" || b.status === "partial_failure" || b.status === "failed" || b.status === "cancelled" || b.status === "renderer_stuck") && (
                     <Button size="sm" variant="ghost" onClick={() => onResendAll(b.batch_no)} disabled={activeBatchNo !== null}>
                       Resend all
                     </Button>
