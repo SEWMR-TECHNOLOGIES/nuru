@@ -93,6 +93,7 @@ class _ImageGalleryViewerState extends State<ImageGalleryViewer> {
                   child: CachedNetworkImage(
                     imageUrl: widget.urls[i],
                     fit: BoxFit.contain,
+                    filterQuality: FilterQuality.high,
                     placeholder: (_, __) => const SizedBox(
                       width: 28,
                       height: 28,

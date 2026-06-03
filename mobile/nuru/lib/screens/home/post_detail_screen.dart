@@ -280,6 +280,7 @@ class _MediaCarousel extends StatelessWidget {
               return CachedNetworkImage(
                 imageUrl: url,
                 fit: BoxFit.cover,
+                filterQuality: FilterQuality.high,
                 placeholder: (_, __) => Container(color: AppColors.borderLight),
                 errorWidget: (_, __, ___) => Container(color: AppColors.borderLight),
               );

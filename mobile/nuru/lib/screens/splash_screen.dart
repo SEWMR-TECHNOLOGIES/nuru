@@ -32,14 +32,28 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _navigate() async {
-    await Future.delayed(const Duration(milliseconds: 2200));
+    debugPrint('[Splash] started');
+    // Minimum visible splash so the brand mark isn't flashed away.
+    await Future.delayed(const Duration(milliseconds: 1200));
     if (!mounted) return;
 
     final auth = context.read<AuthProvider>();
-    while (auth.isLoading) {
-      await Future.delayed(const Duration(milliseconds: 100));
+
+    // Wait for the auth provider to finish its (very cheap) secure-storage
+    // read, but NEVER hang forever. If `_loadSession` somehow stalls (broken
+    // keychain on iPad, corrupted SharedPreferences, etc.) we fall through
+    // to the login/onboarding screen instead of staying on the splash.
+    // Apple App Review 2.1(a) requires a usable screen quickly.
+    final deadline = DateTime.now().add(const Duration(seconds: 6));
+    while (auth.isLoading && DateTime.now().isBefore(deadline)) {
+      await Future.delayed(const Duration(milliseconds: 50));
     }
     if (!mounted) return;
+    if (auth.isLoading) {
+      debugPrint('[Splash] auth check timed out — defaulting to safe route');
+    } else {
+      debugPrint('[Splash] auth check completed (loggedIn=${auth.isLoggedIn})');
+    }
 
     Widget dest;
     if (auth.isLoggedIn) {
@@ -49,6 +63,8 @@ class _SplashScreenState extends State<SplashScreen>
     } else {
       dest = const OnboardingScreen();
     }
+    debugPrint('[Splash] selected initial route: ${dest.runtimeType}');
+
 
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(

@@ -313,7 +313,20 @@ class _EventCheckinTabState extends State<EventCheckinTab>
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  MobileScanner(controller: _controller, onDetect: _onBarcode),
+                  MobileScanner(
+                    controller: _controller,
+                    onDetect: _onBarcode,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: Colors.black,
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: const Text(
+                        'QR scanning requires a physical device camera. Please test this feature on a real iPhone or iPad.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.white, fontSize: 14, height: 1.4),
+                      ),
+                    ),
+                  ),
 
                   // Pill label
                   Positioned(

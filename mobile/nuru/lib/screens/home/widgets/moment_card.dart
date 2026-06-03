@@ -335,6 +335,7 @@ class _MomentCardState extends State<MomentCard> {
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 360),
               child: CachedNetworkImage(imageUrl: images[0], width: double.infinity, fit: BoxFit.contain,
+                filterQuality: FilterQuality.medium,
                 fadeInDuration: Duration.zero, fadeOutDuration: Duration.zero, placeholderFadeInDuration: Duration.zero,
                 useOldImageOnUrlChange: true,
                 placeholder: (_, __) => const SizedBox.shrink(),
@@ -420,6 +421,7 @@ class _MomentCardState extends State<MomentCard> {
       fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,
+      filterQuality: FilterQuality.medium,
       fadeInDuration: Duration.zero,
       fadeOutDuration: Duration.zero,
       placeholderFadeInDuration: Duration.zero,

@@ -470,6 +470,7 @@ class _PostDetailModalState extends State<PostDetailModal> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxHeight: 400),
             child: CachedNetworkImage(imageUrl: images[0], width: double.infinity, fit: BoxFit.contain,
+              filterQuality: FilterQuality.medium,
               errorWidget: (_, __, ___) => Container(height: 200, color: AppColors.surfaceVariant)),
           ),
         ),
@@ -490,6 +491,7 @@ class _PostDetailModalState extends State<PostDetailModal> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(12),
               child: CachedNetworkImage(imageUrl: images[i], width: 200, height: 200, fit: BoxFit.cover,
+                filterQuality: FilterQuality.medium,
                 errorWidget: (_, __, ___) => Container(width: 200, height: 200, color: AppColors.surfaceVariant)),
             ),
           );

@@ -119,6 +119,7 @@ class _MomentViewScreenState extends State<MomentViewScreen> {
             child: CachedNetworkImage(
               imageUrl: mediaUrl,
               fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
               placeholder: (_, __) => const Center(
                 child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
               ),

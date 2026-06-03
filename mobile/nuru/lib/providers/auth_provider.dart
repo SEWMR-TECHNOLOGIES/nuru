@@ -36,43 +36,50 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> _loadSession() async {
-    // Migrate tokens from plain SharedPreferences to secure storage (one-time)
-    await SecureTokenStorage.migrateFromSharedPreferences();
+    try {
+      // Migrate tokens from plain SharedPreferences to secure storage (one-time)
+      await SecureTokenStorage.migrateFromSharedPreferences();
 
-    final prefs = await SharedPreferences.getInstance();
-    _hasSeenOnboarding = prefs.getBool(_keyHasSeenOnboarding) ?? false;
+      final prefs = await SharedPreferences.getInstance();
+      _hasSeenOnboarding = prefs.getBool(_keyHasSeenOnboarding) ?? false;
 
-    final token = await SecureTokenStorage.getToken();
-    if (token != null) {
-      // Optimistic restore: a valid token in secure storage means we trust
-      // the previous session. Bring the user straight into the app and
-      // hydrate /auth/me + profile in the background. This shaves the cold-
-      // start latency that previously waited on two sequential network
-      // round-trips before the splash could dismiss.
-      _isLoggedIn = true;
-      // Use the lightweight cached snapshot while the network call is in
-      // flight so screens that read userName/avatar don't flash empty.
-      final cachedUser = prefs.getString('cached_user');
-      if (cachedUser != null && cachedUser.isNotEmpty) {
-        try {
-          final decoded = jsonDecode(cachedUser);
-          if (decoded is Map<String, dynamic>) _user = decoded;
-        } catch (_) {}
+      final token = await SecureTokenStorage.getToken();
+      debugPrint('[AuthProvider] _loadSession: token=${token != null ? 'present' : 'null'}');
+      if (token != null) {
+        // Optimistic restore: a valid token in secure storage means we trust
+        // the previous session. Bring the user straight into the app and
+        // hydrate /auth/me + profile in the background. This shaves the cold-
+        // start latency that previously waited on two sequential network
+        // round-trips before the splash could dismiss.
+        _isLoggedIn = true;
+        // Use the lightweight cached snapshot while the network call is in
+        // flight so screens that read userName/avatar don't flash empty.
+        final cachedUser = prefs.getString('cached_user');
+        if (cachedUser != null && cachedUser.isNotEmpty) {
+          try {
+            final decoded = jsonDecode(cachedUser);
+            if (decoded is Map<String, dynamic>) _user = decoded;
+          } catch (_) {}
+        }
+        _syncCurrencyFromUser();
+
+        // Background hydration — never blocks UI.
+        // Roll the 30-day refresh window forward FIRST so a long-dormant
+        // user who just opened the app gets a brand-new pair of tokens
+        // before anything else hits the network.
+        // ignore: discarded_futures
+        _rollRefreshAndHydrate();
       }
-      _syncCurrencyFromUser();
+    } catch (e) {
+      // A failure reading secure storage (e.g. Android master-key rotation)
+      // must NEVER freeze the splash or imply the user is logged out. We
+      // simply fall through to the login screen on this cold start; the
+      // next launch will retry the secure read.
+      debugPrint('[AuthProvider] _loadSession error: $e');
+    } finally {
       _isLoading = false;
       notifyListeners();
-
-      // Background hydration — never blocks UI.
-      // Roll the 30-day refresh window forward FIRST so a long-dormant
-      // user who just opened the app gets a brand-new pair of tokens
-      // before anything else hits the network.
-      // ignore: discarded_futures
-      _rollRefreshAndHydrate();
-      return;
     }
-    _isLoading = false;
-    notifyListeners();
   }
 
   Future<void> _rollRefreshAndHydrate() async {

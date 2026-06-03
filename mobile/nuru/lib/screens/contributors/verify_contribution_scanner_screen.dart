@@ -119,7 +119,11 @@ class _VerifyContributionScannerScreenState
       body: Stack(
         alignment: Alignment.center,
         children: [
-          MobileScanner(controller: _controller, onDetect: _handleDetect),
+          MobileScanner(
+            controller: _controller,
+            onDetect: _handleDetect,
+            errorBuilder: (_, __, ___) => const _ScannerUnavailableFallback(),
+          ),
           Container(
             width: 240, height: 240,
             decoration: BoxDecoration(
@@ -266,6 +270,26 @@ class _VerifyResultSheet extends StatelessWidget {
                   fontWeight: bold ? FontWeight.w800 : FontWeight.w700,
                   color: valueColor ?? AppColors.textPrimary)),
         ],
+      ),
+    );
+  }
+}
+
+/// Shown when the camera is unavailable (iOS Simulator, permission denied,
+/// hardware fault). Keeps the app responsive instead of locking up on a
+/// black scanner viewport.
+class _ScannerUnavailableFallback extends StatelessWidget {
+  const _ScannerUnavailableFallback();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: Colors.black,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 32),
+      child: const Text(
+        'QR scanning requires a physical device camera. Please test this feature on a real iPhone or iPad.',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: Colors.white, fontSize: 15, height: 1.4),
       ),
     );
   }

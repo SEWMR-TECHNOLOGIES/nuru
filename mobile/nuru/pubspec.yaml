@@ -1,7 +1,7 @@
 name: nuru
 description: "Nuru - Event Planning, Ticketing, Invitations and Guest Management App"
 publish_to: "none"
-version: 1.0.2+3
+version: 1.0.3+4
 
 environment:
   sdk: ^3.11.1

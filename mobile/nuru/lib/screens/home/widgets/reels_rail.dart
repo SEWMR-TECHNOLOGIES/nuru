@@ -212,6 +212,7 @@ class ReelsRail extends StatelessWidget {
       if (avatar != null && avatar.isNotEmpty) {
         return CachedNetworkImage(
           imageUrl: avatar, fit: BoxFit.cover, width: 64, height: 64,
+          filterQuality: FilterQuality.medium,
           placeholder: (_, __) => Container(color: AppColors.surfaceVariant),
           errorWidget: (_, __, ___) => _initial(label),
         );
@@ -222,6 +223,7 @@ class ReelsRail extends StatelessWidget {
     if (type == 'image' && media.isNotEmpty) {
       return CachedNetworkImage(
         imageUrl: media, fit: BoxFit.cover, width: 64, height: 64,
+        filterQuality: FilterQuality.medium,
         placeholder: (_, __) => Container(color: AppColors.surfaceVariant),
         errorWidget: (_, __, ___) => fallback(),
       );
@@ -232,6 +234,7 @@ class ReelsRail extends StatelessWidget {
         return Stack(fit: StackFit.expand, children: [
           CachedNetworkImage(
             imageUrl: src, fit: BoxFit.cover,
+            filterQuality: FilterQuality.medium,
             placeholder: (_, __) => Container(color: Colors.black),
             errorWidget: (_, __, ___) => Container(color: Colors.black),
           ),

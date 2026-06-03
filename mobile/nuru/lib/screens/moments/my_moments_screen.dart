@@ -426,6 +426,7 @@ class _MyMomentsScreenState extends State<MyMomentsScreen> {
           constraints: const BoxConstraints(maxHeight: 360),
           child: CachedNetworkImage(
             imageUrl: urls[0], width: double.infinity, fit: BoxFit.contain,
+            filterQuality: FilterQuality.medium,
             placeholder: (_, __) => Container(height: 200, color: AppColors.surfaceVariant),
             errorWidget: (_, __, ___) => Container(height: 200, color: AppColors.surfaceVariant,
               child: const Center(child: Icon(Icons.broken_image_rounded, color: AppColors.textHint))),
@@ -448,6 +449,7 @@ class _MyMomentsScreenState extends State<MyMomentsScreen> {
             borderRadius: BorderRadius.circular(12),
             child: CachedNetworkImage(
               imageUrl: urls[i], width: 160, height: 140, fit: BoxFit.cover,
+              filterQuality: FilterQuality.medium,
               placeholder: (_, __) => Container(width: 160, height: 140, color: AppColors.surfaceVariant),
               errorWidget: (_, __, ___) => Container(width: 160, height: 140, color: AppColors.surfaceVariant,
                 child: const Center(child: Icon(Icons.broken_image_rounded, color: AppColors.textHint))),

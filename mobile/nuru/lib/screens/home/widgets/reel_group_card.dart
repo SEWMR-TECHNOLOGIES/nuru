@@ -176,7 +176,7 @@ class _ReelTile extends StatelessWidget {
               showPlayBadge: false,
             )
           else if (media.isNotEmpty)
-            CachedNetworkImage(imageUrl: media, fit: BoxFit.cover, fadeInDuration: Duration.zero, fadeOutDuration: Duration.zero, placeholderFadeInDuration: Duration.zero)
+            CachedNetworkImage(imageUrl: media, fit: BoxFit.cover, filterQuality: FilterQuality.medium, fadeInDuration: Duration.zero, fadeOutDuration: Duration.zero, placeholderFadeInDuration: Duration.zero)
           else
             const SizedBox.shrink(),
 

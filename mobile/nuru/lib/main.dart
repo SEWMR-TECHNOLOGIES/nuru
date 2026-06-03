@@ -1,8 +1,6 @@
-import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
 import 'core/services/deep_link_service.dart';
@@ -72,33 +70,31 @@ class _NuruAppState extends State<NuruApp> {
   @override
   void initState() {
     super.initState();
+    debugPrint('[Nuru] app initialization started');
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _requestAllPermissions();
+      // IMPORTANT: do NOT request runtime permissions at app launch.
+      // Apple App Review (Guideline 2.1a) rejected v1.0(3) on iPad as
+      // "irresponsive upon launch" — back-to-back permission dialogs from
+      // location, camera, photos, mic and notifications made the UI appear
+      // frozen. Each feature now requests its own permission lazily when
+      // the user first taps it (camera inside the QR scanner screen, mic
+      // inside the voice/video call screen, photos when opening the picker,
+      // location when sharing a place, etc.).
       DeepLinkService.instance.init(NuruApp.navigatorKey);
       // Global voice-call ringer: polls the backend for incoming calls and
       // shows CallKit / a full-screen ringer. Safe to start before login —
       // the poll endpoint returns null while unauthenticated.
       IncomingCallService.instance.start(NuruApp.navigatorKey);
-      // Push notifications (FCM) — show every backend notification on the device.
+      // Push notifications (FCM) — show every backend notification on the
+      // device. `initialise` internally requests the notification permission,
+      // which is the only OS prompt we want during a cold start.
       PushNotificationService.instance
           .initialise(navigatorKey: NuruApp.navigatorKey)
           .then((_) => PushNotificationService.instance.registerWithBackend());
     });
   }
 
-  Future<void> _requestAllPermissions() async {
-    // Request every runtime permission the app needs in a single batch so
-    // the user isn't pestered across multiple cold starts.
-    final results = await [
-      Permission.locationWhenInUse,
-      Permission.camera,
-      Permission.photos,
-      Permission.microphone,
-      Permission.notification,
-      if (Platform.isAndroid) Permission.bluetoothConnect,
-    ].request();
-    results.forEach((perm, status) => debugPrint('Permission $perm: $status'));
-  }
+
 
   @override
   Widget build(BuildContext context) {

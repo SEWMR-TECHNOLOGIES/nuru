@@ -92,6 +92,7 @@ class _VideoThumbnailImageState extends State<VideoThumbnailImage> {
       image = CachedNetworkImage(
         imageUrl: widget.posterUrl!,
         fit: widget.fit, width: widget.width, height: widget.height,
+        filterQuality: FilterQuality.medium,
         fadeInDuration: Duration.zero,
         fadeOutDuration: Duration.zero,
         placeholderFadeInDuration: Duration.zero,
@@ -99,7 +100,7 @@ class _VideoThumbnailImageState extends State<VideoThumbnailImage> {
         errorWidget: (_, __, ___) => Container(color: AppColors.surfaceVariant),
       );
     } else if (_localPath != null) {
-      image = Image.file(File(_localPath!), fit: widget.fit, width: widget.width, height: widget.height);
+      image = Image.file(File(_localPath!), fit: widget.fit, width: widget.width, height: widget.height, filterQuality: FilterQuality.medium);
     } else {
       image = Container(color: Colors.black, width: widget.width, height: widget.height);
     }

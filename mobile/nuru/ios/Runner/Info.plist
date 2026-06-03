@@ -37,7 +37,7 @@
 
 	<!-- Camera permissions -->
 	<key>NSCameraUsageDescription</key>
-	<string>Nuru needs camera access to take photos and videos for your events.</string>
+	<string>Nuru uses the camera to scan tickets, invitations, and event QR codes, and to capture photos and videos for your events.</string>
 
 	<!-- Photo Library permissions -->
 	<key>NSPhotoLibraryUsageDescription</key>
