@@ -291,7 +291,7 @@ class _HomeLeftDrawerState extends State<HomeLeftDrawer> {
         _NavSection(id: 'money', label: 'Money', items: [
           _NavItem(icon: 'assets/icons/wallet-icon.svg', label: 'Wallet', screen: const WalletScreen()),
           _NavItem(icon: 'assets/icons/calendar-icon.svg', label: context.tr('bookings'), screen: const BookingsScreen()),
-          _NavItem(icon: 'assets/icons/raise-hand-icon.svg', label: 'My Contributions', screen: const MyContributionsScreen()),
+          _NavItem(icon: 'assets/icons/money-icon.svg', label: 'My Contributions', screen: const MyContributionsScreen()),
           _NavItem(icon: 'assets/icons/contributors-icon.svg', label: 'My Contributors', screen: const ContributorsScreen()),
         ]),
         _NavSection(id: 'network', label: 'Network', items: [

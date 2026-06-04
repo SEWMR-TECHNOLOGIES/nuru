@@ -192,6 +192,23 @@ const BUILDERS: Record<string, (lang: Lang, p: any) => Built> = {
     ],
   }),
 
+  // Event invitation card (image header + 4 body params) — per-lang pair
+  // nuru_invitation_card_message_sw / _en (replaces single-lang event_invitation_card)
+  // Body: {{1}} guest_name · {{2}} organizer_name · {{3}} event_name · {{4}} organizer_phone
+  invitation_card_message: (lang, p) => ({
+    name: `nuru_invitation_card_message_${lang}`,
+    lang,
+    components: [
+      { type: "header", parameters: [{ type: "image", image: { link: toWaImageLink(p.image_url || "") } }] },
+      ...bodyParams([
+        p.guest_name || "Guest",
+        p.organizer_name || p.organiser_name || "Your host",
+        p.event_name || "the event",
+        p.organizer_phone || p.organiser_phone || "—",
+      ]),
+    ],
+  }),
+
   // #17/18 — guest_contribution_invite, dynamic URL button = share_token
   guest_contribution_invite: (lang, p) => ({
     name: `nuru_guest_contribution_invite_${lang}`,
@@ -502,9 +519,13 @@ Deno.serve(async (req) => {
         case "send_invitation_text":
           result = await sendTemplate(phone, "event_invitation_text", buildInvitationTextComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
           break;
-        case "send_invitation_card":
-          result = await sendTemplate(phone, "event_invitation_card", buildInvitationCardComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+        case "send_invitation_card": {
+          // MARKETING-category template pair nuru_invitation_card_message_{sw,en}
+          // (replaces legacy single-lang event_invitation_card).
+          const built = BUILDERS["invitation_card_message"](lang, params);
+          result = await sendTemplate(phone, built.name, built.components, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, built.lang);
           break;
+        }
         case "send_ticket":
           result = await sendTemplate(phone, "event_ticket_delivery", buildTicketDeliveryComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
           break;

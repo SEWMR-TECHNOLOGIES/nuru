@@ -953,7 +953,7 @@ Plan Smarter. Celebrate Better.
 | Template | Reason kept as-is |
 |----------|-------------------|
 | `event_reminder` | Reminder-automation only; handled by separate doc `whatsapp_reminder_templates.md`. |
-| `event_invitation_text`, `event_invitation_card`, `event_ticket_*` | Driven by `utils/whatsapp_cards.py` (rich media), not the SMS catalogue. |
+| `event_invitation_text`, `event_invitation_card`, `event_ticket_*` | Driven by `utils/whatsapp_cards.py` (rich media), not the SMS catalogue. `event_invitation_card` keeps its own Meta template + body copy (5 vars: `guest_name`, `event_name`, `event_date`, `organizer_name`, `rsvp_code` + image header) — **do not merge with `pledge_thank_you_card`**, the content is different. Only the stable-`image_url` plumbing is shared: the header URL is minted once per (guest phone, event, invitation) via `services/card_url_service.generate_or_replace_card` and reused on every resend (no duplicate storage objects, no new URL convention). |
 | `nuru_fundraise_notice_{sw,en}`, `nuru_pledge_remind_{sw,en}`, `nuru_guest_remind_{sw,en}` | Existing reminder-automation templates with their own placeholder contract (`whatsapp_reminder_templates.md`). |
 | `event_update` | No matching row in the updated SMS document. Left as-is until the document is amended. |
 
@@ -1165,3 +1165,51 @@ Plan Smarter. Celebrate Better.
 
 Full submission spec lives in `backend/app/docs/meta_template_pledge_thank_you_card.md`.
 Storage & deployment notes live in `backend/app/docs/event_cards_storage_and_deployment.md`.
+
+## 49. nuru_invitation_card_message_sw
+
+- **Language:** sw · **Status:** New (pending Meta approval; replaces single-lang `event_invitation_card`) · **Category:** MARKETING
+- **Header:** IMAGE (rendered PNG of the event's invitation card, served from the stable card URL minted by `services/card_url_service.generate_or_replace_card` — one URL per `(guest phone, event, invitation)`, reused on every resend)
+- **Body:**
+```
+Habari {{1}},
+
+Umepokea mwaliko kutoka kwa {{2}} kwa ajili ya {{3}}.
+
+Tafadhari, fika bila kukosa.
+
+Kwa msaada Zaidi wasiliana na mratibu wa tukio kupitia {{4}}
+
+Plan Smarter. Celebrate Better.
+```
+- **Placeholders (body):** `{{1}}` guest_name · `{{2}}` organizer_name · `{{3}}` event_name · `{{4}}` organizer_phone
+- **Buttons:** none (SMS fallback sends the stable card URL in plain text)
+- **Backend reference:** `utils/whatsapp_cards.py::wa_send_invitation_card` → edge function action `send_invitation_card` → template `event_invitation_card` (today, single-lang) / `nuru_invitation_card_message_{sw,en}` (after approval). The `image_url` is the stable mapping URL — never a freshly-rendered file on resend. Distinct content from #47/#48 (`pledge_thank_you_card`); only the stable-URL plumbing is shared.
+
+## 50. nuru_invitation_card_message_en
+
+- **Language:** en · **Status:** New (pending Meta approval; replaces single-lang `event_invitation_card`) · **Category:** MARKETING
+- **Header:** IMAGE (same source as #49)
+- **Body:**
+```
+Hello {{1}},
+
+You have received an invitation from {{2}} for {{3}}.
+
+Please, make sure to attend.
+
+For further assistance, contact the event organizer via {{4}}
+
+Plan Smarter. Celebrate Better.
+```
+- **Placeholders (body):** `{{1}}` guest_name · `{{2}}` organizer_name · `{{3}}` event_name · `{{4}}` organizer_phone
+- **Buttons:** none
+- **Backend reference:** same as #49.
+
+### Submission notes (#49/#50)
+
+1. Category **MARKETING** (per Meta classification for invitation broadcasts).
+2. Header sample image: any existing render returned by `services/card_url_service` (1080 px, <5 MB).
+3. Submit both `_sw` and `_en` variants simultaneously; the dispatcher will switch from the single-lang `event_invitation_card` to the per-lang pair once both are approved.
+4. After approval, smoke-test by inviting one guest twice — confirm the same `storage_url` is reused (no duplicate file in storage) and that SMS fallback delivers the same stable URL.
+

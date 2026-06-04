@@ -127,6 +127,8 @@ class EventGroupMessage(Base):
                          ForeignKey("event_group_messages.id", ondelete="SET NULL"),
                          nullable=True)
     is_deleted = Column(Boolean, nullable=False, default=False)
+    is_edited = Column(Boolean, nullable=False, default=False)
+    edited_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), index=True)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
 

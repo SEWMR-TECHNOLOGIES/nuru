@@ -2,8 +2,9 @@
  * Public RSVP API — no authentication required
  */
 import type { ApiResponse } from "./types";
+import { resolveApiBaseUrl } from "./helpers";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+const BASE_URL = resolveApiBaseUrl();
 
 async function publicRequest<T>(endpoint: string, options: RequestInit = {}): Promise<ApiResponse<T>> {
   const url = `${BASE_URL}${endpoint}`;

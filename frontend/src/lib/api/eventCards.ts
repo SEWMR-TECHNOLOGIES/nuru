@@ -8,7 +8,7 @@
  * master template. The contributor name placeholder is only substituted at
  * delivery time, never at edit time.
  */
-import { get, post, put } from "./helpers";
+import { get, post, put, resolveApiBaseUrl } from "./helpers";
 
 export interface CardCategory {
   category: string;
@@ -30,7 +30,7 @@ export interface CardEditableField {
 export const absolutizeApiUrl = (path?: string | null): string | undefined => {
   if (!path) return undefined;
   if (/^https?:\/\//i.test(path)) return path;
-  const base = (import.meta.env.VITE_API_BASE_URL as string | undefined) || "/api/v1";
+  const base = resolveApiBaseUrl();
   const stripped = path.replace(/^\/api\/v1/, "");
   return `${base}${stripped}`;
 };
@@ -44,7 +44,17 @@ export interface CardTemplateMetadata {
   locked_ids?: string[];
   editable_fields?: CardEditableField[];
   fonts?: string[];
+  qr_placement?: { x: number; y: number; width: number; height: number };
+  view_box?: { width: number; height: number };
+  preserve_text_positions?: boolean;
+  replace_defaults_in_preview?: boolean;
+  recipient_noun?: string;
+  /** "contributors" (thank-you cards, default) or "guests" (invitation cards). */
+  recipient_source?: "contributors" | "guests";
+  /** When recipient_source === "guests", which RSVP buckets are eligible. */
+  recipient_filter?: Array<"pending" | "confirmed" | "declined" | "maybe">;
 }
+
 
 export interface CardTemplateSummary {
   id: string | null;
@@ -116,9 +126,16 @@ export const eventCardsApi = {
       },
     ),
 
+  /** Invitation cards: server renders + embeds per-guest QR. */
+  sendToGuests: (eventId: string, category: string, guestIds: string[]) =>
+    post<{ queued: number }>(
+      `/events/${eventId}/cards/${encodeURIComponent(category)}/send`,
+      { guest_ids: guestIds },
+    ),
+
   /** Direct URL helpers (these endpoints return image bytes, not JSON). */
   previewPngUrl: (eventId: string, category: string, opts?: { contributorId?: string; width?: number }) => {
-    const base = (import.meta.env.VITE_API_BASE_URL as string | undefined) || "/api/v1";
+    const base = resolveApiBaseUrl();
     const qs = new URLSearchParams();
     if (opts?.contributorId) qs.set("contributor_id", opts.contributorId);
     if (opts?.width) qs.set("width", String(opts.width));

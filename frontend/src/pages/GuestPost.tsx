@@ -8,10 +8,11 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { getTimeAgo } from '@/utils/getTimeAgo';
 import { useCurrentUser } from '@/hooks/useCurrentUser';
+import { resolveApiBaseUrl } from '@/lib/api/helpers';
 import nuruLogo from '@/assets/nuru-logo.png';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+const API_BASE = resolveApiBaseUrl();
 
 const getInitials = (name: string) => {
   const parts = name.trim().split(/\s+/);

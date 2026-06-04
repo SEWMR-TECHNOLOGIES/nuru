@@ -331,6 +331,8 @@ def _message_dict(db: Session, msg: EventGroupMessage, members_by_id: dict) -> d
         "reply_to": reply_to,
         "reactions": reactions,
         "created_at": msg.created_at.isoformat() if msg.created_at else None,
+        "is_edited": bool(getattr(msg, "is_edited", False)),
+        "edited_at": msg.edited_at.isoformat() if getattr(msg, "edited_at", None) else None,
     }
 
 
@@ -1086,6 +1088,52 @@ def send_message(
     db.commit()
     sender = _member_dict(db, viewer)
     return standard_response(True, "Sent",
+                             _message_dict(db, msg, {viewer.id: sender}))
+
+
+@router.patch("/{group_id}/messages/{message_id}")
+def edit_message(
+    group_id: str,
+    message_id: str,
+    payload: dict = Body(...),
+    x_guest_token: Optional[str] = Header(None, alias="X-Guest-Token"),
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
+):
+    """Edit a text message's content. Sender-only, within 15 minutes."""
+    try:
+        gid = uuid.UUID(group_id)
+        mid = uuid.UUID(message_id)
+    except ValueError:
+        return standard_response(False, "Invalid ID")
+    new_content = (payload or {}).get("content")
+    if not isinstance(new_content, str) or not new_content.strip():
+        return standard_response(False, "Content is required")
+    viewer = _resolve_member(db, gid, current_user, x_guest_token)
+    if not viewer:
+        return standard_response(False, "Not a member")
+    msg = db.query(EventGroupMessage).filter(
+        EventGroupMessage.id == mid, EventGroupMessage.group_id == gid,
+    ).first()
+    if not msg:
+        return standard_response(False, "Message not found")
+    if msg.is_deleted:
+        return standard_response(False, "Message has been deleted")
+    if msg.sender_member_id != viewer.id:
+        return standard_response(False, "You can only edit your own messages")
+    if msg.message_type and msg.message_type.value != "text":
+        return standard_response(False, "Only text messages can be edited")
+    age = datetime.utcnow() - (msg.created_at or datetime.utcnow())
+    if age.total_seconds() > 15 * 60:
+        return standard_response(False, "Edit window has expired (15 minutes)")
+    msg.content = new_content.strip()
+    msg.is_edited = True
+    msg.edited_at = datetime.utcnow()
+    db.commit()
+    db.refresh(msg)
+    # Build members_by_id for this single sender so reply lookups still work.
+    sender = _member_dict(db, viewer)
+    return standard_response(True, "Updated",
                              _message_dict(db, msg, {viewer.id: sender}))
 
 

@@ -279,6 +279,7 @@ function InnerRoutes() {
         <Route path="/c/:token" element={<PublicContribute />} />
         <Route path="/c/:token/r/:txCode" element={<PublicContributionReceipt />} />
         <Route path="/cards/:id" element={<PublicCardView />} />
+        <Route path="/card/:token" element={<PublicCardView />} />
         <Route path="/features" element={<FeaturesIndex />} />
         <Route path="/features/event-planning" element={<EventPlanning />} />
         <Route path="/features/service-providers" element={<ServiceProviders />} />

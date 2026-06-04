@@ -10,6 +10,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/services/event_groups_service.dart';
 import '../../../core/services/uploads_service.dart';
 import '../../../core/utils/event_groups_cache.dart';
+import '../../../core/widgets/nuru_skeleton.dart';
 
 const _quickEmojis = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 const _fullEmojis = [
@@ -307,6 +308,60 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
     await EventGroupsService.deleteMessage(widget.groupId, msg['id']);
   }
 
+  bool _canEdit(Map m) {
+    if (m['is_deleted'] == true) return false;
+    if (m['message_type'] == 'system') return false;
+    final c = (m['content'] ?? '').toString();
+    if (c.isEmpty) return false;
+    final raw = (m['created_at'] ?? '').toString();
+    final iso = raw.endsWith('Z') || raw.contains('+') ? raw : '${raw}Z';
+    final dt = DateTime.tryParse(iso)?.toLocal();
+    if (dt == null) return false;
+    return DateTime.now().difference(dt).inMinutes < 15;
+  }
+
+  Future<void> _edit(Map msg) async {
+    final ctrl = TextEditingController(text: (msg['content'] ?? '').toString());
+    final newText = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Edit message', style: GoogleFonts.inter(fontWeight: FontWeight.w700)),
+        content: TextField(
+          controller: ctrl,
+          maxLines: 5,
+          minLines: 1,
+          autofocus: true,
+          style: GoogleFonts.inter(fontSize: 14.5),
+          decoration: const InputDecoration(border: OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+    if (newText == null || newText.isEmpty || newText == msg['content']) return;
+    final original = msg['content'];
+    setState(() {
+      msg['content'] = newText;
+      msg['is_edited'] = true;
+      msg['edited_at'] = DateTime.now().toUtc().toIso8601String();
+    });
+    final res = await EventGroupsService.editMessage(widget.groupId, msg['id'], newText);
+    if (res['success'] != true && mounted) {
+      setState(() {
+        msg['content'] = original;
+        msg['is_edited'] = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(res['error']?.toString() ?? 'Unable to edit')),
+      );
+    }
+  }
+
   void _showReactPicker(Map msg) {
     showModalBottomSheet(
       context: context,
@@ -410,8 +465,11 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     if (_loading) {
       return Container(
-          color: Colors.white,
-        child: const Center(child: CircularProgressIndicator()),
+        color: Colors.white,
+        child: const Padding(
+          padding: EdgeInsets.fromLTRB(12, 12, 12, 12),
+          child: NuruSkeletonList(itemCount: 8),
+        ),
       );
     }
     return Stack(
@@ -843,7 +901,7 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
           ),
           const SizedBox(width: 8),
           Text(
-            timeLabel,
+            m['is_edited'] == true ? '$timeLabel · edited' : timeLabel,
             style: GoogleFonts.inter(
                 fontSize: 11.5, fontWeight: FontWeight.w500, color: AppColors.textTertiary),
           ),
@@ -923,6 +981,11 @@ class _ChatPanelState extends State<ChatPanel> with TickerProviderStateMixin {
                   Navigator.pop(context);
                 },
               ),
+            if (mine && _canEdit(m)) ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: Text('Edit', style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+              onTap: () { Navigator.pop(context); _edit(m); },
+            ),
             if (mine) ListTile(
               leading: Icon(Icons.delete_outline, color: AppColors.error),
               title: Text('Delete', style: GoogleFonts.inter(fontWeight: FontWeight.w600, color: AppColors.error)),

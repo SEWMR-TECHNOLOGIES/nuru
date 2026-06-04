@@ -70,23 +70,14 @@ class ReelGroupCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: AppColors.textPrimary)),
-                        ),
-                        if (user['is_verified'] == true || user['is_identity_verified'] == true) ...[
-                          const SizedBox(width: 4),
-                          const Icon(Icons.verified_rounded, size: 14, color: AppColors.primary),
-                        ],
-                      ],
-                    ),
+                    Text(name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: GoogleFonts.inter(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary)),
+
                     Text('${moments.length} reel${moments.length == 1 ? '' : 's'} • 24h',
                         style: GoogleFonts.inter(
                             fontSize: 11,

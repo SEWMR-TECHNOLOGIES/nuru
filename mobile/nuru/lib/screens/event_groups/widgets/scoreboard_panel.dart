@@ -277,7 +277,11 @@ class _ScoreboardPanelState extends State<ScoreboardPanel> {
           children: [
             Text(label, style: labelStyle, maxLines: 1, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 2),
-            Text(value, style: valueStyle, maxLines: 1, overflow: TextOverflow.ellipsis),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(value, style: valueStyle, maxLines: 1, softWrap: false),
+            ),
           ],
         );
 
@@ -302,11 +306,18 @@ class _ScoreboardPanelState extends State<ScoreboardPanel> {
                 maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 12.5, color: AppColors.textPrimary)),
             const SizedBox(height: 6),
-            Row(children: [
-              Expanded(child: col('Pledged', fmt(pledged))),
-              Expanded(child: col('Paid', fmt(paid))),
-              Expanded(child: col('Balance', fmt(balance.toDouble()))),
-            ]),
+            // Horizontal scroll so large amounts (e.g. TZS 2,000,000) never
+            // visually collide with adjacent columns — tap+drag to reveal.
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(children: [
+                SizedBox(width: 110, child: col('Pledged', fmt(pledged))),
+                const SizedBox(width: 18),
+                SizedBox(width: 110, child: col('Paid', fmt(paid))),
+                const SizedBox(width: 18),
+                SizedBox(width: 110, child: col('Balance', fmt(balance.toDouble()))),
+              ]),
+            ),
             const SizedBox(height: 8),
             ClipRRect(
               borderRadius: BorderRadius.circular(4),
@@ -314,7 +325,9 @@ class _ScoreboardPanelState extends State<ScoreboardPanel> {
                 value: pct / 100,
                 minHeight: 4,
                 backgroundColor: AppColors.borderLight,
-                valueColor: AlwaysStoppedAnimation<Color>(AppColors.primary),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  complete ? const Color(0xFF059669) : AppColors.primary,
+                ),
               ),
             ),
           ]),
@@ -371,11 +384,16 @@ class _ScoreboardPanelState extends State<ScoreboardPanel> {
             style: GoogleFonts.inter(
                 fontSize: 9, color: AppColors.textSecondary, fontWeight: FontWeight.w600)),
         const SizedBox(height: 4),
-        Text(value,
-            textAlign: TextAlign.center,
-            maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: GoogleFonts.inter(
-                fontSize: 11.5, fontWeight: FontWeight.w700, color: AppColors.textPrimary, letterSpacing: -0.2)),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.center,
+          child: Text(value,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              softWrap: false,
+              style: GoogleFonts.inter(
+                  fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.textPrimary, letterSpacing: -0.2)),
+        ),
         const SizedBox(height: 6),
         if (customSub != null)
           customSub

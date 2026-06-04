@@ -8,10 +8,10 @@
  * token" from the backend gate.
  */
 // (no shared type imports needed)
-import { buildQueryString } from "./helpers";
+import { buildQueryString, resolveApiBaseUrl } from "./helpers";
 import { adminGet as aGet, adminPost as aPost } from "./adminHelpers";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+const API_BASE_URL = resolveApiBaseUrl();
 
 export interface AdminPaymentsSummary {
   today: { gross: number; commission: number; net: number; count: number };

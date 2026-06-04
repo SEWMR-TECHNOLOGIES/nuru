@@ -56,12 +56,21 @@ serve(async (req) => {
         for (const statusUpdate of statuses) {
           const waMessageId = statusUpdate.id;
           const status = statusUpdate.status; // sent, delivered, read, failed
+          const recipient = statusUpdate.recipient_id;
+          const errs = statusUpdate.errors;
+          if (status === "failed" || errs) {
+            console.error(
+              `[wa-status] FAILED wamid=${waMessageId} to=${recipient} status=${status} errors=${JSON.stringify(errs || [])} convo=${JSON.stringify(statusUpdate.conversation || {})} pricing=${JSON.stringify(statusUpdate.pricing || {})}`
+            );
+          } else {
+            console.log(`[wa-status] ${status} wamid=${waMessageId} to=${recipient}`);
+          }
           if (waMessageId && status && API_BASE) {
             try {
               await fetch(`${API_BASE}/whatsapp/status-update`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ wa_message_id: waMessageId, status }),
+                body: JSON.stringify({ wa_message_id: waMessageId, status, errors: errs || null }),
               });
             } catch (e) {
               console.error("Status update store error:", e);
@@ -69,6 +78,7 @@ serve(async (req) => {
           }
         }
       }
+
 
       const message = value?.messages?.[0];
 

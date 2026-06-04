@@ -148,6 +148,18 @@ class EventGroupsService {
     );
   }
 
+  /// Edit an existing text message. Backend enforces 15-minute window.
+  static Future<Map<String, dynamic>> editMessage(
+      String groupId, String messageId, String content) async {
+    return ApiBase.requestWithHeaders(
+      method: 'PATCH',
+      endpoint: '/event-groups/$groupId/messages/$messageId',
+      body: {'content': content},
+      headers: await _headers(),
+      fallbackError: 'Unable to edit',
+    );
+  }
+
   static Future<Map<String, dynamic>> markRead(String groupId) async {
     return ApiBase.requestWithHeaders(
       method: 'POST',

@@ -98,7 +98,7 @@ class HomeRightDrawer extends StatelessWidget {
         : 360.0;
     return Drawer(
       width: drawerWidth,
-      backgroundColor: const Color(0xFF080C16),
+      backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       child: Column(
         children: [
@@ -110,7 +110,7 @@ class HomeRightDrawer extends StatelessWidget {
               right: 18,
               bottom: 22,
             ),
-            decoration: const BoxDecoration(color: Color(0xFF080C16)),
+            decoration: const BoxDecoration(color: AppColors.surface),
             child: Row(
               children: [
                 // Avatar with golden ring + verified badge (only for verified users)
@@ -167,10 +167,10 @@ class HomeRightDrawer extends StatelessWidget {
                           width: 22,
                           height: 22,
                           decoration: BoxDecoration(
-                            color: const Color(0xFF0A1C40),
+                            color: AppColors.primarySoft,
                             shape: BoxShape.circle,
                             border: Border.all(
-                              color: const Color(0xFF0A1C40),
+                              color: AppColors.primarySoft,
                               width: 2,
                             ),
                           ),
@@ -195,7 +195,7 @@ class HomeRightDrawer extends StatelessWidget {
                         '${_greeting()},',
                         style: GoogleFonts.inter(
                           fontSize: 11,
-                          color: const Color(0xFFB8C2D0),
+                          color: AppColors.textTertiary,
                           height: 1.2,
                         ),
                       ),
@@ -212,7 +212,7 @@ class HomeRightDrawer extends StatelessWidget {
                               style: GoogleFonts.sora(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w700,
-                                color: Colors.white,
+                                color: AppColors.textPrimary,
                                 height: 1.2,
                               ),
                             ),
@@ -228,15 +228,15 @@ class HomeRightDrawer extends StatelessWidget {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.34),
+                      color: AppColors.surfaceVariant,
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white.withOpacity(0.09)),
+                      border: Border.all(color: AppColors.borderLight),
                     ),
                     child: const Center(
                       child: Icon(
                         Icons.close_rounded,
                         size: 18,
-                        color: Colors.white,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                   ),
@@ -453,7 +453,7 @@ class _SectionHeader extends StatelessWidget {
             style: GoogleFonts.sora(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: const Color(0xFFF5F5F7),
+              color: AppColors.textPrimary,
               letterSpacing: 0,
               height: 1.2,
             ),
@@ -605,9 +605,9 @@ class _UpcomingEventCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.045),
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.white.withOpacity(0.08)),
+            border: Border.all(color: AppColors.borderLight),
             boxShadow: [
               BoxShadow(
                 color: AppColors.primary.withOpacity(0.08),
@@ -635,7 +635,7 @@ class _UpcomingEventCard extends StatelessWidget {
                       style: GoogleFonts.sora(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
-                        color: const Color(0xFFF5F5F7),
+                        color: AppColors.textPrimary,
                         height: 1.3,
                       ),
                       maxLines: 1,
@@ -649,7 +649,7 @@ class _UpcomingEventCard extends StatelessWidget {
                           width: 11,
                           height: 11,
                           colorFilter: const ColorFilter.mode(
-                            const Color(0xFF8E9BB0),
+                            AppColors.textTertiary,
                             BlendMode.srcIn,
                           ),
                         ),
@@ -658,7 +658,7 @@ class _UpcomingEventCard extends StatelessWidget {
                           _formatDateShort(date.toString()),
                           style: GoogleFonts.inter(
                             fontSize: 10,
-                            color: const Color(0xFF8E9BB0),
+                            color: AppColors.textTertiary,
                             height: 1.2,
                           ),
                         ),
@@ -673,7 +673,7 @@ class _UpcomingEventCard extends StatelessWidget {
                             width: 11,
                             height: 11,
                             colorFilter: const ColorFilter.mode(
-                              const Color(0xFF8E9BB0),
+                              AppColors.textTertiary,
                               BlendMode.srcIn,
                             ),
                           ),
@@ -683,7 +683,7 @@ class _UpcomingEventCard extends StatelessWidget {
                               location,
                               style: GoogleFonts.inter(
                                 fontSize: 10,
-                                color: const Color(0xFF8E9BB0),
+                                color: AppColors.textTertiary,
                                 height: 1.2,
                               ),
                               maxLines: 1,
@@ -708,7 +708,7 @@ class _UpcomingEventCard extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: role == 'creator'
                           ? AppColors.primary.withOpacity(0.16)
-                          : const Color(0xFF2D1D59),
+                          : AppColors.surfaceVariant,
                       borderRadius: BorderRadius.circular(7),
                     ),
                     child: Text(
@@ -730,7 +730,7 @@ class _UpcomingEventCard extends StatelessWidget {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: AppColors.primary.withOpacity(0.14),
-                      border: Border.all(color: Colors.white.withOpacity(0.06)),
+                      border: Border.all(color: AppColors.surface),
                     ),
                     child: const Icon(
                       Icons.arrow_forward_rounded,
@@ -797,7 +797,7 @@ class _TicketCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: const Color(0xFF12284F),
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(14),
           ),
           child: Row(
@@ -822,7 +822,7 @@ class _TicketCard extends StatelessWidget {
                           color: AppColors.success,
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: const Color(0xFF12284F),
+                            color: AppColors.surface,
                             width: 2,
                           ),
                         ),
@@ -842,7 +842,7 @@ class _TicketCard extends StatelessWidget {
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: const Color(0xFFF5F5F7),
+                        color: AppColors.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -854,7 +854,7 @@ class _TicketCard extends StatelessWidget {
                                 : 'Date TBD'),
                       style: GoogleFonts.inter(
                         fontSize: 10,
-                        color: const Color(0xFF8E9BB0),
+                        color: AppColors.textTertiary,
                       ),
                     ),
                     const SizedBox(height: 6),
@@ -869,7 +869,7 @@ class _TicketCard extends StatelessWidget {
                             '×$quantity',
                             style: GoogleFonts.inter(
                               fontSize: 9,
-                              color: const Color(0xFF8E9BB0),
+                              color: AppColors.textTertiary,
                             ),
                           ),
                       ],
@@ -917,7 +917,7 @@ class _TicketedEventCard extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: const Color(0xFF12284F),
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(14),
           ),
           child: Row(
@@ -939,7 +939,7 @@ class _TicketedEventCard extends StatelessWidget {
                       style: GoogleFonts.inter(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: const Color(0xFFF5F5F7),
+                        color: AppColors.textPrimary,
                         height: 1.3,
                       ),
                       maxLines: 1,
@@ -951,7 +951,7 @@ class _TicketedEventCard extends StatelessWidget {
                         _formatDateShort(startDate),
                         style: GoogleFonts.inter(
                           fontSize: 10,
-                          color: const Color(0xFF8E9BB0),
+                          color: AppColors.textTertiary,
                           height: 1.2,
                         ),
                       ),
@@ -966,7 +966,7 @@ class _TicketedEventCard extends StatelessWidget {
                               vertical: 3,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF1A3460),
+                              color: AppColors.borderLight,
                               borderRadius: BorderRadius.circular(10),
                             ),
                             child: Text(
@@ -974,7 +974,7 @@ class _TicketedEventCard extends StatelessWidget {
                               style: GoogleFonts.inter(
                                 fontSize: 9,
                                 fontWeight: FontWeight.w600,
-                                color: const Color(0xFFF5F5F7),
+                                color: AppColors.textPrimary,
                               ),
                             ),
                           ),
@@ -1058,19 +1058,12 @@ class _ServicesGrid extends StatelessWidget {
               width: 116,
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: const Color(0xFF111827).withOpacity(0.55),
+                color: AppColors.surface,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.16),
+                  color: AppColors.borderLight,
                   width: 1,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.25),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1080,7 +1073,7 @@ class _ServicesGrid extends StatelessWidget {
                     child: Container(
                       width: double.infinity,
                       height: 82,
-                      color: const Color(0xFF1A3460),
+                      color: AppColors.borderLight,
                       child: imgUrl != null
                           ? CachedNetworkImage(
                               imageUrl: imgUrl,
@@ -1091,7 +1084,7 @@ class _ServicesGrid extends StatelessWidget {
                                   style: GoogleFonts.inter(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w700,
-                                    color: const Color(0xFF8E9BB0),
+                                    color: AppColors.textTertiary,
                                   ),
                                 ),
                               ),
@@ -1102,7 +1095,7 @@ class _ServicesGrid extends StatelessWidget {
                                 style: GoogleFonts.inter(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w700,
-                                  color: const Color(0xFF8E9BB0),
+                                  color: AppColors.textTertiary,
                                 ),
                               ),
                             ),
@@ -1114,7 +1107,7 @@ class _ServicesGrid extends StatelessWidget {
                     style: GoogleFonts.inter(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: const Color(0xFFF5F5F7),
+                      color: AppColors.textPrimary,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -1140,13 +1133,13 @@ class _MomentsPromoCard extends StatelessWidget {
 
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.white.withOpacity(0.08)),
+        border: Border.all(color: AppColors.borderLight),
         gradient: LinearGradient(
           begin: Alignment.centerLeft,
           end: Alignment.centerRight,
           colors: [
-            Colors.white.withOpacity(0.045),
-            const Color(0xFF2D1D59).withOpacity(0.36),
+            AppColors.surface,
+            AppColors.surfaceVariant.withOpacity(0.36),
           ],
         ),
       ),
@@ -1161,8 +1154,8 @@ class _MomentsPromoCard extends StatelessWidget {
                   TextSpan(
                     text: 'unforgettable\n',
                     style: GoogleFonts.inter(
-                      color: const Color(0xFFCBB4FF),
-                      fontWeight: FontWeight.w600,
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   const TextSpan(text: 'moments.'),
@@ -1171,7 +1164,7 @@ class _MomentsPromoCard extends StatelessWidget {
               style: GoogleFonts.inter(
                 fontSize: 13,
                 height: 1.45,
-                color: const Color(0xFFEDEBFF),
+                color: AppColors.textPrimary,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -1298,23 +1291,9 @@ class _SuggestionMiniCardState extends State<_SuggestionMiniCard> {
         width: 136,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.white.withOpacity(0.08),
-              Colors.white.withOpacity(0.025),
-            ],
-          ),
+          color: AppColors.surface,
           borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: Colors.white.withOpacity(0.14), width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.28),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          border: Border.all(color: AppColors.borderLight, width: 1),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1325,18 +1304,11 @@ class _SuggestionMiniCardState extends State<_SuggestionMiniCard> {
               height: 64,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: const Color(0xFFF6F0DD),
+                color: AppColors.primary.withOpacity(0.10),
                 border: Border.all(
-                  color: Colors.white.withOpacity(0.25),
-                  width: 2,
+                  color: AppColors.borderLight,
+                  width: 1,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppColors.primary.withOpacity(0.25),
-                    blurRadius: 14,
-                    offset: const Offset(0, 3),
-                  ),
-                ],
               ),
               clipBehavior: Clip.antiAlias,
               child: avatar != null && avatar.isNotEmpty
@@ -1376,7 +1348,7 @@ class _SuggestionMiniCardState extends State<_SuggestionMiniCard> {
               style: GoogleFonts.inter(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w700,
-                color: const Color(0xFFF5F5F7),
+                color: AppColors.textPrimary,
               ),
             ),
             const SizedBox(height: 2),
@@ -1387,7 +1359,7 @@ class _SuggestionMiniCardState extends State<_SuggestionMiniCard> {
               textAlign: TextAlign.center,
               style: GoogleFonts.inter(
                 fontSize: 10.5,
-                color: const Color(0xFF8E9BB0),
+                color: AppColors.textTertiary,
               ),
             ),
             const SizedBox(height: 10),
@@ -1418,11 +1390,11 @@ class _SuggestionMiniCardState extends State<_SuggestionMiniCard> {
                             AppColors.primary.withOpacity(0.85),
                           ],
                         ),
-                  color: _followed ? Colors.white.withOpacity(0.06) : null,
+                  color: _followed ? AppColors.surface : null,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: _followed
-                        ? Colors.white.withOpacity(0.18)
+                        ? AppColors.borderLight
                         : Colors.transparent,
                   ),
                 ),
@@ -1433,7 +1405,7 @@ class _SuggestionMiniCardState extends State<_SuggestionMiniCard> {
                           height: 12,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                           ),
                         )
                       : Text(
@@ -1443,7 +1415,7 @@ class _SuggestionMiniCardState extends State<_SuggestionMiniCard> {
                           style: GoogleFonts.inter(
                             fontSize: 11.5,
                             fontWeight: FontWeight.w700,
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                           ),
                         ),
                 ),
@@ -1496,7 +1468,7 @@ class _SuggestionCardState extends State<_SuggestionCard> {
         child: Container(
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: const Color(0xFF12284F),
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
@@ -1557,7 +1529,7 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                       style: GoogleFonts.inter(
                         fontSize: 13.5,
                         fontWeight: FontWeight.w700,
-                        color: const Color(0xFFF5F5F7),
+                        color: AppColors.textPrimary,
                         height: 1.2,
                       ),
                       maxLines: 1,
@@ -1570,7 +1542,7 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                           '@$username',
                           style: GoogleFonts.inter(
                             fontSize: 11,
-                            color: const Color(0xFF8E9BB0),
+                            color: AppColors.textTertiary,
                             height: 1.2,
                           ),
                           maxLines: 1,
@@ -1584,7 +1556,7 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                           bio,
                           style: GoogleFonts.inter(
                             fontSize: 11,
-                            color: const Color(0xFFB8C2D0),
+                            color: AppColors.textTertiary,
                             height: 1.3,
                           ),
                           maxLines: 1,
@@ -1619,7 +1591,7 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                   ),
                   decoration: BoxDecoration(
                     color: _followed
-                        ? const Color(0xFF1A3460)
+                        ? AppColors.borderLight
                         : AppColors.primary,
                     borderRadius: BorderRadius.circular(10),
                   ),
@@ -1629,7 +1601,7 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                           height: 14,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                           ),
                         )
                       : Text(
@@ -1640,8 +1612,8 @@ class _SuggestionCardState extends State<_SuggestionCard> {
                             fontSize: 12,
                             fontWeight: FontWeight.w500,
                             color: _followed
-                                ? const Color(0xFFB8C2D0)
-                                : Colors.white,
+                                ? AppColors.textTertiary
+                                : AppColors.textPrimary,
                           ),
                         ),
                 ),
@@ -1669,7 +1641,7 @@ class _EmptyState extends StatelessWidget {
             width: 64,
             height: 64,
             decoration: BoxDecoration(
-              color: const Color(0xFF1A3460),
+              color: AppColors.borderLight,
               borderRadius: BorderRadius.circular(20),
             ),
             child: Center(
@@ -1678,7 +1650,7 @@ class _EmptyState extends StatelessWidget {
                 width: 28,
                 height: 28,
                 colorFilter: const ColorFilter.mode(
-                  const Color(0xFF6B7896),
+                  AppColors.textSecondary,
                   BlendMode.srcIn,
                 ),
               ),
@@ -1690,7 +1662,7 @@ class _EmptyState extends StatelessWidget {
             style: GoogleFonts.inter(
               fontSize: 15,
               fontWeight: FontWeight.w600,
-              color: const Color(0xFFF5F5F7),
+              color: AppColors.textPrimary,
               height: 1.2,
             ),
           ),
@@ -1699,7 +1671,7 @@ class _EmptyState extends StatelessWidget {
             context.trw('nothing_here_yet'),
             style: GoogleFonts.inter(
               fontSize: 12,
-              color: const Color(0xFF8E9BB0),
+              color: AppColors.textTertiary,
               height: 1.3,
             ),
           ),
@@ -1796,7 +1768,7 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
                 style: GoogleFonts.inter(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
-                  color: const Color(0xFF8E9BB0),
+                  color: AppColors.textTertiary,
                   letterSpacing: 1.2,
                   height: 1.0,
                 ),
@@ -1861,12 +1833,12 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
                 decoration: BoxDecoration(
                   color: isLive
                       ? const Color(0x0A22C55E)
-                      : const Color(0xFF12284F),
+                      : AppColors.surface,
                   borderRadius: BorderRadius.circular(14),
                   border: Border.all(
                     color: isLive
                         ? const Color(0x4D22C55E)
-                        : const Color(0xFF1A3460),
+                        : AppColors.borderLight,
                     width: isLive ? 1.5 : 1,
                   ),
                   boxShadow: isLive
@@ -1917,7 +1889,7 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
                                   style: GoogleFonts.inter(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,
-                                    color: const Color(0xFFF5F5F7),
+                                    color: AppColors.textPrimary,
                                     height: 1.3,
                                   ),
                                   maxLines: 1,
@@ -1940,7 +1912,7 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
                                     style: GoogleFonts.inter(
                                       fontSize: 8,
                                       fontWeight: FontWeight.w700,
-                                      color: Colors.white,
+                                      color: AppColors.textPrimary,
                                     ),
                                   ),
                                 ),
@@ -1953,7 +1925,7 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
                               eventName,
                               style: GoogleFonts.inter(
                                 fontSize: 10,
-                                color: const Color(0xFF8E9BB0),
+                                color: AppColors.textTertiary,
                                 height: 1.3,
                               ),
                               maxLines: 1,
@@ -1968,7 +1940,7 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
                                 width: 10,
                                 height: 10,
                                 colorFilter: const ColorFilter.mode(
-                                  const Color(0xFF8E9BB0),
+                                  AppColors.textTertiary,
                                   BlendMode.srcIn,
                                 ),
                               ),
@@ -1977,7 +1949,7 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
                                 '$dateStr · $timeStr',
                                 style: GoogleFonts.inter(
                                   fontSize: 9,
-                                  color: const Color(0xFF8E9BB0),
+                                  color: AppColors.textTertiary,
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -1986,7 +1958,7 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
                                 width: 10,
                                 height: 10,
                                 colorFilter: const ColorFilter.mode(
-                                  const Color(0xFF8E9BB0),
+                                  AppColors.textTertiary,
                                   BlendMode.srcIn,
                                 ),
                               ),
@@ -1995,7 +1967,7 @@ class _MyMeetingsSectionState extends State<_MyMeetingsSection> {
                                 '$participantCount',
                                 style: GoogleFonts.inter(
                                   fontSize: 9,
-                                  color: const Color(0xFF8E9BB0),
+                                  color: AppColors.textTertiary,
                                 ),
                               ),
                             ],
@@ -2052,7 +2024,7 @@ class _Thumbnail extends StatelessWidget {
         width: 18,
         height: 18,
         colorFilter: const ColorFilter.mode(
-          const Color(0xFF6B7896),
+          AppColors.textSecondary,
           BlendMode.srcIn,
         ),
       ),
@@ -2065,9 +2037,9 @@ class _Thumbnail extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: const Color(0xFF1A3460),
+        color: AppColors.borderLight,
         borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: const Color(0xFF1A3460), width: 0.5),
+        border: Border.all(color: AppColors.borderLight, width: 0.5),
       ),
       clipBehavior: Clip.antiAlias,
       child: imageUrl != null && imageUrl!.isNotEmpty
@@ -2092,14 +2064,14 @@ class _SmallAvatar extends StatelessWidget {
     return Container(
       width: 40,
       height: 40,
-      color: const Color(0xFF1A3460),
+      color: AppColors.borderLight,
       child: Center(
         child: Text(
           name.isNotEmpty ? name[0].toUpperCase() : '?',
           style: GoogleFonts.inter(
             fontSize: 14,
             fontWeight: FontWeight.w700,
-            color: const Color(0xFFB8C2D0),
+            color: AppColors.textTertiary,
             height: 1.0,
           ),
         ),
@@ -2117,7 +2089,7 @@ class _CodeBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        border: Border.all(color: const Color(0xFF1A3460)),
+        border: Border.all(color: AppColors.borderLight),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
@@ -2125,7 +2097,7 @@ class _CodeBadge extends StatelessWidget {
         style: GoogleFonts.jetBrainsMono(
           fontSize: 9,
           fontWeight: FontWeight.w500,
-          color: const Color(0xFFF5F5F7),
+          color: AppColors.textPrimary,
           letterSpacing: 0.5,
         ),
       ),
@@ -2142,13 +2114,13 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A3460),
-        border: Border.all(color: const Color(0xFF1A3460)),
+        color: AppColors.borderLight,
+        border: Border.all(color: AppColors.borderLight),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
         status,
-        style: GoogleFonts.inter(fontSize: 9, color: const Color(0xFF8E9BB0)),
+        style: GoogleFonts.inter(fontSize: 9, color: AppColors.textTertiary),
       ),
     );
   }
@@ -2302,7 +2274,7 @@ class _MyGroupsSectionState extends State<_MyGroupsSection> {
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF12284F),
+                  color: AppColors.surface,
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Row(
@@ -2345,7 +2317,7 @@ class _MyGroupsSectionState extends State<_MyGroupsSection> {
                             style: GoogleFonts.inter(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: const Color(0xFFF5F5F7),
+                              color: AppColors.textPrimary,
                               height: 1.3,
                             ),
                           ),
@@ -2354,7 +2326,7 @@ class _MyGroupsSectionState extends State<_MyGroupsSection> {
                             '$memberCount members',
                             style: GoogleFonts.inter(
                               fontSize: 10,
-                              color: const Color(0xFF8E9BB0),
+                              color: AppColors.textTertiary,
                             ),
                           ),
                         ],
@@ -2375,7 +2347,7 @@ class _MyGroupsSectionState extends State<_MyGroupsSection> {
                           unread > 99 ? '99+' : '$unread',
                           textAlign: TextAlign.center,
                           style: GoogleFonts.inter(
-                            color: Colors.white,
+                            color: AppColors.textPrimary,
                             fontSize: 10,
                             fontWeight: FontWeight.w700,
                           ),
@@ -2414,9 +2386,9 @@ class _QuickTile extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            color: const Color(0xFF12284F),
+            color: AppColors.surface,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFF1A3460), width: 1),
+            border: Border.all(color: AppColors.borderLight, width: 1),
           ),
           child: Column(
             children: [
@@ -2437,7 +2409,7 @@ class _QuickTile extends StatelessWidget {
                 style: GoogleFonts.inter(
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
-                  color: Colors.white,
+                  color: AppColors.textPrimary,
                 ),
               ),
             ],

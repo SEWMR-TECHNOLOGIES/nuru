@@ -379,7 +379,7 @@ class _AnalyticsPanelState extends State<AnalyticsPanel> {
         Row(children: [
           SvgPicture.asset('assets/icons/thunder-icon.svg', width: 12, height: 12, colorFilter: ColorFilter.mode(AppColors.primary, BlendMode.srcIn)),
           const SizedBox(width: 5),
-          Text('AI Insight',
+          Text('Nuru Insight',
               style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 10.5, color: AppColors.primary)),
         ]),
         const SizedBox(height: 8),
@@ -502,8 +502,11 @@ class _AnalyticsPanelState extends State<AnalyticsPanel> {
                     boxShadow: AppColors.subtleShadow,
                   ),
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Text('$cur ${_money(maxVal)}',
-                        style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text('$cur ${_money(maxVal)}',
+                          style: GoogleFonts.inter(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                    ),
                     Text(bars[tallestIdx].label,
                         style: GoogleFonts.inter(fontSize: 9, color: AppColors.textTertiary)),
                   ]),
@@ -563,8 +566,14 @@ class _AnalyticsPanelState extends State<AnalyticsPanel> {
           child: Center(
             child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               Text(cur, style: GoogleFonts.inter(fontSize: 8, color: AppColors.textTertiary, fontWeight: FontWeight.w700)),
-              Text(_money(totalPaid),
-                  style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 9.5, color: AppColors.textPrimary)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(_money(totalPaid),
+                      style: GoogleFonts.inter(fontWeight: FontWeight.w800, fontSize: 9.5, color: AppColors.textPrimary)),
+                ),
+              ),
             ]),
           ),
         ),

@@ -6,8 +6,9 @@ import {
 } from "lucide-react";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
+import { resolveApiBaseUrl } from "@/lib/api/helpers";
 
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+const BASE_URL = resolveApiBaseUrl();
 
 async function monitorFetch<T>(path: string): Promise<T | null> {
   const token = localStorage.getItem("admin_token");

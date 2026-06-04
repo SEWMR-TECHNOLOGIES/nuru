@@ -959,6 +959,28 @@ def get_invitation_card(
 
     qr_data = f"nuru://event/{event_id}/checkin/{str(attendee.id)}" if attendee else f"nuru://event/{event_id}/rsvp/{invitation.invitation_code}"
 
+    # Prefer the latest rendered invitation card image (if it was already
+    # delivered to this guest via WhatsApp). Falls back to None so the
+    # client renders the live in-app card.
+    rendered_card_url = None
+    try:
+        if attendee:
+            from models.event_cards import SentEventCard
+            sent = (
+                db.query(SentEventCard)
+                .filter(
+                    SentEventCard.event_id == eid,
+                    SentEventCard.guest_attendee_id == attendee.id,
+                    SentEventCard.rendered_card_url.isnot(None),
+                )
+                .order_by(SentEventCard.sent_at.desc().nullslast(), SentEventCard.created_at.desc())
+                .first()
+            )
+            if sent and sent.rendered_card_url:
+                rendered_card_url = sent.rendered_card_url
+    except Exception:
+        rendered_card_url = None
+
     return standard_response(True, "Invitation card retrieved successfully", {
         "event": {
             "id": str(event.id),
@@ -990,6 +1012,8 @@ def get_invitation_card(
         },
         "invitation_code": invitation.invitation_code,
         "qr_code_data": qr_data,
+        "rendered_card_url": rendered_card_url,
+
         "card_template": {
             "id": str(event.card_template.id),
             "name": event.card_template.name,

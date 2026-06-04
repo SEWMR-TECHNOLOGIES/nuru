@@ -178,6 +178,8 @@ def wa_send_invitation_card(
     event_time: str = "",
     venue: str = "",
     address: str = "",
+    organizer_phone: str = "",
+    lang: str = "sw",
 ):
     """Render + send the invitation card. Fire-and-forget."""
     intl = _normalize_phone(phone)
@@ -198,7 +200,8 @@ def wa_send_invitation_card(
             f"venue={venue!r} address={address!r} organizer={safe_host!r} "
             f"cover_image={cover_image!r} code={invite_code!r}"
         )
-        url = _render({
+
+        render_payload = {
             "kind": "invitation",
             "event_id": str(event_id),
             "guest_id": str(guest_id),
@@ -212,7 +215,58 @@ def wa_send_invitation_card(
             "invitation_code": invite_code,
             "qr_value": invite_code or str(guest_id),
             "cover_image": cover_image or "",
-        })
+        }
+
+        # Stable per-recipient image_url — mirrors the pledge_thank_you_card
+        # WhatsApp flow exactly: render once, persist URL on a card mapping,
+        # reuse the same image_url on every resend so Meta receives an
+        # unchanging media URL and no duplicate storage objects are created.
+        # See backend/app/docs/card_url_mappings.md.
+        url: str | None = None
+        try:
+            from core.database import SessionLocal
+            from services.card_url_service import (
+                get_existing_mapping,
+                generate_or_replace_card,
+            )
+            s = SessionLocal()
+            try:
+                existing = get_existing_mapping(
+                    s,
+                    recipient_type="guest",
+                    recipient_id=intl,
+                    card_purpose="invitation",
+                    event_id=str(event_id),
+                    related_entity_type="invitation",
+                    related_entity_id=str(guest_id),
+                )
+                if existing and existing.storage_url:
+                    url = existing.storage_url
+                    print(f"[wa_cards] invitation reusing stable url token={existing.token}")
+                else:
+                    url = _render(render_payload)
+                    if url:
+                        try:
+                            generate_or_replace_card(
+                                s,
+                                recipient_type="guest",
+                                recipient_id=intl,
+                                card_purpose="invitation",
+                                template_slug="invitation-card",
+                                event_id=str(event_id),
+                                related_entity_type="invitation",
+                                related_entity_id=str(guest_id),
+                                pre_uploaded_url=url,
+                            )
+                        except Exception as exc:
+                            print(f"[wa_cards] invitation mapping persist failed: {exc!r}")
+            finally:
+                s.close()
+        except Exception as exc:
+            print(f"[wa_cards] invitation stable-url lookup failed: {exc!r}")
+            if not url:
+                url = _render(render_payload)
+
         if not url:
             # Card render failed — fall back to the approved text template
             # so the guest still receives a usable WhatsApp invitation.
@@ -226,12 +280,19 @@ def wa_send_invitation_card(
                 "rsvp_code": invite_code or "—",
             })
             return
+        # image_url passed exactly like pledge_thank_you_card: full public URL
+        # consumed as Meta template image header. New MARKETING-category
+        # template nuru_invitation_card_message_{sw,en} expects body params
+        # {{1}} guest_name · {{2}} organizer_name · {{3}} event_name · {{4}} organizer_phone.
         _send("send_invitation_card", intl, {
             "image_url": url,
+            "lang": (lang or "sw").lower(),
             "guest_name": safe_name,
-            "event_name": safe_event,
-            "event_date": safe_date,
             "organizer_name": safe_host,
+            "event_name": safe_event,
+            "organizer_phone": (organizer_phone or "").strip() or "—",
+            # legacy keys kept for backward compatibility
+            "event_date": safe_date,
             "rsvp_code": invite_code or "—",
         })
 

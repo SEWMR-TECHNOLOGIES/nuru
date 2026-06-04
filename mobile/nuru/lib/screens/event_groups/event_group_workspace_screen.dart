@@ -472,16 +472,9 @@ class _EventGroupWorkspaceScreenState extends State<EventGroupWorkspaceScreen>
                     ),
                   ]),
                 ),
-                // Persistent composer mock on Contributors / Analytics tabs —
-                // tapping it jumps to the Chat tab so the message input is
-                // never visually missing across the workspace.
-                AnimatedBuilder(
-                  animation: _tabs,
-                  builder: (_, __) {
-                    if (_tabs.index == 0) return const SizedBox.shrink();
-                    return _composerMock();
-                  },
-                ),
+                // Composer is intentionally hidden on Contributors/Analytics —
+                // those tabs aren't chat surfaces, so the input only renders
+                // inside ChatPanel itself.
               ]),
       ),
     );

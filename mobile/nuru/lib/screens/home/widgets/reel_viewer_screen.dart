@@ -119,6 +119,34 @@ class _ReelViewerScreenState extends State<ReelViewerScreen>
     }
   }
 
+  /// WhatsApp-style relative timestamp using the device's local time.
+  /// "Today, 14:32" / "Yesterday, 09:05" / "Mon, 09:05" / "12 Mar, 09:05".
+  String _formatPostedAt(String? iso) {
+    if (iso == null || iso.isEmpty) return '';
+    DateTime? dt;
+    try {
+      dt = DateTime.parse(iso);
+    } catch (_) {
+      return '';
+    }
+    final local = dt.isUtc ? dt.toLocal() : dt;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final that = DateTime(local.year, local.month, local.day);
+    final diffDays = today.difference(that).inDays;
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mm = local.minute.toString().padLeft(2, '0');
+    if (diffDays == 0) return 'Today, $hh:$mm';
+    if (diffDays == 1) return 'Yesterday, $hh:$mm';
+    if (diffDays > 1 && diffDays < 7) {
+      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      return '${days[local.weekday - 1]}, $hh:$mm';
+    }
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${local.day} ${months[local.month - 1]}, $hh:$mm';
+  }
+
+
   @override
   Widget build(BuildContext context) {
     final user = (_author['user'] as Map? ?? const {});
@@ -198,28 +226,31 @@ class _ReelViewerScreenState extends State<ReelViewerScreen>
                       _Avatar(name: user['name']?.toString() ?? '', url: user['avatar']?.toString()),
                       const SizedBox(width: 10),
                       Expanded(
-                        child: Row(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Flexible(
-                              child: Text(
-                                user['is_self'] == true
-                                    ? 'My Reel'
-                                    : (user['name']?.toString() ?? 'Unknown'),
-                                overflow: TextOverflow.ellipsis,
-                                style: GoogleFonts.inter(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
+                            Text(
+                              user['is_self'] == true
+                                  ? 'My Reel'
+                                  : (user['name']?.toString() ?? 'Unknown'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
                               ),
                             ),
-                            // Show verified badge for any verified author,
-                            // including the current user viewing their own reel.
-                            if (user['is_verified'] == true || user['is_identity_verified'] == true) ...[
-                              const SizedBox(width: 4),
-                              const Icon(Icons.verified_rounded, size: 15, color: AppColors.primary),
-                            ],
+                            if (_formatPostedAt(_moment['created_at']?.toString()).isNotEmpty)
+                              Text(
+                                _formatPostedAt(_moment['created_at']?.toString()),
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w400,
+                                  color: Colors.white.withOpacity(0.75),
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -240,6 +271,7 @@ class _ReelViewerScreenState extends State<ReelViewerScreen>
                       ),
                     ],
                   ),
+
                 ],
               ),
             ),

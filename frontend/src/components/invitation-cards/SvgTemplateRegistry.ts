@@ -66,6 +66,11 @@ import thumb28 from '@/assets/card-templates/28-memorial-stillwater.svg';
 import thumb29 from '@/assets/card-templates/29-anniversary-pearl.svg';
 import thumb30 from '@/assets/card-templates/30-sendoff-coast.svg';
 
+// New purpose-numbered templates (naming spec: wedding_invitation_01, ...)
+import templateWedding01 from '@/assets/card-templates/wedding_invitation_01.svg?raw';
+import thumbWedding01 from '@/assets/card-templates/wedding_invitation_01.svg';
+
+
 export type EventCategory = 'wedding' | 'birthday' | 'sendoff' | 'corporate' | 'anniversary' | 'conference' | 'graduation' | 'memorial' | 'baby_shower';
 
 export interface SvgCardTemplate {
@@ -87,7 +92,23 @@ export interface SvgCardTemplate {
     venueField?: string;
     addressField?: string;
   };
+  /** Optional native SVG viewBox dimensions. When omitted renderer assumes 480x680. */
+  viewBox?: { width: number; height: number };
+  /** Optional explicit QR placement in viewBox units. When set, renderer overlays
+   *  the QR canvas here instead of scanning for the opacity="0.001" marker rect. */
+  qrPlacement?: { x: number; y: number; width: number; height: number };
+  /** Optional explicit id → SvgCardData key map for templates that use
+   *  fully-qualified ids (e.g. editable_guest_name_text). Replaces values of
+   *  matching <text id="..."> tags during render. */
+  fieldMap?: Record<string, 'guestName' | 'secondName' | 'eventTitle' | 'date' | 'time' | 'venue' | 'address'>;
+  /** Field ids that should NOT be exposed in the user editor (locked branding). */
+  lockedFieldIds?: string[];
+  /** Field ids whose text should stay horizontally centered when content
+   *  length changes. Renderer rewrites these to text-anchor="middle" at
+   *  the given x (or viewBox center when omitted). */
+  centeredTextIds?: { id: string; centerX?: number }[];
 }
+
 
 export const SVG_TEMPLATES: SvgCardTemplate[] = [
   {
@@ -390,7 +411,26 @@ export const SVG_TEMPLATES: SvgCardTemplate[] = [
     hasQr: true,
     fields: { nameField: 'honoree', dateField: 'date', timeField: 'time', venueField: 'venue', addressField: 'address' },
   },
+  // ── Purpose-numbered templates ─────────────────────────────────────
+  {
+    id: 'wedding_invitation_01',
+    name: 'Wedding Invitation 01',
+    description: 'Botanical eucalyptus wedding invitation with gold script and QR holder',
+    category: ['wedding'],
+    svgRaw: templateWedding01,
+    thumbnailUrl: thumbWedding01,
+    hasQr: true,
+    fields: { nameField: 'editable_couple_name_1_text', secondNameField: 'editable_couple_name_2_text' },
+    viewBox: { width: 595.3, height: 841.9 },
+    qrPlacement: { x: 360, y: 686, width: 119, height: 119 },
+    fieldMap: {
+      editable_guest_name_text: 'guestName',
+    },
+    lockedFieldIds: ['editable_brand_tagline_text'],
+  },
 ];
+
+
 
 /** Editable copy fields persisted in events.invitation_content (JSONB).
  * Each maps to an SVG <text id="..."> placeholder in the template. */

@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../core/widgets/nuru_refresh_indicator.dart';
+import '../../core/widgets/nuru_scrollable_tabs.dart';
 import '../../core/services/social_service.dart';
 import '../../core/l10n/l10n_helper.dart';
 import '../../providers/auth_provider.dart';
@@ -76,6 +77,31 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
     });
     _loadPosts();
     _loadMembers();
+  }
+
+  /// Pull-to-refresh from inside the community now only reloads the data
+  /// the current tab depends on, instead of remounting the whole screen.
+  Future<void> _refreshActiveTab() async {
+    switch (_activeTab) {
+      case 4: // Members
+        await _loadMembers();
+        return;
+      case 5: // About — uses _community
+        final res = await SocialService.getCommunityDetail(widget.communityId);
+        if (!mounted) return;
+        if (res['success'] == true) {
+          setState(() {
+            final d = res['data'];
+            _community = d is Map<String, dynamic>
+                ? d
+                : (d is Map ? Map<String, dynamic>.from(d) : null);
+          });
+        }
+        return;
+      default: // Feed / Discussions / Resources / Events → posts stream
+        await _loadPosts();
+        return;
+    }
   }
 
   @override
@@ -337,12 +363,6 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
         title: name,
         actions: [
           IconButton(
-            icon: SvgPicture.asset('assets/icons/shield-icon.svg',
-                width: 22, height: 22,
-                colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
-            onPressed: () {},
-          ),
-          IconButton(
             icon: SvgPicture.asset('assets/icons/menu-icon.svg',
                 width: 22, height: 22,
                 colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn)),
@@ -354,7 +374,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
           : NuruRefreshIndicator(
-              onRefresh: _load,
+              onRefresh: _refreshActiveTab,
               color: AppColors.primary,
               child: ListView(
                 padding: EdgeInsets.zero,
@@ -362,8 +382,11 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
                   _coverWithAvatar(c),
                   _headerInfo(c),
                   const SizedBox(height: 14),
-                  _underlineTabs(),
-                  const Divider(height: 1, color: Color(0xFFEDEDF2)),
+                  NuruScrollableTabs(
+                    labels: _tabs,
+                    activeIndex: _activeTab,
+                    onChanged: (i) => setState(() => _activeTab = i),
+                  ),
                   const SizedBox(height: 8),
                   _tabContent(c),
                   const SizedBox(height: 24),

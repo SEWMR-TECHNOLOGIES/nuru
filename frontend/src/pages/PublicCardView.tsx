@@ -4,21 +4,35 @@
 // Android App Links / iOS Universal Links can hand off to the installed app.
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import { resolveApiBaseUrl } from "@/lib/api/helpers";
 import nuruLogo from "@/assets/nuru-logo-square.png";
 
-const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined) || "/api/v1";
+const API_BASE = resolveApiBaseUrl();
 
 export default function PublicCardView() {
-  const { id = "" } = useParams<{ id: string }>();
+  // Supports both legacy `/cards/:id` (sent_event_cards row id) and the new
+  // stable `/card/:token` mapping. Either param resolves to a backend public
+  // image route; the token route always serves the latest render behind a
+  // URL that never changes for the recipient.
+  const params = useParams<{ id?: string; token?: string }>();
+  const token = (params.token || "").trim();
+  const id = (params.id || "").trim();
   const [loaded, setLoaded] = useState(false);
   const [failed, setFailed] = useState(false);
 
-  const imgUrl = useMemo(() => `${API_BASE}/cards/public/${id}.png`, [id]);
-  const deepLink = useMemo(() => `nuru://cards/${id}`, [id]);
+  const imgUrl = useMemo(
+    () => (token ? `${API_BASE}/cards/public/by-token/${token}.png` : `${API_BASE}/cards/public/${id}.png`),
+    [token, id],
+  );
+  const deepLink = useMemo(
+    () => (token ? `nuru://card/${token}` : `nuru://cards/${id}`),
+    [token, id],
+  );
 
   useEffect(() => {
-    document.title = "Your thank-you card · Nuru";
+    document.title = "Your Nuru card";
   }, []);
+
 
   return (
     <div className="min-h-[100dvh] w-full bg-background text-foreground flex flex-col items-center justify-center gap-8 px-6 py-12">
@@ -50,7 +64,7 @@ export default function PublicCardView() {
           </a>
           <a
             href={imgUrl}
-            download={`nuru-card-${id}.png`}
+            download={`nuru-card-${token || id}.png`}
             className="text-xs text-muted-foreground underline-offset-4 hover:underline"
           >
             Download image

@@ -16,6 +16,7 @@
     "contributor_name_text",
     "brand_tagline_text"
   ],
+  "recipient_noun": "Contributor",
   "editable_fields": [
     { "id": "main_title_asanteni_text", "label": "Main title", "max_length": 60, "multiline": false, "default": "Asanteni" },
     { "id": "main_subtitle_kwa_kila_kitu_text", "label": "Subtitle", "max_length": 80, "multiline": false, "default": "KWA KILA KITU" },

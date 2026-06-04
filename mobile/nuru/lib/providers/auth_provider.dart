@@ -7,6 +7,8 @@ import '../core/services/secure_token_storage.dart';
 import '../core/services/push_notification_service.dart';
 import '../core/services/event_groups_service.dart';
 import '../core/utils/event_groups_cache.dart';
+import '../core/utils/home_cache.dart';
+import '../core/utils/messages_cache.dart';
 import '../core/utils/money_format.dart' as money_fmt;
 
 class AuthProvider extends ChangeNotifier {
@@ -351,6 +353,12 @@ class AuthProvider extends ChangeNotifier {
     } catch (_) {}
 
     await _clearTokens();
+    // Wipe every in-memory cache so the next account that signs in on this
+    // device can never see stale events / messages / groups from the
+    // previous user.
+    try { EventGroupsCache.reset(); EventGroupsCache.groups = null; } catch (_) {}
+    try { HomeCache.reset(); } catch (_) {}
+    try { MessagesCache.reset(); } catch (_) {}
     _isLoggedIn = false;
     _user = null;
     notifyListeners();

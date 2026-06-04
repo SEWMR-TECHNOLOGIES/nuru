@@ -12,6 +12,7 @@ import '../../core/l10n/l10n_helper.dart';
 import '../migration/migration_banner.dart';
 import 'widgets/my_ticket_payments_tab.dart';
 import 'ticket_details_screen.dart';
+import 'browse_tickets_screen.dart';
 
 /// My Tickets — premium redesign matching the mobile mockup.
 /// App bar mirrors the home page (logo + bell). Tabs: Upcoming / Past / Cancelled / Payments.
@@ -565,9 +566,17 @@ class MyTicketsScreenState extends State<MyTicketsScreen> {
 
   // ─── Empty + skeletons ─────────────────────────────────────────────────────
   Widget _buildEmpty() {
+    // 'All' = 0, 'Upcoming' = 1 → Browse Tickets CTA makes sense.
+    // 'Past' = 2 / 'Cancelled' = 3 → CTA would be misleading.
+    final showBrowseCta = _activeTab == 0 || _activeTab == 1;
+    final title = switch (_activeTab) {
+      2 => 'No past tickets',
+      3 => 'No cancelled tickets',
+      _ => 'No tickets yet',
+    };
     final hint = switch (_activeTab) {
-      1 => 'No past tickets yet.',
-      2 => 'No cancelled tickets.',
+      2 => 'Tickets you’ve already used will show up here.',
+      3 => 'Cancellations and refunds will appear here.',
       _ => 'Browse events and purchase tickets to see them here.',
     };
     return Padding(
@@ -583,20 +592,24 @@ class MyTicketsScreenState extends State<MyTicketsScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          Text('No tickets', style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          Text(title, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
           const SizedBox(height: 6),
           Text(hint, textAlign: TextAlign.center,
             style: GoogleFonts.inter(fontSize: 12.5, color: AppColors.textTertiary)),
-          const SizedBox(height: 18),
-          GestureDetector(
-            onTap: () => Navigator.pushNamed(context, '/tickets'),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
-              decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(12)),
-              child: Text('Browse Tickets',
-                style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+          if (showBrowseCta) ...[
+            const SizedBox(height: 18),
+            GestureDetector(
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const BrowseTicketsScreen()),
+              ),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+                decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(12)),
+                child: Text('Browse Tickets',
+                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );

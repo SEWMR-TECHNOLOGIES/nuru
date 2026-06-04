@@ -4,8 +4,33 @@
 
 import type { ApiResponse } from "./types";
 
-// Use env var if set, otherwise fall back to relative path (works behind NGINX proxy)
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "/api/v1";
+const LOCAL_API_HOSTS = new Set(["127.0.0.1", "localhost", "0.0.0.0"]);
+
+export function resolveApiBaseUrl(): string {
+  const raw = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim();
+  if (!raw) return "/api/v1";
+
+  const normalizedRaw = raw.replace(/\/$/, "") || "/api/v1";
+  if (typeof window === "undefined") return normalizedRaw;
+
+  try {
+    const resolved = new URL(normalizedRaw, window.location.origin);
+    const currentIsLocal = LOCAL_API_HOSTS.has(window.location.hostname);
+    const targetIsLocal = LOCAL_API_HOSTS.has(resolved.hostname);
+
+    if ((resolved.protocol === "http:" || resolved.protocol === "https:") && targetIsLocal && !currentIsLocal) {
+      return "/api/v1";
+    }
+
+    return /^https?:\/\//i.test(normalizedRaw)
+      ? resolved.toString().replace(/\/$/, "")
+      : normalizedRaw;
+  } catch {
+    return normalizedRaw;
+  }
+}
+
+const BASE_URL = resolveApiBaseUrl();
 
 /**
  * Security headers added to every request

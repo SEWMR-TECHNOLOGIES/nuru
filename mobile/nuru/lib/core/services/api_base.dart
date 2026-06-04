@@ -417,6 +417,9 @@ class ApiBase {
         case 'PUT':
           res = await http.put(uri, headers: headers, body: jsonEncode(body ?? {}));
           break;
+        case 'PATCH':
+          res = await http.patch(uri, headers: headers, body: jsonEncode(body ?? {}));
+          break;
         case 'DELETE':
           res = await http.delete(uri, headers: headers);
           break;

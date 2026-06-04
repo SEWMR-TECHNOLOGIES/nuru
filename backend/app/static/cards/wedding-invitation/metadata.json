@@ -1,0 +1,46 @@
+{
+  "name": "Wedding Invitation 01",
+  "slug": "wedding-invitation-card-1",
+  "category": "wedding-invitation",
+  "category_label": "Wedding Invitation",
+  "description": "Elegant wedding invitation card with locked artwork, editable couple and event details, and a frontend-rendered guest QR code.",
+  "svg_file": "card_1.svg",
+  "thumbnail_file": null,
+  "fonts": [
+    "Anthony Hunter.ttf",
+    "Anthony Hunter Italic.ttf",
+    "Anthony Hunter.otf",
+    "Anthony Hunter Italic.otf"
+  ],
+  "font_overrides": {
+    "editable_guest_name_text": { "weight": "bold", "family": "MongolianBaiti" },
+    "editable_intro_line_1_text": { "family": "Georgia, 'Times New Roman', serif", "note": "Intentionally not Anthony Hunter — intro lines use a system serif for readability." },
+    "editable_intro_line_2_text": { "family": "Georgia, 'Times New Roman', serif", "note": "Intentionally not Anthony Hunter — intro lines use a system serif for readability." }
+  },
+  "preserve_text_positions": true,
+  "replace_defaults_in_preview": true,
+  "contributor_placeholder_id": "editable_guest_name_text",
+  "qr_placement": { "x": 374.5, "y": 698, "width": 90, "height": 90 },
+  "recipient_noun": "Guest",
+  "recipient_source": "guests",
+  "recipient_filter": ["pending", "confirmed", "maybe"],
+  "view_box": { "width": 595.3, "height": 841.9 },
+  "locked_ids": [
+    "locked_card_artwork_background",
+    "editable_brand_tagline_text",
+    "editable_guest_name_text"
+  ],
+  "editable_fields": [
+    { "id": "editable_couple_name_1_text", "label": "Partner 1 name", "max_length": 40, "multiline": false, "default": "Emmanuel" },
+    { "id": "editable_couple_separator_text", "label": "Separator", "max_length": 5, "multiline": false, "default": "&" },
+    { "id": "editable_couple_name_2_text", "label": "Partner 2 name", "max_length": 40, "multiline": false, "default": "Neema" },
+    { "id": "editable_intro_line_1_text", "label": "Intro line 1", "max_length": 120, "multiline": false, "default": "Welcome to The" },
+    { "id": "editable_intro_line_2_text", "label": "Intro line 2", "max_length": 120, "multiline": false, "default": "Wedding Celebration of" },
+    { "id": "editable_event_day_text", "label": "Event day", "max_length": 30, "multiline": false, "default": "Saturday" },
+    { "id": "editable_event_date_text", "label": "Event date", "max_length": 40, "multiline": false, "default": "12 June 2026" },
+    { "id": "editable_event_time_text", "label": "Event time", "max_length": 30, "multiline": false, "default": "3:00 PM" },
+    { "id": "editable_venue_line_1_text", "label": "Venue line 1", "max_length": 80, "multiline": false, "default": "Serena Hotel Gardens" },
+    { "id": "editable_venue_line_2_text", "label": "Venue line 2", "max_length": 80, "multiline": false, "default": "Dar es Salaam, Tanzania" },
+    { "id": "editable_contact_phone_text", "label": "Contact phone", "max_length": 40, "multiline": false, "default": "+255 700 000 000" }
+  ]
+}

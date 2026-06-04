@@ -1,0 +1,57 @@
+{
+  "name": "Send-off Invitation 01",
+  "slug": "sendoff-invitation-card-1",
+  "category": "sendoff-invitation",
+  "category_label": "Send-off Invitation",
+  "description": "Classic Swahili send-off (tafrija ya kuagana) invitation with locked artwork background, editable family and event details, and a frontend-rendered guest QR code.",
+  "svg_file": "card_1.svg",
+  "thumbnail_file": null,
+  "fonts": [
+    "Bickham Script Pro.ttf",
+    "Bickham Script Pro Bold.ttf",
+    "Bickham Script Pro Semibold.ttf",
+    "Sitka Display.ttf",
+    "Sitka Banner.ttf",
+    "Sitka.ttf"
+  ],
+  "view_box": { "width": 595.28, "height": 841.89 },
+  "qr_placement": { "x": 257.64, "y": 600.22, "width": 78, "height": 78 },
+  "recipient_noun": "Guest",
+  "recipient_source": "guests",
+  "recipient_filter": ["pending", "confirmed", "maybe"],
+  "preserve_text_positions": true,
+  "replace_defaults_in_preview": true,
+  "contributor_placeholder_id": "editable_guest_name_text",
+  "locked_ids": [
+    "locked_brand_tagline_text",
+    "editable_guest_name_text"
+  ],
+  "font_overrides": {
+    "editable_invitation_intro_text":  { "family": "Georgia, 'Times New Roman', serif", "note": "Calisto MT is not web-bundled; fall back to a system serif italic for readability in the browser preview." },
+    "editable_event_intro_text":       { "family": "Georgia, 'Times New Roman', serif", "note": "Same fallback as invitation_intro." },
+    "editable_event_description_text": { "family": "Georgia, 'Times New Roman', serif", "note": "Same fallback as invitation_intro." },
+    "editable_bible_quote_text":       { "family": "Georgia, 'Times New Roman', serif", "note": "Same fallback as invitation_intro." },
+    "editable_bible_reference_text":   { "family": "Georgia, 'Times New Roman', serif", "note": "Same fallback as invitation_intro." },
+    "editable_event_date_text":        { "family": "Georgia, 'Times New Roman', serif", "note": "Calisto MT fallback." },
+    "editable_event_time_text":        { "family": "Georgia, 'Times New Roman', serif", "note": "Calisto MT fallback." },
+    "editable_event_venue_text":       { "family": "Georgia, 'Times New Roman', serif", "note": "Calisto MT fallback." },
+    "editable_contact_line_text":      { "family": "Georgia, 'Times New Roman', serif", "note": "Calisto MT fallback." }
+  },
+  "editable_fields": [
+    { "id": "editable_family_header_1_text",   "label": "Family header (line 1)", "max_length": 40,  "multiline": false, "default": "FAMILIA YA" },
+    { "id": "editable_family_name_1_text",     "label": "Host family 1 name",     "max_length": 80,  "multiline": false, "default": "BW. NA BI. PHILEMON MUSHI" },
+    { "id": "editable_invitation_intro_text",  "label": "Invitation intro",       "max_length": 80,  "multiline": false, "default": "wanayo furaha kukualika" },
+    
+    { "id": "editable_event_intro_text",       "label": "Event intro",            "max_length": 60,  "multiline": false, "default": "katika tafrija" },
+    { "id": "editable_event_description_text", "label": "Event description",      "max_length": 120, "multiline": false, "default": "ya kuagana ya binti yetu mpendwa" },
+    { "id": "editable_event_intro_main_name_initial_text", "label": "Honouree initial (large script)", "max_length": 3, "multiline": false, "default": "R" },
+    { "id": "editable_main_name_rest_text",    "label": "Honouree first name (rest)", "max_length": 30, "multiline": false, "default": "EHEMA" },
+    { "id": "editable_main_surname_text",      "label": "Honouree surname",       "max_length": 40,  "multiline": false, "default": "MUSHI" },
+    { "id": "editable_event_date_text",        "label": "Event date",             "max_length": 60,  "multiline": false, "default": "Jumamosi, 19 Septemba 2026" },
+    { "id": "editable_event_time_text",        "label": "Event time",             "max_length": 40,  "multiline": false, "default": "Saa 12:00 jioni" },
+    { "id": "editable_event_venue_text",       "label": "Event venue",            "max_length": 80,  "multiline": false, "default": "Mount Meru Hotel, Arusha" },
+    { "id": "editable_bible_quote_text",       "label": "Scripture quote",        "max_length": 160, "multiline": false, "default": "\"Bwana atakuongoza siku zote.\"" },
+    { "id": "editable_bible_reference_text",   "label": "Scripture reference",    "max_length": 40,  "multiline": false, "default": "Isaya 58:11" },
+    { "id": "editable_contact_line_text",      "label": "Contact line",           "max_length": 120, "multiline": false, "default": "Mawasiliano 0754 935 072 0784 269 644" }
+  ]
+}

@@ -48,6 +48,10 @@ class _InvitationQRScreenState extends State<InvitationQRScreen> {
   String _invitationCode = '';
   String _dressCode = '';
   String _coverImage = '';
+  /// Pre-rendered invitation card image (delivered to the guest via WhatsApp).
+  /// When present, we show this exact image instead of the live in-app design.
+  String _renderedCardUrl = '';
+
   Color _accent = const Color(0xFFD4AF37); // gold default
 
   /// Selected SVG template (set by organiser via web/mobile editor) — when
@@ -117,7 +121,9 @@ class _InvitationQRScreenState extends State<InvitationQRScreen> {
             event['cover_image_url']?.toString() ??
             event['banner']?.toString() ??
             '';
+        _renderedCardUrl = data['rendered_card_url']?.toString() ?? '';
         _accent = _hexToColor(themeColor) ?? const Color(0xFFD4AF37);
+
         final tplId = event['invitation_template_id']?.toString();
         _svgTemplate = (tplId != null && tplId.isNotEmpty) ? templateById(tplId) : null;
         final ic = event['invitation_content'];
@@ -279,8 +285,9 @@ class _InvitationQRScreenState extends State<InvitationQRScreen> {
   Widget _content() {
     return Column(
       children: [
-        // Template switcher (hidden when organiser picked a bespoke SVG template)
-        if (_svgTemplate == null)
+        // Template switcher (hidden when organiser picked a bespoke SVG template
+        // or when we have a pre-rendered invitation card image to show as-is)
+        if (_svgTemplate == null && _renderedCardUrl.isEmpty)
           Container(
             margin: const EdgeInsets.fromLTRB(16, 6, 16, 6),
             padding: const EdgeInsets.all(4),
@@ -306,36 +313,76 @@ class _InvitationQRScreenState extends State<InvitationQRScreen> {
                 child: Container(
                   color: Colors.white,
                   padding: const EdgeInsets.all(12),
-                  child: _svgTemplate != null
+                  child: _renderedCardUrl.isNotEmpty
                       ? LayoutBuilder(
                           builder: (context, constraints) {
                             final maxW = constraints.maxWidth;
                             final cardW = maxW.clamp(280.0, 360.0).toDouble();
-                            return SizedBox(
-                              width: cardW,
-                              child: SvgCardRenderer(
-                                template: _svgTemplate!,
-                                data: SvgCardData(
-                                  guestName: _guestName,
-                                  eventTitle: _eventTitle,
-                                  date: _formatDate(_eventDate),
-                                  time: _formatTime(_eventTime),
-                                  venue: _venue,
-                                  qrValue: _qrValue,
+                            return ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: CachedNetworkImage(
+                                imageUrl: _renderedCardUrl,
+                                width: cardW,
+                                fit: BoxFit.contain,
+                                placeholder: (_, __) => SizedBox(
+                                  width: cardW,
+                                  height: cardW * 1.4,
+                                  child: const Center(
+                                      child: CircularProgressIndicator()),
                                 ),
-                                contentOverrides: _svgContent,
+                                errorWidget: (_, __, ___) =>
+                                    _svgTemplate != null
+                                        ? SvgCardRenderer(
+                                            template: _svgTemplate!,
+                                            data: SvgCardData(
+                                              guestName: _guestName,
+                                              eventTitle: _eventTitle,
+                                              date: _formatDate(_eventDate),
+                                              time: _formatTime(_eventTime),
+                                              venue: _venue,
+                                              qrValue: _qrValue,
+                                            ),
+                                            contentOverrides: _svgContent,
+                                          )
+                                        : (_template == 'editorial'
+                                            ? _editorialCard()
+                                            : _classicCard()),
                               ),
                             );
                           },
                         )
-                      : (_template == 'editorial'
-                          ? _editorialCard()
-                          : _classicCard()),
+                      : _svgTemplate != null
+                          ? LayoutBuilder(
+                              builder: (context, constraints) {
+                                final maxW = constraints.maxWidth;
+                                final cardW = maxW.clamp(280.0, 360.0).toDouble();
+                                return SizedBox(
+                                  width: cardW,
+                                  child: SvgCardRenderer(
+                                    template: _svgTemplate!,
+                                    data: SvgCardData(
+                                      guestName: _guestName,
+                                      eventTitle: _eventTitle,
+                                      date: _formatDate(_eventDate),
+                                      time: _formatTime(_eventTime),
+                                      venue: _venue,
+                                      qrValue: _qrValue,
+                                    ),
+                                    contentOverrides: _svgContent,
+                                  ),
+                                );
+                              },
+                            )
+                          : (_template == 'editorial'
+                              ? _editorialCard()
+                              : _classicCard()),
                 ),
               ),
             ),
           ),
         ),
+
+
 
         // Bottom actions
         SafeArea(

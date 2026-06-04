@@ -45,9 +45,11 @@ class SentEventCard(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, server_default=func.gen_random_uuid())
     event_id = Column(UUID(as_uuid=True), ForeignKey("events.id", ondelete="CASCADE"), nullable=False, index=True)
     contributor_id = Column(UUID(as_uuid=True), ForeignKey("event_contributors.id", ondelete="SET NULL"), nullable=True, index=True)
+    guest_attendee_id = Column(UUID(as_uuid=True), ForeignKey("event_attendees.id", ondelete="SET NULL"), nullable=True, index=True)
     event_card_id = Column(UUID(as_uuid=True), ForeignKey("event_cards.id", ondelete="SET NULL"), nullable=True)
     recipient_name = Column(Text, nullable=False)
     recipient_phone = Column(Text)
+    recipient_qr_payload = Column(Text)
     rendered_card_url = Column(Text)
     delivery_channel = Column(Text, nullable=False, default="whatsapp")
     delivery_status = Column(Text, nullable=False, default="pending")
@@ -61,4 +63,6 @@ class SentEventCard(Base):
 
     __table_args__ = (
         Index("idx_sent_event_cards_event_contrib_sent", "event_id", "contributor_id", "sent_at"),
+        Index("idx_sent_event_cards_event_guest_sent", "event_id", "guest_attendee_id", "sent_at"),
     )
+

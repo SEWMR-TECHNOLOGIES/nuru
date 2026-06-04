@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/video_thumbnail_image.dart';
+
 
 /// Horizontal "stories"-style rail showing one circle per author with at least
 /// one active moment. The first item is always the "Your Reel" composer.
@@ -229,23 +231,16 @@ class ReelsRail extends StatelessWidget {
       );
     }
     if (type == 'video') {
-      final src = thumb.isNotEmpty ? thumb : '';
-      if (src.isNotEmpty) {
-        return Stack(fit: StackFit.expand, children: [
-          CachedNetworkImage(
-            imageUrl: src, fit: BoxFit.cover,
-            filterQuality: FilterQuality.medium,
-            placeholder: (_, __) => Container(color: Colors.black),
-            errorWidget: (_, __, ___) => Container(color: Colors.black),
-          ),
-          _playBadge(),
-        ]);
-      }
       return Stack(fit: StackFit.expand, children: [
-        Container(color: Colors.black),
+        VideoThumbnailImage(
+          videoUrl: media,
+          posterUrl: thumb.isNotEmpty ? thumb : null,
+          showPlayBadge: false,
+        ),
         _playBadge(),
       ]);
     }
+
     if (type == 'text' || bg.isNotEmpty) {
       Color color = AppColors.primary;
       if (bg.startsWith('#') && bg.length == 7) {

@@ -120,3 +120,4 @@ from models.reminder_automations import (
 )
 from models.contributor_import_jobs import ContributorImportJob
 from models.event_cards import CardTemplate, EventCard, SentEventCard
+from models.card_url_mapping import CardUrlMapping

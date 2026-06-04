@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
+import '../../core/widgets/nuru_scrollable_tabs.dart';
 import '../../core/services/social_service.dart';
 import '../../core/l10n/l10n_helper.dart';
 
@@ -13,8 +13,8 @@ class RemovedContentScreen extends StatefulWidget {
   State<RemovedContentScreen> createState() => _RemovedContentScreenState();
 }
 
-class _RemovedContentScreenState extends State<RemovedContentScreen> with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _RemovedContentScreenState extends State<RemovedContentScreen> {
+  int _activeTab = 0;
   List<dynamic> _removedPosts = [];
   List<dynamic> _removedMoments = [];
   bool _loading = true;
@@ -22,12 +22,8 @@ class _RemovedContentScreenState extends State<RemovedContentScreen> with Single
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
     _load();
   }
-
-  @override
-  void dispose() { _tabController.dispose(); super.dispose(); }
 
   Future<void> _load() async {
     setState(() => _loading = true);
@@ -54,29 +50,26 @@ class _RemovedContentScreenState extends State<RemovedContentScreen> with Single
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.surface,
-      appBar: NuruSubPageAppBar(
-        title: 'Removed Content',
-        bottom: TabBar(
-          controller: _tabController,
-          labelColor: AppColors.primary,
-          unselectedLabelColor: AppColors.textTertiary,
-          indicatorColor: AppColors.primary,
-          labelStyle: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w600),
-          tabs: [
-            Tab(text: '${context.tr('posts')} (${_removedPosts.length})'),
-            Tab(text: '${context.tr('moments')} (${_removedMoments.length})'),
-          ],
-        ),
+      appBar: NuruSubPageAppBar(title: 'Removed Content'),
+      body: Column(
+        children: [
+          NuruScrollableTabs(
+            labels: [
+              '${context.tr('posts')} (${_removedPosts.length})',
+              '${context.tr('moments')} (${_removedMoments.length})',
+            ],
+            activeIndex: _activeTab,
+            onChanged: (i) => setState(() => _activeTab = i),
+          ),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+                : (_activeTab == 0
+                    ? _contentList(_removedPosts, isPost: true)
+                    : _contentList(_removedMoments, isPost: false)),
+          ),
+        ],
       ),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
-          : TabBarView(
-              controller: _tabController,
-              children: [
-                _contentList(_removedPosts, isPost: true),
-                _contentList(_removedMoments, isPost: false),
-              ],
-            ),
     );
   }
 
@@ -87,20 +80,33 @@ class _RemovedContentScreenState extends State<RemovedContentScreen> with Single
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 56, height: 56,
-              decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(28)),
-              child: const Icon(Icons.visibility_off_outlined, size: 24, color: AppColors.textHint),
+              width: 72, height: 72,
+              decoration: BoxDecoration(
+                color: AppColors.surfaceVariant,
+                shape: BoxShape.circle,
+                border: Border.all(color: AppColors.borderLight),
+              ),
+              child: const Icon(Icons.visibility_off_outlined, size: 28, color: AppColors.textHint),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
             Text('No removed ${isPost ? "posts" : "moments"}',
-                style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 40),
+              child: Text(
+                'You haven\'t had any ${isPost ? "posts" : "moments"} removed. Anything taken down will appear here.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(fontSize: 12.5, color: AppColors.textTertiary, height: 1.4),
+              ),
+            ),
           ],
         ),
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
       itemCount: items.length,
       itemBuilder: (_, i) => _removedItem(items[i], isPost: isPost),
     );
@@ -120,43 +126,62 @@ class _RemovedContentScreenState extends State<RemovedContentScreen> with Single
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.errorSoft),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.borderLight),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.warning_amber_rounded, size: 16, color: AppColors.error),
-              const SizedBox(width: 6),
-              Expanded(child: Text('Removed: $reason', style: GoogleFonts.inter(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.error, height: 1.3))),
-            ],
-          ),
+          Row(children: [
+            Container(
+              width: 28, height: 28,
+              decoration: BoxDecoration(
+                color: AppColors.errorSoft,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.warning_amber_rounded, size: 16, color: AppColors.error),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(reason,
+                  style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.3)),
+            ),
+          ]),
           if (content.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Text(content, maxLines: 3, overflow: TextOverflow.ellipsis,
-                style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary, height: 1.4)),
+            const SizedBox(height: 10),
+            Text(content,
+                maxLines: 3, overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(fontSize: 13, color: AppColors.textSecondary, height: 1.45)),
           ],
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Row(
             children: [
               if (removedAt.isNotEmpty)
-                Text(SocialService.getTimeAgo(removedAt), style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
+                Text(SocialService.getTimeAgo(removedAt),
+                    style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
               const Spacer(),
               if (hasAppeal)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(6)),
-                  child: Text('Appeal: $appealStatus', style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textSecondary)),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceVariant,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: AppColors.borderLight),
+                  ),
+                  child: Text('Appeal: $appealStatus',
+                      style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textSecondary)),
                 )
               else
                 GestureDetector(
                   onTap: () => _showAppealDialog(id, isPost),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(8)),
-                    child: Text('Appeal', style: GoogleFonts.inter(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.primary)),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text('Appeal',
+                        style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w700, color: Colors.white)),
                   ),
                 ),
             ],

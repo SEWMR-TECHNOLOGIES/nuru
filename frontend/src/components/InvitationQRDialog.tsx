@@ -21,6 +21,7 @@ const InvitationQRDialog = ({ eventId, open, onClose }: InvitationQRDialogProps)
   const [guestName, setGuestName] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [venue, setVenue] = useState('');
+  const [renderedCardUrl, setRenderedCardUrl] = useState('');
 
   useEffect(() => {
     if (!open || !eventId) return;
@@ -29,12 +30,13 @@ const InvitationQRDialog = ({ eventId, open, onClose }: InvitationQRDialogProps)
     eventsApi.getInvitationCard(eventId)
       .then((res) => {
         if (res.success) {
-          const d = res.data;
+          const d: any = res.data;
           setQrValue(d?.guest?.attendee_id || d?.invitation_code || d?.qr_code_data || eventId);
           setEventTitle(d?.event?.title || 'Event');
           setGuestName(d?.guest?.name || '');
           setEventDate(d?.event?.start_date || '');
           setVenue(d?.event?.venue || d?.event?.location || '');
+          setRenderedCardUrl(d?.rendered_card_url || '');
         } else {
           setError(res.message || 'Failed to load QR code');
         }
@@ -42,6 +44,7 @@ const InvitationQRDialog = ({ eventId, open, onClose }: InvitationQRDialogProps)
       .catch(() => setError('Failed to load invitation QR'))
       .finally(() => setLoading(false));
   }, [open, eventId]);
+
 
   const formattedDate = eventDate
     ? new Date(eventDate).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
@@ -76,18 +79,28 @@ const InvitationQRDialog = ({ eventId, open, onClose }: InvitationQRDialogProps)
               )}
             </div>
 
-            {/* QR Code */}
+            {/* Pre-rendered invitation card image (if delivered) — otherwise QR */}
             <div className="px-6 -mt-4">
               <div className="bg-card rounded-2xl shadow-lg p-5 border border-border">
-                <QRCodeCanvas
-                  value={qrValue}
-                  size={200}
-                  level="H"
-                  includeMargin
-                  className="mx-auto"
-                />
+                {renderedCardUrl ? (
+                  <img
+                    src={renderedCardUrl}
+                    alt="Invitation card"
+                    className="mx-auto max-w-full h-auto rounded-lg"
+                    onError={() => setRenderedCardUrl('')}
+                  />
+                ) : (
+                  <QRCodeCanvas
+                    value={qrValue}
+                    size={200}
+                    level="H"
+                    includeMargin
+                    className="mx-auto"
+                  />
+                )}
               </div>
             </div>
+
 
             {/* Event details */}
             <div className="text-center px-6 pt-4 pb-2 space-y-1">

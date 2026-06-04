@@ -29,7 +29,10 @@ import {
 import { uploadsApi } from "@/lib/api/uploads";
 import { createCardRenderJob, purgeLeakedRenderHosts } from "@/lib/cards/renderCardPng";
 import { useEventContributors } from "@/data/useContributors";
+import { eventsApi } from "@/lib/api/events";
+import type { EventGuest } from "@/lib/api/types";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
+import QRCode from "qrcode";
 
 interface Props {
   eventId: string;
@@ -75,12 +78,31 @@ const saveBatchJob = (job: BatchJob) => {
 const escapeHtml = (s: string) =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
+/** Convert leading / trailing spaces into non-breaking spaces so the SVG
+ *  renderer doesn't collapse them — lets the user pad text manually
+ *  (e.g. "  EHEMA" to nudge the title further right). */
+const preserveEdgeSpaces = (s: string) => {
+  const m = s.match(/^(\s*)([\s\S]*?)(\s*)$/);
+  if (!m) return s;
+  const [, lead, mid, trail] = m;
+  return lead.replace(/ /g, "\u00A0") + mid + trail.replace(/ /g, "\u00A0");
+};
+
 const escapeRegExp = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-const centerTextElement = (svg: string, id: string, centerX = 561) => {
+/** Re-center a text element on the canvas X axis. Supports both the
+ *  matrix(...) and translate(...) transform forms emitted by Illustrator. */
+const centerTextElement = (svg: string, id: string, centerX: number) => {
   const re = new RegExp(`(<(?:text|tspan)\\b[^>]*\\bid\\s*=\\s*"${escapeRegExp(id)}"[^>]*>)`, "i");
   return svg.replace(re, (open) => {
-    let next = open.replace(/transform="matrix\(1\s+0\s+0\s+1\s+[-0-9.]+\s+([-0-9.]+)\)"/i, (_m, y) => `transform="matrix(1 0 0 1 ${centerX} ${y})"`);
+    let next = open.replace(
+      /transform="matrix\(1\s+0\s+0\s+1\s+[-0-9.]+\s+([-0-9.]+)\)"/i,
+      (_m, y) => `transform="matrix(1 0 0 1 ${centerX} ${y})"`,
+    );
+    next = next.replace(
+      /transform="translate\(\s*[-0-9.]+[\s,]+([-0-9.]+)\s*\)"/i,
+      (_m, y) => `transform="translate(${centerX} ${y})"`,
+    );
     next = /text-anchor=/i.test(next)
       ? next.replace(/text-anchor="[^"]*"/i, 'text-anchor="middle"')
       : next.replace(/>$/, ' text-anchor="middle">');
@@ -116,7 +138,7 @@ const replaceMultilineText = (svg: string, id: string, newValue: string): string
     // Single-line text (no tspans, or only one) — keep the old behaviour
     // so titles/subtitles can keep their original anchor offsets.
     if (tspans.length <= 1) {
-      return `${openTag}${escapeHtml(newValue)}${closeTag}`;
+      return `${openTag}${escapeHtml(preserveEdgeSpaces(newValue))}${closeTag}`;
     }
 
     // Detect line height from the first two tspans (their `y` delta or `dy`).
@@ -126,6 +148,14 @@ const replaceMultilineText = (svg: string, id: string, newValue: string): string
       if (!Number.isNaN(dy) && dy) return dy;
       return parseFloat((attrs.match(/\by\s*=\s*"([-0-9.]+)"/i) || [])[1] || "0");
     };
+    // If every tspan shares the same vertical position (i.e. they're just
+    // per-letter kerning runs from Illustrator, not separate paragraph lines),
+    // treat the whole element as single-line — otherwise we'd word-wrap a
+    // visually single-row title across many lines.
+    const distinctYs = new Set(tspans.map((t) => Math.round(yOf(t.attrs) * 10) / 10));
+    if (distinctYs.size <= 1) {
+      return `${openTag}${escapeHtml(preserveEdgeSpaces(newValue))}${closeTag}`;
+    }
     const y0 = yOf(tspans[0].attrs);
     const y1 = yOf(tspans[1].attrs);
     const delta = y1 - y0;
@@ -140,7 +170,10 @@ const replaceMultilineText = (svg: string, id: string, newValue: string): string
     const decoded = (s: string) => s.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
     const lens = tspans.map((t) => decoded(t.text).trim().length).filter((n) => n > 0);
     const avgLen = lens.length ? Math.round(lens.reduce((a, b) => a + b, 0) / lens.length) : 40;
-    const maxLineLen = Math.max(24, Math.round(avgLen * 1.05));
+    // Give wrapped paragraphs significantly more horizontal room than the
+    // original tspan slice suggested, so longer values don't break onto a
+    // new line after only a handful of characters.
+    const maxLineLen = Math.max(40, Math.round(avgLen * 1.6));
 
     // Greedy word wrap.
     const words = newValue.replace(/\s+/g, " ").trim().split(" ").filter(Boolean);
@@ -163,6 +196,27 @@ const replaceMultilineText = (svg: string, id: string, newValue: string): string
 
     return `${openTag}${tspansOut}${closeTag}`;
   });
+};
+
+const buildQrSvgGroup = (
+  payload: string,
+  placement?: { x: number; y: number; width: number; height: number },
+): string => {
+  if (!placement) return "";
+  const qr = QRCode.create(payload || "NURU-PREVIEW-001", { errorCorrectionLevel: "M" });
+  const moduleCount = qr.modules.size;
+  const side = Math.min(placement.width, placement.height);
+  const scale = side / moduleCount;
+  const offsetX = (placement.width - side) / 2;
+  const offsetY = (placement.height - side) / 2;
+  const cells: string[] = [];
+  for (let y = 0; y < moduleCount; y += 1) {
+    for (let x = 0; x < moduleCount; x += 1) {
+      if (!qr.modules.get(x, y)) continue;
+      cells.push(`<rect x="${(offsetX + x * scale).toFixed(3)}" y="${(offsetY + y * scale).toFixed(3)}" width="${scale.toFixed(3)}" height="${scale.toFixed(3)}"/>`);
+    }
+  }
+  return `<g id="frontend_generated_qr_code" transform="translate(${placement.x} ${placement.y})" shape-rendering="crispEdges"><rect x="0" y="0" width="${placement.width}" height="${placement.height}" fill="#FFFFFF"/> <g fill="#111111">${cells.join("")}</g></g>`;
 };
 
 
@@ -189,12 +243,20 @@ function buildPreviewSvg(
   contributorPlaceholderId: string | undefined,
   contributorName: string,
   fonts: string[] = [],
+  opts: { preserveTextPositions?: boolean; replaceDefaultsInPreview?: boolean; qrPlacement?: { x: number; y: number; width: number; height: number }; qrPayload?: string; viewBox?: { width: number; height: number } } = {},
 ): string {
   let svg = sanitizeSvg(rawSvg);
+  // Derive centerX from the SVG's own viewBox so cards with non-A4 canvases
+  // (e.g. thank-you uses 1122x1402) don't get every text element re-centered
+  // to the wrong X and pushed off the frame.
+  let intrinsicWidth: number | undefined;
+  const vbMatch = svg.match(/viewBox\s*=\s*"\s*[-\d.]+\s+[-\d.]+\s+([\d.]+)\s+([\d.]+)\s*"/i);
+  if (vbMatch) intrinsicWidth = parseFloat(vbMatch[1]);
+  const centerX = (opts.viewBox?.width ?? intrinsicWidth ?? 595.28) / 2;
 
   Object.entries(edits).forEach(([id, val]) => {
     const def = defaults[id] ?? "";
-    if ((val ?? "") === def) return;
+    if (!opts.replaceDefaultsInPreview && (val ?? "") === def) return;
     // Multi-tspan paragraphs need word-wrap into the same line geometry,
     // otherwise the whole paragraph collapses onto one line and overflows.
     // Single-line titles fall through replaceMultilineText's fast path.
@@ -211,10 +273,11 @@ function buildPreviewSvg(
       const url = absolutizeApiUrl(`/api/v1/cards/templates/${slug}/asset/${encodeURIComponent(f)}`);
       svg = svg.replace(new RegExp(`url\\((['"]?)${escapeRegExp(f)}\\1\\)`, "g"), `url('${url}')`);
       const isItalic = /italic/i.test(f);
+      const isCollection = /sitka/i.test(f);
       const bare = f.replace(/\.(ttf|otf|woff2?|eot)$/i, "");
       const spaced = bare.replace(/\s*Italic\s*$/i, "").trim();
       const squashed = spaced.replace(/\s+/g, "");
-      const format = /\.otf$/i.test(f) ? "opentype" : /\.woff2$/i.test(f) ? "woff2" : /\.woff$/i.test(f) ? "woff" : "truetype";
+      const format = isCollection ? "collection" : /\.otf$/i.test(f) ? "opentype" : /\.woff2$/i.test(f) ? "woff2" : /\.woff$/i.test(f) ? "woff" : "truetype";
       const families = Array.from(new Set([spaced, squashed]));
       return families.map((fam) =>
         `@font-face{font-family:'${fam}';src:url('${url}') format('${format}');font-weight:400;font-style:${isItalic ? "italic" : "normal"};font-display:swap;}`
@@ -222,11 +285,20 @@ function buildPreviewSvg(
     }).join("");
     svg = svg.replace(/<\/svg>\s*$/i, `<style>${faceBlocks}</style></svg>`);
   }
-  // Center every editable text node + the contributor placeholder so wrapped
-  // or long values stay visually balanced on the card.
-  Object.keys(defaults).forEach((id) => { svg = centerTextElement(svg, id); });
+  const qrGroup = buildQrSvgGroup(opts.qrPayload || "NURU-PREVIEW-001", opts.qrPlacement);
+  if (qrGroup) {
+    svg = svg.replace(/<g\s+id="frontend_generated_qr_code"[\s\S]*?<\/g>/i, "");
+    svg = svg.replace(/<\/svg>\s*$/i, `${qrGroup}</svg>`);
+  }
+  if (!opts.preserveTextPositions) {
+    // Center every editable text node + the contributor placeholder so wrapped
+    // or long values stay visually balanced on legacy cards.
+    Object.keys(defaults).forEach((id) => { svg = centerTextElement(svg, id, centerX); });
+  }
+  // Always center the contributor name — guests can be very long or short and
+  // a left-anchored placeholder would visibly drift across the card.
   if (contributorPlaceholderId) {
-    svg = centerTextElement(svg, contributorPlaceholderId);
+    svg = centerTextElement(svg, contributorPlaceholderId, centerX);
   }
   return svg;
 }
@@ -253,6 +325,13 @@ function TemplateThumb({ slug, contributorName }: { slug: string; contributorNam
           detail.metadata.contributor_placeholder_id,
           contributorName,
           detail.metadata.fonts || [],
+          {
+            preserveTextPositions: detail.metadata.preserve_text_positions,
+            replaceDefaultsInPreview: detail.metadata.replace_defaults_in_preview,
+            qrPlacement: detail.metadata.qr_placement,
+            qrPayload: "NURU-PREVIEW-001",
+            viewBox: (detail.metadata as any)?.view_box,
+          },
         );
         setMarkup(svg);
       } catch {
@@ -305,13 +384,52 @@ export default function EventCardsTab({ eventId }: Props) {
   const [selectedContributorIds, setSelectedContributorIds] = useState<Set<string>>(new Set());
 
   const { eventContributors, refetch: fetchEventContributors } = useEventContributors(eventId);
+  const [eventGuests, setEventGuests] = useState<EventGuest[]>([]);
+  const [loadingGuests, setLoadingGuests] = useState(false);
   const initialFetched = useRef(false);
+  const guestsFetched = useRef(false);
   const { data: currentUser } = useCurrentUser();
   const currentUserName = useMemo(() => {
     const fn = (currentUser?.first_name || "").trim();
     const ln = (currentUser?.last_name || "").trim();
     return [fn, ln].filter(Boolean).join(" ") || currentUser?.username || "";
   }, [currentUser]);
+
+  // ── Audience derived from the active template metadata. Invitation
+  //    cards target the event guest list; thank-you cards target pledging
+  //    contributors. Defaults to "contributors" for backward compat.
+  const recipientNounRaw: string = activeTemplate?.metadata?.recipient_noun || "Contributor";
+  const recipientNounLower = recipientNounRaw.toLowerCase();
+  const recipientNounPlural = `${recipientNounLower}s`;
+  // Audience is driven by either an explicit `recipient_source` or inferred
+  // from `recipient_noun` (e.g. "Guest" → guests). This keeps older templates
+  // that only set `recipient_noun` working without an extra metadata field.
+  const audience: "contributors" | "guests" =
+    (activeTemplate?.metadata?.recipient_source as "contributors" | "guests" | undefined) ||
+    (recipientNounLower === "guest" ? "guests" : "contributors");
+
+  const fetchEventGuests = useCallback(async () => {
+    setLoadingGuests(true);
+    try {
+      let all: EventGuest[] = [];
+      let page = 1;
+      while (true) {
+        const res: any = await eventsApi.getGuests(eventId, { page, limit: 200 });
+        if (res?.success) {
+          all = [...all, ...(res.data?.guests || [])];
+          const tp = res.data?.pagination?.total_pages || 1;
+          if (page >= tp) break;
+          page += 1;
+        } else break;
+      }
+      setEventGuests(all);
+    } catch (e: any) {
+      toast({ title: "Could not load guests", description: e?.message, variant: "destructive" });
+    } finally {
+      setLoadingGuests(false);
+    }
+  }, [eventId]);
+
 
   // ── Load categories ────────────────────────────────────────────────
   useEffect(() => {
@@ -396,37 +514,57 @@ export default function EventCardsTab({ eventId }: Props) {
     }
   }, [values]);
 
+  const persistActiveCard = useCallback(
+    async ({ silent = false }: { silent?: boolean } = {}) => {
+      if (!activeTemplate || !activeCategory) return null;
+      setSaving(true);
+      try {
+        const res = await eventCardsApi.saveEventCard(eventId, {
+          category: activeCategory,
+          card_template_id: activeTemplate.id,
+          card_template_slug: activeTemplate.slug,
+          custom_text_values: values,
+        });
+        const nextSavedCard = res.data || null;
+        setSavedCard(nextSavedCard);
+        setPreviewBust(Date.now());
+        if (!silent) {
+          toast({ title: "Card saved", description: "Your changes are now live for this event." });
+        }
+        return nextSavedCard;
+      } catch (e: any) {
+        toast({ title: "Could not save", description: e?.message, variant: "destructive" });
+        return null;
+      } finally {
+        setSaving(false);
+      }
+    },
+    [activeTemplate, activeCategory, eventId, values],
+  );
+
   const onSave = useCallback(async () => {
-    if (!activeTemplate || !activeCategory) return;
-    setSaving(true);
-    try {
-      const res = await eventCardsApi.saveEventCard(eventId, {
-        category: activeCategory,
-        card_template_id: activeTemplate.id,
-        card_template_slug: activeTemplate.slug,
-        custom_text_values: values,
-      });
-      setSavedCard(res.data || null);
-      setPreviewBust(Date.now());
-      toast({ title: "Card saved", description: "Your changes are now live for this event." });
-    } catch (e: any) {
-      toast({ title: "Could not save", description: e?.message, variant: "destructive" });
-    } finally {
-      setSaving(false);
-    }
-  }, [activeTemplate, activeCategory, eventId, values]);
+    await persistActiveCard();
+  }, [persistActiveCard]);
 
   const currentJobId = useMemo(
     () => (activeTemplate?.slug ? `${eventId}-${activeTemplate.slug}` : ""),
     [eventId, activeTemplate?.slug],
   );
 
-  const openSend = useCallback(() => {
-    if (!savedCard) {
+  const openSend = useCallback(async () => {
+    let activeSavedCard = savedCard;
+
+    if (audience === "guests" && !activeSavedCard) {
+      activeSavedCard = await persistActiveCard({ silent: true });
+    }
+
+    if (!activeSavedCard) {
       toast({ title: "Save the card first", description: "Configure and save the card before sending." });
       return;
     }
-    if (!initialFetched.current) { fetchEventContributors(); initialFetched.current = true; }
+    if (audience === "guests") {
+      if (!guestsFetched.current) { fetchEventGuests(); guestsFetched.current = true; }
+    } else if (!initialFetched.current) { fetchEventContributors(); initialFetched.current = true; }
     setSelectedContributorIds(new Set());
     setContributorSearch("");
     // Resume any saved job for this template (so refresh keeps the report)
@@ -440,7 +578,7 @@ export default function EventCardsTab({ eventId }: Props) {
       setSendStep("pick");
     }
     setSendOpen(true);
-  }, [savedCard, fetchEventContributors, currentJobId]);
+  }, [savedCard, audience, persistActiveCard, fetchEventContributors, fetchEventGuests, currentJobId]);
 
   const toggleContributor = (id: string) => {
     setSelectedContributorIds((prev) => {
@@ -450,22 +588,31 @@ export default function EventCardsTab({ eventId }: Props) {
     });
   };
 
-  // Eligible = contributors with a pledge (the ones we can thank).
-  const eligibleContributors = useMemo(
-    () => eventContributors.filter((ec) => Number(ec.pledge_amount || 0) > 0),
-    [eventContributors],
-  );
+  // Unified recipient list driven by `audience`. Each entry has the same
+  // shape so the picker UI doesn't have to branch.
+  type Recipient = { id: string; name: string; phone: string; subtitle?: string };
+  const eligibleContributors: Recipient[] = useMemo(() => {
+    if (audience === "guests") {
+      const allowed = new Set(
+        (activeTemplate?.metadata?.recipient_filter as string[] | undefined) || ["pending", "confirmed", "maybe"],
+      );
+      return eventGuests
+        .filter((g) => allowed.has(String(g.rsvp_status)))
+        .map((g) => ({ id: g.id, name: g.name || "Guest", phone: g.phone || "", subtitle: g.rsvp_status }));
+    }
+    return eventContributors
+      .filter((ec) => Number(ec.pledge_amount || 0) > 0)
+      .map((ec) => ({ id: ec.id, name: ec.contributor?.name || "Unnamed", phone: ec.contributor?.phone || "" }));
+  }, [audience, eventGuests, eventContributors, activeTemplate?.metadata?.recipient_filter]);
 
-  // Filtered list driven by the search box (name or phone, case-insensitive).
   const filteredContributors = useMemo(() => {
     const q = contributorSearch.trim().toLowerCase();
     if (!q) return eligibleContributors;
-    return eligibleContributors.filter((ec) => {
-      const name = (ec.contributor?.name || "").toLowerCase();
-      const phone = (ec.contributor?.phone || "").toLowerCase();
-      return name.includes(q) || phone.includes(q);
-    });
+    return eligibleContributors.filter(
+      (r) => r.name.toLowerCase().includes(q) || r.phone.toLowerCase().includes(q),
+    );
   }, [eligibleContributors, contributorSearch]);
+
 
   const allFilteredSelected =
     filteredContributors.length > 0 &&
@@ -549,15 +696,31 @@ export default function EventCardsTab({ eventId }: Props) {
       if (!activeTemplate?.svg || !activeCategory) {
         return { sentIds: [], failed: ids.map((id) => ({ recipient_id: id, name: "", reason: "Template not ready" })), rendererStuck: false, unattempted: [] };
       }
+
+      const idToName: Record<string, string> = {};
+      eligibleContributors.forEach((r) => {
+        if (ids.includes(r.id)) idToName[r.id] = r.name || "Friend";
+      });
+
+      // Invitation cards: backend renders + embeds the per-guest QR. We just
+      // dispatch the ids and let the server handle everything. No browser
+      // canvas, no upload, no preflight — the batch UI still tracks results.
+      if (audience === "guests") {
+        setActiveBatchProgress({ done: 0, total: ids.length, prepared: ids.length, uploaded: ids.length, failed: 0, phase: "sending" });
+        try {
+          await eventCardsApi.sendToGuests(eventId, activeCategory, ids);
+          return { sentIds: ids, failed: [], rendererStuck: false, unattempted: [] };
+        } catch (e: any) {
+          const reason = e?.message || "Send request failed";
+          return { sentIds: [], failed: ids.map((id) => ({ recipient_id: id, name: idToName[id] || "Guest", reason })), rendererStuck: false, unattempted: [] };
+        }
+      }
+
       const meta = activeTemplate.metadata || {};
       const defaults: Record<string, string> = {};
       (meta.editable_fields || []).forEach((f) => { defaults[f.id] = f.default ?? ""; });
       const placeholderId = meta.contributor_placeholder_id || "contributor_name_text";
 
-      const idToName: Record<string, string> = {};
-      eventContributors.forEach((ec) => {
-        if (ids.includes(ec.id)) idToName[ec.id] = ec.contributor?.name || "Friend";
-      });
 
       const NAME_TOKEN = "__NURU_NAME_TOKEN_7F3A__";
       const preparedTemplateSvg = buildPreviewSvg(
@@ -568,6 +731,13 @@ export default function EventCardsTab({ eventId }: Props) {
         placeholderId,
         NAME_TOKEN,
         meta.fonts || [],
+        {
+          preserveTextPositions: meta.preserve_text_positions,
+          replaceDefaultsInPreview: meta.replace_defaults_in_preview,
+          qrPlacement: meta.qr_placement,
+          qrPayload: "NURU-PREVIEW-001",
+            viewBox: (meta as any)?.view_box,
+        },
       );
 
       const TIMEOUT_MS = 30_000;
@@ -755,7 +925,7 @@ export default function EventCardsTab({ eventId }: Props) {
         return { sentIds: [], failed: attemptedFailed, rendererStuck, unattempted };
       }
     },
-    [activeTemplate, activeCategory, eventId, values, eventContributors],
+    [activeTemplate, activeCategory, eventId, values, eligibleContributors, audience],
   );
 
   const sendBatch = useCallback(
@@ -840,14 +1010,23 @@ export default function EventCardsTab({ eventId }: Props) {
     const meta = activeTemplate.metadata || {};
     const defaults: Record<string, string> = {};
     (meta.editable_fields || []).forEach((f) => { defaults[f.id] = f.default ?? ""; });
+    const prefix = (values["__guest_name_prefix"] ?? "").trim();
+    const previewName = prefix ? `${prefix} ${currentUserName}` : currentUserName;
     return buildPreviewSvg(
       activeTemplate.svg,
       activeTemplate.slug,
       values,
       defaults,
       meta.contributor_placeholder_id || "contributor_name_text",
-      currentUserName,
+      previewName,
       meta.fonts || [],
+      {
+        preserveTextPositions: meta.preserve_text_positions,
+        replaceDefaultsInPreview: meta.replace_defaults_in_preview,
+        qrPlacement: meta.qr_placement,
+        qrPayload: "NURU-PREVIEW-001",
+            viewBox: (meta as any)?.view_box,
+      },
     );
   }, [activeTemplate, values, currentUserName]);
 
@@ -939,6 +1118,23 @@ export default function EventCardsTab({ eventId }: Props) {
               {editable.length === 0 && (
                 <p className="text-sm text-muted-foreground">This template has no editable fields.</p>
               )}
+              {activeTemplate?.metadata?.contributor_placeholder_id && (
+                <div className="space-y-1.5 rounded-md border border-border bg-muted/30 p-3">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    Optional guest-name prefix (e.g. "Dear", "Hello", "Mwalimu")
+                  </label>
+                  <Input
+                    value={values["__guest_name_prefix"] ?? ""}
+                    onChange={(e) => setValues((p) => ({ ...p, __guest_name_prefix: e.target.value }))}
+                    maxLength={30}
+                    placeholder="Leave empty for no prefix"
+                    autoComplete="off"
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Shown before every guest's name on the card.
+                  </p>
+                </div>
+              )}
               {editable.map((f) => {
                 if (lockedIds.has(f.id)) return null;
                 const v = values[f.id] ?? "";
@@ -973,8 +1169,12 @@ export default function EventCardsTab({ eventId }: Props) {
                 <Button onClick={onSave} disabled={saving}>
                   {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving</> : "Save card"}
                 </Button>
-                <Button variant="outline" onClick={openSend} disabled={!savedCard}>
-                  Send to contributors
+                <Button
+                  variant="outline"
+                  onClick={() => { void openSend(); }}
+                  disabled={saving || (!savedCard && audience !== "guests")}
+                >
+                  Send to {recipientNounPlural}
                 </Button>
               </div>
             </CardContent>
@@ -998,7 +1198,10 @@ export default function EventCardsTab({ eventId }: Props) {
                 )}
               </div>
               <p className="text-[11px] text-muted-foreground mt-2">
-                Contributor names are added automatically when the card is sent.
+                {(() => {
+                  const noun = (activeTemplate?.metadata?.recipient_noun || "Contributor").toLowerCase();
+                  return `${noun.charAt(0).toUpperCase()}${noun.slice(1)} names are added automatically when the card is sent.`;
+                })()}
               </p>
             </CardContent>
           </Card>
@@ -1010,11 +1213,11 @@ export default function EventCardsTab({ eventId }: Props) {
         <DialogContent className="max-w-2xl h-[90vh] flex flex-col p-0 gap-0">
           <DialogHeader className="px-6 pt-6 pb-3 shrink-0 border-b border-border">
             <DialogTitle>
-              {sendStep === "pick" ? "Send card to contributors" : "Send in batches"}
+              {sendStep === "pick" ? `Send card to ${recipientNounPlural}` : "Send in batches"}
             </DialogTitle>
             <DialogDescription>
               {sendStep === "pick"
-                ? "Pick contributors and choose a batch size. You'll send each batch manually."
+                ? `Pick ${recipientNounPlural} and choose a batch size. You'll send each batch manually.`
                 : "Send each batch manually. The browser only processes one batch at a time."}
             </DialogDescription>
           </DialogHeader>
@@ -1023,7 +1226,9 @@ export default function EventCardsTab({ eventId }: Props) {
           {sendStep === "pick" && (
             eligibleContributors.length === 0 ? (
               <p className="text-sm text-muted-foreground py-6 text-center">
-                No contributors with a pledge yet.
+                {audience === "guests"
+                  ? (loadingGuests ? "Loading guests…" : "No eligible guests on this event yet.")
+                  : "No contributors with a pledge yet."}
               </p>
             ) : (
               <>
@@ -1078,14 +1283,14 @@ export default function EventCardsTab({ eventId }: Props) {
                 <div className="mt-3 space-y-1.5">
                   {filteredContributors.length === 0 ? (
                     <p className="text-sm text-muted-foreground py-6 text-center">
-                      No contributors match "{contributorSearch}".
+                      No {recipientNounPlural} match "{contributorSearch}".
                     </p>
                   ) : (
                     filteredContributors.map((ec) => {
                       const id = ec.id;
                       const checked = selectedContributorIds.has(id);
-                      const name = ec.contributor?.name || "Unnamed";
-                      const phone = ec.contributor?.phone || "";
+                      const name = ec.name || "Unnamed";
+                      const phone = ec.phone || "";
                       return (
                         <label key={id} className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted cursor-pointer">
                           <Checkbox checked={checked} onCheckedChange={() => toggleContributor(id)} />
@@ -1109,7 +1314,7 @@ export default function EventCardsTab({ eventId }: Props) {
               activeBatchNo={activeBatchNo}
               activeBatchProgress={activeBatchProgress}
               recipientInfo={Object.fromEntries(
-                eligibleContributors.map((ec) => [ec.id, { name: ec.contributor?.name || "Unnamed", phone: ec.contributor?.phone || "" }])
+                eligibleContributors.map((ec) => [ec.id, { name: ec.name || "Unnamed", phone: ec.phone || "" }])
               )}
               onSendBatch={(n) => sendBatch(n)}
               onRetryFailed={(n) => sendBatch(n, { retryOnly: true })}
