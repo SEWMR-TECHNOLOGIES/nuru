@@ -1059,9 +1059,24 @@ def send_pledge_thank_you_cards(
                                     )
                             if event_dt_value is None and isinstance(_st, _dt):
                                 event_dt_value = _st
+                            # ``start_time`` is captured in the organiser's
+                            # local EAT clock (e.g. user picks 18:00 EAT and
+                            # we store that exact wall time on the row). Tag
+                            # the combined value with EAT so the formatter
+                            # does not re-interpret it as UTC and shift +3h
+                            # (which previously rendered 18:00 as 21:00/23:00).
+                            if event_dt_value is not None and event_dt_value.tzinfo is None:
+                                try:
+                                    import pytz as _pytz
+                                    event_dt_value = _pytz.timezone(
+                                        "Africa/Nairobi"
+                                    ).localize(event_dt_value)
+                                except Exception:
+                                    pass
                             formatted_event_date = format_event_datetime(
                                 event_dt_value, lang=wa_lang
                             ) or "TBA"
+
 
                             venue_text = ""
                             try:

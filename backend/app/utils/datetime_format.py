@@ -77,6 +77,34 @@ def _to_zone(dt: datetime, tz_name: Optional[str]) -> datetime:
     return dt.astimezone(zone)
 
 
+def _sw_saa_period(hour: int) -> str:
+    """Return the Swahili day-period label for an hour 0-23.
+
+    Mapping (per product spec):
+      20:00-03:59 -> Usiku, 04:00-06:59 -> Alfajiri, 07:00-11:59 -> Asubuhi,
+      12:00-14:59 -> Alasiri, 15:00-19:59 -> Jioni
+    """
+    h = hour % 24
+    if h >= 20 or h < 4:
+        return "Usiku"
+    if h < 7:
+        return "Alfajiri"
+    if h < 12:
+        return "Asubuhi"
+    if h < 15:
+        return "Alasiri"
+    return "Jioni"
+
+
+def _sw_saa_time(hour: int, minute: int) -> str:
+    """Render Swahili 'saa' clock e.g. ``Saa 7 Alasiri`` / ``Saa 12:30 Jioni``."""
+    saa = ((hour - 6) % 12) or 12
+    period = _sw_saa_period(hour)
+    if minute:
+        return f"Saa {saa}:{minute:02d} {period}"
+    return f"Saa {saa} {period}"
+
+
 def format_event_datetime(value, lang: str = "sw", tz_name: Optional[str] = "Africa/Nairobi") -> str:
     """Return a friendly localised date+time string.
 
@@ -98,7 +126,7 @@ def format_event_datetime(value, lang: str = "sw", tz_name: Optional[str] = "Afr
     if language == "sw":
         return (
             f"{SW_WEEKDAYS[weekday_idx]}, {dt.day} {SW_MONTHS[month_idx]} "
-            f"{dt.year} Saa {dt.hour:02d}:{dt.minute:02d}"
+            f"{dt.year} {_sw_saa_time(dt.hour, dt.minute)}"
         )
     return (
         f"{EN_WEEKDAYS[weekday_idx]}, {dt.day} {EN_MONTHS[month_idx]} "
