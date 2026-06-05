@@ -1008,12 +1008,15 @@ def send_pledge_thank_you_cards(
                     try:
                         from utils.whatsapp import _send_whatsapp_sync
                         if is_guest_row:
-                            # Approved Meta templates: nuru_invitation_card_message_sw / _en
+                            # Approved Meta templates: invitation_card_sw / invitation_card_en
                             # Body placeholders required: {{1}} guest_name,
-                            # {{2}} organizer_name, {{3}} event_name, {{4}} organizer_phone.
+                            # {{2}} organizer_name, {{3}} event_name,
+                            # {{4}} event_date (language-formatted),
+                            # {{5}} venue, {{6}} organizer_phone.
                             # Resolve display name via the central helper:
                             # recognizable_event_owner_name → owner user → creator.
                             from utils.event_owner import get_event_owner_display_name
+                            from utils.datetime_format import format_event_datetime
                             organizer_name = get_event_owner_display_name(ev, db=s)
                             organizer_phone = ""
                             try:
@@ -1027,6 +1030,48 @@ def send_pledge_thank_you_cards(
                                         organizer_phone = (getattr(owner_user, "phone", None) or "").strip()
                             except Exception:
                                 pass
+                            wa_lang = "en" if lang == "en" else "sw"
+                            # Combine separate ``start_date`` (date portion) and
+                            # ``start_time`` (time-of-day) columns. Either field
+                            # may be a ``date``/``datetime``/``time`` so we
+                            # normalise defensively before formatting. Without
+                            # this combine the body rendered "TBA" whenever the
+                            # date column held only midnight while the real
+                            # time-of-day lived on ``start_time``.
+                            from datetime import datetime as _dt, date as _date, time as _time
+                            _sd = getattr(ev, "start_date", None)
+                            _st = getattr(ev, "start_time", None)
+                            event_dt_value = None
+                            if isinstance(_sd, _dt):
+                                event_dt_value = _sd
+                            elif isinstance(_sd, _date):
+                                event_dt_value = _dt(_sd.year, _sd.month, _sd.day)
+                            if event_dt_value is not None and _st is not None:
+                                _tod = None
+                                if isinstance(_st, _dt):
+                                    _tod = _st.time()
+                                elif isinstance(_st, _time):
+                                    _tod = _st
+                                if _tod is not None:
+                                    event_dt_value = event_dt_value.replace(
+                                        hour=_tod.hour, minute=_tod.minute,
+                                        second=_tod.second, microsecond=0,
+                                    )
+                            if event_dt_value is None and isinstance(_st, _dt):
+                                event_dt_value = _st
+                            formatted_event_date = format_event_datetime(
+                                event_dt_value, lang=wa_lang
+                            ) or "TBA"
+
+                            venue_text = ""
+                            try:
+                                vc = getattr(ev, "venue_coordinate", None)
+                                if vc and getattr(vc, "venue_name", None):
+                                    venue_text = (vc.venue_name or "").strip()
+                            except Exception:
+                                pass
+                            if not venue_text:
+                                venue_text = (getattr(ev, "location", None) or "").strip()
                             wa_action = "invitation_card_message"
                             wa_params = {
                                 "guest_name": row.recipient_name or "Guest",
@@ -1035,9 +1080,11 @@ def send_pledge_thank_you_cards(
                                 # exists. Empty string is acceptable for Meta.
                                 "organizer_name": (organizer_name or "").strip(),
                                 "event_name": ev.name or "the event",
+                                "event_date": formatted_event_date,
+                                "venue": venue_text or "TBA",
                                 "organizer_phone": organizer_phone or "—",
                                 "image_url": image_url or "",
-                                "lang": "en" if lang == "en" else "sw",
+                                "lang": wa_lang,
                             }
                         else:
                             wa_action = "pledge_thank_you_card"

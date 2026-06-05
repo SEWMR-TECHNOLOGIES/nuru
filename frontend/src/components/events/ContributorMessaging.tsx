@@ -115,12 +115,14 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
   const [isEditing, setIsEditing] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [sending, setSending] = useState(false);
-  const [sendResult, setSendResult] = useState<{ sent: number; failed: number; queued: number; errors: string[]; batch_id?: string; mode?: string } | null>(null);
+  const [sendResult, setSendResult] = useState<{ sent: number; failed: number; queued: number; errors: string[]; batch_id?: string; mode?: string; idempotent_replay?: boolean } | null>(null);
   const [resultOpen, setResultOpen] = useState(false);
   const [customPaymentInfo, setCustomPaymentInfo] = useState(paymentInfo);
   const [contactPhoneOverride, setContactPhoneOverride] = useState(defaultContactPhone);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Explicit selection model. `null` = "all in current filter selected"
+  // (default when the user hasn't manually deselected anything).
+  const [selectedIds, setSelectedIds] = useState<Set<string> | null>(null);
 
   // Saved per-event customisations, keyed by case_type.
   const [savedTemplates, setSavedTemplates] = useState<Partial<Record<ContributorCase, {
@@ -165,23 +167,33 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
     );
   }, [caseFiltered, searchQuery]);
 
-  // Selected contributors to send to
+  // Selected contributors to send to. `null` = everyone in current filter.
   const sendTargets = useMemo(() => {
-    if (selectedIds.size === 0) return filteredContributors;
+    if (selectedIds === null) return filteredContributors;
     return filteredContributors.filter(ec => selectedIds.has(ec.id));
   }, [filteredContributors, selectedIds]);
 
+  const isRowSelected = (id: string) =>
+    selectedIds === null ? true : selectedIds.has(id);
+
   const toggleSelect = (id: string) => {
     setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+      // First manual toggle: materialise the current "all" state, then flip.
+      const base = prev === null
+        ? new Set(filteredContributors.map(ec => ec.id))
+        : new Set(prev);
+      if (base.has(id)) base.delete(id);
+      else base.add(id);
+      return base;
     });
   };
 
+  const allSelected = selectedIds === null
+    || (filteredContributors.length > 0 && filteredContributors.every(ec => selectedIds.has(ec.id)));
+
   const toggleSelectAll = () => {
-    if (selectedIds.size === filteredContributors.length) {
+    if (allSelected) {
+      // Deselect everything explicitly.
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(filteredContributors.map(ec => ec.id)));
@@ -224,7 +236,7 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
     setIsEditing(false);
     setSendResult(null);
     setSearchQuery('');
-    setSelectedIds(new Set());
+    setSelectedIds(null);
   };
 
   // Initialize message on first render (default; replaced once saved templates load).
@@ -318,11 +330,16 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
           errors: Array.isArray(raw.errors) ? raw.errors : skippedInvalid.map((n: string) => `Invalid phone: ${n}`),
           batch_id: raw.batch_id,
           mode: raw.mode,
+          idempotent_replay: !!raw.idempotent_replay,
         };
         setSendResult(normalized);
         setResultOpen(true);
-        if (normalized.queued > 0 && normalized.sent === 0 && normalized.failed === 0) {
+        if (normalized.idempotent_replay) {
+          toast.info('Already sent to these contributors in the last hour — skipped to avoid duplicates.');
+        } else if (normalized.queued > 0 && normalized.sent === 0 && normalized.failed === 0) {
           toast.success(`Queued ${normalized.queued} message${normalized.queued !== 1 ? 's' : ''} for delivery`);
+        } else if (normalized.sent === 0 && normalized.failed === 0 && normalized.queued === 0) {
+          toast.warning('No messages were sent. Check phone numbers or try again later.');
         } else if (normalized.failed === 0) {
           toast.success(`Messages sent to ${normalized.sent} contributor${normalized.sent !== 1 ? 's' : ''}`);
         } else {
@@ -402,7 +419,7 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
           <div className="flex items-center justify-between">
             <Label className="text-xs font-medium">Select Recipients ({sendTargets.length} of {filteredContributors.length})</Label>
             <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={toggleSelectAll}>
-              {selectedIds.size === filteredContributors.length && filteredContributors.length > 0 ? 'Deselect All' : 'Select All'}
+              {allSelected && filteredContributors.length > 0 ? 'Deselect All' : 'Select All'}
             </Button>
           </div>
           <div className="relative">
@@ -418,17 +435,15 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
             <ScrollArea className="h-[160px]">
               <div className="space-y-1">
                 {filteredContributors.map(ec => {
-                  const isSelected = selectedIds.size === 0 || selectedIds.has(ec.id);
+                  const isSelected = isRowSelected(ec.id);
                   return (
                     <button
                       key={ec.id}
                       onClick={() => toggleSelect(ec.id)}
                       className={`w-full flex items-center justify-between py-2 px-3 rounded-lg text-left transition-colors ${
-                        selectedIds.size > 0 && selectedIds.has(ec.id)
+                        isSelected
                           ? 'bg-primary/10 border border-primary/20'
-                          : selectedIds.size > 0
-                            ? 'opacity-50 hover:opacity-75'
-                            : 'hover:bg-muted/50'
+                          : 'opacity-60 hover:opacity-90'
                       }`}
                     >
                       <div className="flex items-center gap-2 min-w-0">
@@ -670,7 +685,16 @@ const ContributorMessaging = ({ eventId, eventTitle = '', eventContributors, pay
           </DialogHeader>
           {sendResult && (
             <div className="space-y-3">
-              {sendResult.queued > 0 && sendResult.sent === 0 && sendResult.failed === 0 ? (
+              {sendResult.idempotent_replay ? (
+                <Card className="border-yellow-500/30 bg-yellow-500/5">
+                  <CardContent className="p-3 text-center">
+                    <p className="text-sm font-semibold text-yellow-700 dark:text-yellow-400">Duplicate batch skipped</p>
+                    <p className="text-[11px] text-muted-foreground mt-1">
+                      The same message was already sent to these contributors in the last hour. Wait a bit or change the recipients/message to send again.
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : sendResult.queued > 0 && sendResult.sent === 0 && sendResult.failed === 0 ? (
                 <Card>
                   <CardContent className="p-3 text-center">
                     <p className="text-2xl font-bold text-primary">{sendResult.queued}</p>

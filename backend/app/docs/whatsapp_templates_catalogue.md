@@ -1166,43 +1166,41 @@ Plan Smarter. Celebrate Better.
 Full submission spec lives in `backend/app/docs/meta_template_pledge_thank_you_card.md`.
 Storage & deployment notes live in `backend/app/docs/event_cards_storage_and_deployment.md`.
 
-## 49. nuru_invitation_card_message_sw
+## 49. invitation_card_sw
 
-- **Language:** sw · **Status:** New (pending Meta approval; replaces single-lang `event_invitation_card`) · **Category:** MARKETING
+- **Language:** sw · **Status:** Approved (replaces `nuru_invitation_card_message_sw` and single-lang `event_invitation_card`) · **Category:** MARKETING
 - **Header:** IMAGE (rendered PNG of the event's invitation card, served from the stable card URL minted by `services/card_url_service.generate_or_replace_card` — one URL per `(guest phone, event, invitation)`, reused on every resend)
 - **Body:**
 ```
 Habari {{1}},
-
 Umepokea mwaliko kutoka kwa {{2}} kwa ajili ya {{3}}.
+Tarehe: {{4}}
+Mahali: {{5}}
 
-Tafadhari, fika bila kukosa.
-
-Kwa msaada Zaidi wasiliana na mratibu wa tukio kupitia {{4}}
+Kwa msaada Zaidi wasiliana na mratibu wa tukio kupitia {{6}}
 
 Plan Smarter. Celebrate Better.
 ```
-- **Placeholders (body):** `{{1}}` guest_name · `{{2}}` organizer_name · `{{3}}` event_name · `{{4}}` organizer_phone
+- **Placeholders (body):** `{{1}}` guest_name · `{{2}}` organizer_name · `{{3}}` event_name · `{{4}}` event_date (language-formatted, e.g. `Jumamosi, 20 Juni 2026`) · `{{5}}` venue · `{{6}}` organizer_phone
 - **Buttons:** none (SMS fallback sends the stable card URL in plain text)
-- **Backend reference:** `utils/whatsapp_cards.py::wa_send_invitation_card` → edge function action `send_invitation_card` → template `event_invitation_card` (today, single-lang) / `nuru_invitation_card_message_{sw,en}` (after approval). The `image_url` is the stable mapping URL — never a freshly-rendered file on resend. Distinct content from #47/#48 (`pledge_thank_you_card`); only the stable-URL plumbing is shared.
+- **Backend reference:** `utils/whatsapp_cards.py::wa_send_invitation_card` → edge function action `send_invitation_card` → template `invitation_card_{sw,en}`. The `image_url` is the stable mapping URL — never a freshly-rendered file on resend. Distinct content from #47/#48 (`pledge_thank_you_card`); only the stable-URL plumbing is shared.
 
-## 50. nuru_invitation_card_message_en
+## 50. invitation_card_en
 
-- **Language:** en · **Status:** New (pending Meta approval; replaces single-lang `event_invitation_card`) · **Category:** MARKETING
+- **Language:** en · **Status:** Approved (replaces `nuru_invitation_card_message_en` and single-lang `event_invitation_card`) · **Category:** MARKETING
 - **Header:** IMAGE (same source as #49)
 - **Body:**
 ```
 Hello {{1}},
-
 You have received an invitation from {{2}} for {{3}}.
+Date: {{4}}
+Venue: {{5}}
 
-Please, make sure to attend.
-
-For further assistance, contact the event organizer via {{4}}
+For more assistance, please contact the event coordinator through {{6}}
 
 Plan Smarter. Celebrate Better.
 ```
-- **Placeholders (body):** `{{1}}` guest_name · `{{2}}` organizer_name · `{{3}}` event_name · `{{4}}` organizer_phone
+- **Placeholders (body):** `{{1}}` guest_name · `{{2}}` organizer_name · `{{3}}` event_name · `{{4}}` event_date (language-formatted, e.g. `Saturday, 20 June 2026`) · `{{5}}` venue · `{{6}}` organizer_phone
 - **Buttons:** none
 - **Backend reference:** same as #49.
 
@@ -1210,6 +1208,7 @@ Plan Smarter. Celebrate Better.
 
 1. Category **MARKETING** (per Meta classification for invitation broadcasts).
 2. Header sample image: any existing render returned by `services/card_url_service` (1080 px, <5 MB).
-3. Submit both `_sw` and `_en` variants simultaneously; the dispatcher will switch from the single-lang `event_invitation_card` to the per-lang pair once both are approved.
-4. After approval, smoke-test by inviting one guest twice — confirm the same `storage_url` is reused (no duplicate file in storage) and that SMS fallback delivers the same stable URL.
+3. The legacy `nuru_invitation_card_message_{sw,en}` template pair is superseded by `invitation_card_{sw,en}` (same image header, expanded from 4 to 6 body params).
+4. Smoke-test by inviting one guest twice — confirm the same `storage_url` is reused (no duplicate file in storage) and that SMS fallback delivers the same stable URL.
+
 

@@ -10,8 +10,9 @@ Output formats follow the SMS catalogue exactly:
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, date, time, timezone
 from typing import Optional
+
 
 try:  # pytz is already a backend dependency
     import pytz
@@ -50,6 +51,10 @@ def _coerce_dt(value) -> Optional[datetime]:
         return None
     if isinstance(value, datetime):
         return value
+    # ``date`` objects (no time component) — promote to midnight datetime.
+    # ``datetime`` is a subclass of ``date`` so this branch only catches pure dates.
+    if isinstance(value, date):
+        return datetime(value.year, value.month, value.day)
     if isinstance(value, str):
         try:
             # Accept ISO 8601, with or without timezone
@@ -57,6 +62,7 @@ def _coerce_dt(value) -> Optional[datetime]:
         except Exception:
             return None
     return None
+
 
 
 def _to_zone(dt: datetime, tz_name: Optional[str]) -> datetime:

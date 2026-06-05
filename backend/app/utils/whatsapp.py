@@ -603,9 +603,10 @@ def wa_pledge_thank_you_card(
 
 
 # ──────────────────────────────────────────────
-# Event invitation card (image header + 4 body params)
-# Templates: nuru_invitation_card_message_sw / _en
-# Body: {{1}} guest_name · {{2}} organizer_name · {{3}} event_name · {{4}} organizer_phone
+# Event invitation card (image header + 6 body params)
+# Templates: invitation_card_sw / invitation_card_en
+# Body: {{1}} guest_name · {{2}} organizer_name · {{3}} event_name ·
+#       {{4}} event_date · {{5}} venue · {{6}} organizer_phone
 # ──────────────────────────────────────────────
 def wa_event_invitation_card(
     phone: str,
@@ -614,12 +615,16 @@ def wa_event_invitation_card(
     image_url: str,
     organizer_name: str = "",
     organizer_phone: str = "",
+    event_date: str = "",
+    venue: str = "",
     lang: str = "sw",
 ):
     return _send_whatsapp("invitation_card_message", phone, {
         "guest_name": guest_name or "Guest",
         "organizer_name": organizer_name or "Your host",
         "event_name": event_name or "the event",
+        "event_date": event_date or "TBA",
+        "venue": venue or "TBA",
         "organizer_phone": organizer_phone or "—",
         "image_url": image_url or "",
         "lang": _lang(lang),

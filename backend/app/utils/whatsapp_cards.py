@@ -281,18 +281,25 @@ def wa_send_invitation_card(
             })
             return
         # image_url passed exactly like pledge_thank_you_card: full public URL
-        # consumed as Meta template image header. New MARKETING-category
-        # template nuru_invitation_card_message_{sw,en} expects body params
-        # {{1}} guest_name · {{2}} organizer_name · {{3}} event_name · {{4}} organizer_phone.
+        # consumed as Meta template image header. Approved template
+        # invitation_card_{sw,en} expects six body params:
+        # {{1}} guest_name · {{2}} organizer_name · {{3}} event_name ·
+        # {{4}} event_date · {{5}} venue · {{6}} organizer_phone.
+        try:
+            from utils.datetime_format import format_event_datetime
+            formatted_date = format_event_datetime(event_date, lang=(lang or "sw").lower()) or safe_date
+        except Exception:
+            formatted_date = safe_date
         _send("send_invitation_card", intl, {
             "image_url": url,
             "lang": (lang or "sw").lower(),
             "guest_name": safe_name,
             "organizer_name": safe_host,
             "event_name": safe_event,
+            "event_date": formatted_date,
+            "venue": (venue or "").strip() or "TBA",
             "organizer_phone": (organizer_phone or "").strip() or "—",
             # legacy keys kept for backward compatibility
-            "event_date": safe_date,
             "rsvp_code": invite_code or "—",
         })
 
