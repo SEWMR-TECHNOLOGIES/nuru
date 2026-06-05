@@ -1011,29 +1011,29 @@ def send_pledge_thank_you_cards(
                             # Approved Meta templates: nuru_invitation_card_message_sw / _en
                             # Body placeholders required: {{1}} guest_name,
                             # {{2}} organizer_name, {{3}} event_name, {{4}} organizer_phone.
-                            organizer_name = (
-                                getattr(ev, "recognizable_event_owner_name", None)
-                                or ""
-                            ).strip()
+                            # Resolve display name via the central helper:
+                            # recognizable_event_owner_name → owner user → creator.
+                            from utils.event_owner import get_event_owner_display_name
+                            organizer_name = get_event_owner_display_name(ev, db=s)
                             organizer_phone = ""
                             try:
-                                owner_uid = getattr(ev, "event_owner_user_id", None) or getattr(ev, "organizer_id", None)
+                                owner_uid = (
+                                    getattr(ev, "event_owner_user_id", None)
+                                    or getattr(ev, "organizer_id", None)
+                                )
                                 if owner_uid:
                                     owner_user = s.query(User).filter(User.id == owner_uid).first()
                                     if owner_user:
-                                        if not organizer_name:
-                                            organizer_name = (
-                                                getattr(owner_user, "full_name", None)
-                                                or getattr(owner_user, "name", None)
-                                                or ""
-                                            ).strip()
                                         organizer_phone = (getattr(owner_user, "phone", None) or "").strip()
                             except Exception:
                                 pass
                             wa_action = "invitation_card_message"
                             wa_params = {
                                 "guest_name": row.recipient_name or "Guest",
-                                "organizer_name": organizer_name or "the organizer",
+                                # Never send the generic "the organizer" placeholder —
+                                # the helper above guarantees a real name when one
+                                # exists. Empty string is acceptable for Meta.
+                                "organizer_name": (organizer_name or "").strip(),
                                 "event_name": ev.name or "the event",
                                 "organizer_phone": organizer_phone or "—",
                                 "image_url": image_url or "",
