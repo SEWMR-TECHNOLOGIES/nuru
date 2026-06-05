@@ -268,6 +268,10 @@ export interface EventGuest {
   checked_in_at?: string;
   checked_in_by?: string;
   qr_code?: string;
+  /** Backend-resolved QR payload (invitation_code if present, else attendee.id).
+   *  Used by the card editor to bake the exact same QR the server would into
+   *  browser-rendered invitation PNGs. */
+  qr_payload?: string;
   created_at: string;
   updated_at: string;
 }

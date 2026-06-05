@@ -590,7 +590,7 @@ export default function EventCardsTab({ eventId }: Props) {
 
   // Unified recipient list driven by `audience`. Each entry has the same
   // shape so the picker UI doesn't have to branch.
-  type Recipient = { id: string; name: string; phone: string; subtitle?: string };
+  type Recipient = { id: string; name: string; phone: string; subtitle?: string; qrPayload?: string };
   const eligibleContributors: Recipient[] = useMemo(() => {
     if (audience === "guests") {
       const allowed = new Set(
@@ -598,7 +598,13 @@ export default function EventCardsTab({ eventId }: Props) {
       );
       return eventGuests
         .filter((g) => allowed.has(String(g.rsvp_status)))
-        .map((g) => ({ id: g.id, name: g.name || "Guest", phone: g.phone || "", subtitle: g.rsvp_status }));
+        .map((g) => ({
+          id: g.id,
+          name: g.name || "Guest",
+          phone: g.phone || "",
+          subtitle: g.rsvp_status,
+          qrPayload: (g as any).qr_payload || g.id,
+        }));
     }
     return eventContributors
       .filter((ec) => Number(ec.pledge_amount || 0) > 0)
@@ -698,23 +704,19 @@ export default function EventCardsTab({ eventId }: Props) {
       }
 
       const idToName: Record<string, string> = {};
+      const idToQrPayload: Record<string, string> = {};
       eligibleContributors.forEach((r) => {
-        if (ids.includes(r.id)) idToName[r.id] = r.name || "Friend";
+        if (ids.includes(r.id)) {
+          idToName[r.id] = r.name || (audience === "guests" ? "Guest" : "Friend");
+          if (audience === "guests") {
+            // Each guest needs their own QR baked into their SVG. Falls back
+            // to the attendee id, which the backend also accepts.
+            idToQrPayload[r.id] = r.qrPayload || r.id;
+          }
+        }
       });
 
-      // Invitation cards: backend renders + embeds the per-guest QR. We just
-      // dispatch the ids and let the server handle everything. No browser
-      // canvas, no upload, no preflight — the batch UI still tracks results.
-      if (audience === "guests") {
-        setActiveBatchProgress({ done: 0, total: ids.length, prepared: ids.length, uploaded: ids.length, failed: 0, phase: "sending" });
-        try {
-          await eventCardsApi.sendToGuests(eventId, activeCategory, ids);
-          return { sentIds: ids, failed: [], rendererStuck: false, unattempted: [] };
-        } catch (e: any) {
-          const reason = e?.message || "Send request failed";
-          return { sentIds: [], failed: ids.map((id) => ({ recipient_id: id, name: idToName[id] || "Guest", reason })), rendererStuck: false, unattempted: [] };
-        }
-      }
+      const isGuestRun = audience === "guests";
 
       const meta = activeTemplate.metadata || {};
       const defaults: Record<string, string> = {};
@@ -723,22 +725,29 @@ export default function EventCardsTab({ eventId }: Props) {
 
 
       const NAME_TOKEN = "__NURU_NAME_TOKEN_7F3A__";
-      const preparedTemplateSvg = buildPreviewSvg(
-        activeTemplate.svg,
-        activeTemplate.slug,
-        values,
-        defaults,
-        placeholderId,
-        NAME_TOKEN,
-        meta.fonts || [],
-        {
-          preserveTextPositions: meta.preserve_text_positions,
-          replaceDefaultsInPreview: meta.replace_defaults_in_preview,
-          qrPlacement: meta.qr_placement,
-          qrPayload: "NURU-PREVIEW-001",
+      // For contributor/thank-you cards the same QR (preview payload) is fine
+      // across the whole batch, so we build the SVG once. Invitation cards
+      // need a per-guest QR baked in — we'll rebuild per recipient below.
+      const buildSvgFor = (qrPayload: string) =>
+        buildPreviewSvg(
+          activeTemplate.svg,
+          activeTemplate.slug,
+          values,
+          defaults,
+          placeholderId,
+          NAME_TOKEN,
+          meta.fonts || [],
+          {
+            preserveTextPositions: meta.preserve_text_positions,
+            replaceDefaultsInPreview: meta.replace_defaults_in_preview,
+            qrPlacement: meta.qr_placement,
+            qrPayload,
             viewBox: (meta as any)?.view_box,
-        },
-      );
+          },
+        );
+      const preparedTemplateSvg = isGuestRun
+        ? buildSvgFor(idToQrPayload[ids[0]] || ids[0] || "NURU-PREVIEW-001")
+        : buildSvgFor("NURU-PREVIEW-001");
 
       const TIMEOUT_MS = 30_000;
       const RENDER_OPTS = {
@@ -749,18 +758,20 @@ export default function EventCardsTab({ eventId }: Props) {
         timeoutMs: TIMEOUT_MS,
       };
 
-      // Build one shared job for normal mode; safe mode rebuilds per recipient.
+      // Build one shared job for normal mode; safe mode (and invitation
+      // cards, which need a per-guest QR baked in) rebuilds per recipient.
       let sharedJob: Awaited<ReturnType<typeof createCardRenderJob>> | null = null;
-      const buildJob = async () => createCardRenderJob(preparedTemplateSvg, RENDER_OPTS);
+      const buildJob = async (svgOverride?: string) =>
+        createCardRenderJob(svgOverride ?? preparedTemplateSvg, RENDER_OPTS);
 
       // Preflight render — confirm the renderer can produce at least one card
       // before we mark the whole batch as failed.
       try {
         const preflight = await buildJob();
         try {
-          const firstName = idToName[ids[0]] || "Friend";
+          const firstName = idToName[ids[0]] || (isGuestRun ? "Guest" : "Friend");
           await preflight.render({ token: NAME_TOKEN, value: firstName });
-          if (mode === "normal") sharedJob = preflight; else preflight.dispose();
+          if (mode === "normal" && !isGuestRun) sharedJob = preflight; else preflight.dispose();
         } catch (e: any) {
           preflight.dispose();
           purgeLeakedRenderHosts();
@@ -805,7 +816,7 @@ export default function EventCardsTab({ eventId }: Props) {
         for (let i = 0; i < ids.length; i++) {
           if (cancelRef.current) { stuckAtIndex = i; break; }
           const id = ids[i];
-          const name = idToName[id] || "Friend";
+          const name = idToName[id] || (isGuestRun ? "Guest" : "Friend");
           updateProgress(name);
           const tStart = performance.now();
           let renderMs = 0;
@@ -816,11 +827,15 @@ export default function EventCardsTab({ eventId }: Props) {
 
           if (import.meta.env.DEV) console.log(`[card_prepare_start] batch=${batchNo} recipient=${name}`);
 
-          // Per-recipient job for safe mode (full cleanup between cards).
+          // Per-recipient job for safe mode (full cleanup between cards) and
+          // for guest invitations (each guest's QR is baked into its own SVG).
           let job = sharedJob;
           try {
             if (mode === "safe") {
               job = await buildJob();
+            } else if (isGuestRun) {
+              const guestSvg = buildSvgFor(idToQrPayload[id] || id);
+              job = await buildJob(guestSvg);
             }
             if (!job) throw new Error("Render job not initialised");
 
@@ -860,9 +875,11 @@ export default function EventCardsTab({ eventId }: Props) {
             }
           } finally {
             // Per-recipient cleanup (always for safe mode; on timeout for normal).
-            if (mode === "safe" || timedOut) {
+            // Per-recipient cleanup (always for safe mode and guest runs;
+            // on timeout for normal contributor mode).
+            if (mode === "safe" || isGuestRun || timedOut) {
               try {
-                if (mode === "safe" && job) job.dispose();
+                if ((mode === "safe" || isGuestRun) && job) job.dispose();
                 if (timedOut && mode === "normal" && sharedJob) {
                   sharedJob.dispose();
                   sharedJob = null;
@@ -897,8 +914,9 @@ export default function EventCardsTab({ eventId }: Props) {
             break;
           }
 
-          // For normal mode: rebuild the shared job if it was disposed on a timeout.
-          if (mode === "normal" && !sharedJob) {
+          // For normal contributor mode: rebuild the shared job if it was
+          // disposed on a timeout. Guest runs never use the shared job.
+          if (mode === "normal" && !isGuestRun && !sharedJob) {
             try { sharedJob = await buildJob(); } catch { rendererStuck = true; break; }
           }
         }
@@ -917,11 +935,15 @@ export default function EventCardsTab({ eventId }: Props) {
       }
       updateProgress(undefined, "sending");
       try {
-        await eventCardsApi.sendToContributors(eventId, activeCategory, preparedIds, preRendered);
+        if (isGuestRun) {
+          await eventCardsApi.sendToGuests(eventId, activeCategory, preparedIds, preRendered);
+        } else {
+          await eventCardsApi.sendToContributors(eventId, activeCategory, preparedIds, preRendered);
+        }
         return { sentIds: preparedIds, failed: attemptedFailed, rendererStuck, unattempted };
       } catch (e: any) {
         const reason = e?.message || "Send request failed";
-        preparedIds.forEach((id) => attemptedFailed.push({ recipient_id: id, name: idToName[id] || "Friend", reason }));
+        preparedIds.forEach((id) => attemptedFailed.push({ recipient_id: id, name: idToName[id] || (isGuestRun ? "Guest" : "Friend"), reason }));
         return { sentIds: [], failed: attemptedFailed, rendererStuck, unattempted };
       }
     },

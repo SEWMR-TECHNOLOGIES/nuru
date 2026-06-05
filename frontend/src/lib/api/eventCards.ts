@@ -126,11 +126,22 @@ export const eventCardsApi = {
       },
     ),
 
-  /** Invitation cards: server renders + embeds per-guest QR. */
-  sendToGuests: (eventId: string, category: string, guestIds: string[]) =>
+  /** Invitation cards: browser pre-renders one PNG per guest with that
+   *  guest's QR baked in (matches the live preview exactly) and uploads it;
+   *  the server reuses those URLs instead of running cairosvg, which strips
+   *  the template's custom fonts and decorative styles. */
+  sendToGuests: (
+    eventId: string,
+    category: string,
+    guestIds: string[],
+    preRenderedImages?: Record<string, string>,
+  ) =>
     post<{ queued: number }>(
       `/events/${eventId}/cards/${encodeURIComponent(category)}/send`,
-      { guest_ids: guestIds },
+      {
+        guest_ids: guestIds,
+        pre_rendered_images: preRenderedImages || undefined,
+      },
     ),
 
   /** Direct URL helpers (these endpoints return image bytes, not JSON). */

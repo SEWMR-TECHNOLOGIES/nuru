@@ -711,11 +711,14 @@ def send_pledge_thank_you_cards(
 
     # Frontend can render the final PNG in the browser (matches preview
     # exactly, avoids 12 MB Illustrator SVG rasterisation on the VPS) and
-    # upload one URL per contributor. Invitation cards (guest_ids) always
-    # use server-side rendering so the per-recipient QR is embedded fresh.
+    # upload one URL per recipient. For invitation cards (guests), the
+    # browser also bakes the per-guest QR into the rendered PNG, so the
+    # uploaded URL is the canonical artwork — the server-side cairosvg
+    # fallback (which strips custom fonts/styles) is only used when the
+    # client could not pre-render.
     raw_pre = body.get("pre_rendered_images") or {}
     pre_rendered: Dict[str, str] = {}
-    if not is_guest_dispatch and isinstance(raw_pre, dict):
+    if isinstance(raw_pre, dict):
         for k, v in raw_pre.items():
             if isinstance(v, str) and v.strip():
                 pre_rendered[str(k)] = v.strip()
@@ -781,6 +784,9 @@ def send_pledge_thank_you_cards(
             db.commit()
             db.refresh(sent)
             sent_card_ids.append(str(sent.id))
+            pre_url = pre_rendered.get(str(att.id))
+            if pre_url:
+                sid_to_pre_rendered[str(sent.id)] = pre_url
     else:
         contributors = (
             db.query(EventContributor)
@@ -896,7 +902,7 @@ def send_pledge_thank_you_cards(
                     rel_type = "contribution"
                     rel_id = str(row.contributor_id) if row.contributor_id else None
 
-                pre_url = None if is_guest_row else pre_rendered_map.get(str(row.id))
+                pre_url = pre_rendered_map.get(str(row.id))
                 stable_result: Dict[str, Any] = {}
                 try:
                     if pre_url:
@@ -967,15 +973,29 @@ def send_pledge_thank_you_cards(
                     print(f"[pledge_card_dispatch] stable URL generation failed: {exc!r}")
                     stable_result = {}
 
-                # Prefer the stable token URL for messaging. Fall back to
-                # the legacy per-sent-id URL only if mapping creation failed
-                # (so we never block a delivery on the new feature).
-                image_url = stable_result.get("public_url") or fallback_image_url
-                if stable_result.get("storage_url") and not stable_result.get("public_url"):
-                    image_url = stable_result["storage_url"]
+                # Two URLs, two purposes:
+                #   • whatsapp_image_url — MUST be a direct image (Meta fetches
+                #     bytes; the /card/{token} frontend route returns HTML and
+                #     fails with HTTP 404 on Meta's side).
+                #   • text_card_url — friendly token URL we share over SMS or
+                #     plain-text messages (humans tap it, the frontend resolves
+                #     it to the rendered card view).
+                # `rendered_card_url` on the row is used by the mobile/web
+                # "Your Invitation QR Code" screens to <img src=…>, so it must
+                # also be a direct image — store storage_url, fall back to the
+                # backend resolver which returns PNG bytes, never the frontend
+                # /card/{token} route.
+                direct_image_url = (
+                    stable_result.get("storage_url")
+                    or (f"{api_base}/api/v1/cards/public/by-token/{stable_result['token']}.png"
+                        if stable_result.get("token") else None)
+                    or fallback_image_url
+                )
+                text_card_url = stable_result.get("public_url") or landing_url
+                whatsapp_image_url = direct_image_url
+                image_url = direct_image_url  # used by WhatsApp template + logs
 
-
-                row.rendered_card_url = image_url
+                row.rendered_card_url = direct_image_url
                 s.commit()
 
                 channels = []

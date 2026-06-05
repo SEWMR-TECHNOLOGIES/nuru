@@ -1724,6 +1724,12 @@ def build_event_attendee_dicts(db: Session, attendees: list) -> List[Dict]:
         invitation = inv_map.get(att.invitation_id) if att.invitation_id else None
         plus_ones = plus_ones_map.get(att.id, [])
 
+        # QR payload mirrors backend resolution in event_cards.send:
+        # prefer the invitation_code, otherwise fall back to attendee.id.
+        # Returned so the card editor's browser-side renderer can bake the
+        # exact same QR into each invitation card PNG it pre-renders.
+        qr_payload = (invitation.invitation_code if invitation and invitation.invitation_code else str(att.id))
+
         out.append({
             "id": str(att.id),
             "event_id": str(att.event_id),
@@ -1743,6 +1749,7 @@ def build_event_attendee_dicts(db: Session, attendees: list) -> List[Dict]:
             "checked_in": att.checked_in,
             "checked_in_at": att.checked_in_at.isoformat() if att.checked_in_at else None,
             "created_at": att.created_at.isoformat() if att.created_at else None,
+            "qr_payload": qr_payload,
         })
 
     return out
