@@ -1,0 +1,132 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.atom/
+.build/
+.buildlog/
+.history/
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# Local environment files
+.env
+.env.*
+!.env.example
+*.local
+
+# IntelliJ / Android Studio
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VS Code
+# Keep this commented if you want to share launch/tasks settings.
+#.vscode/
+
+# Flutter / Dart / Pub
+**/doc/api/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+/build/
+/coverage/
+coverage/
+
+# Flutter generated symbolication files
+app.*.symbols
+
+# Flutter obfuscation maps
+app.*.map.json
+
+# Android generated files
+android/.gradle/
+android/build/
+android/app/build/
+android/app/debug/
+android/app/profile/
+android/app/release/
+android/local.properties
+
+# Android signing files
+android/key.properties
+android/*.jks
+android/*.keystore
+android/app/*.jks
+android/app/*.keystore
+
+# iOS Flutter generated files
+ios/Flutter/Flutter.framework
+ios/Flutter/App.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/ephemeral/
+ios/Flutter/.last_build_id
+
+# CocoaPods
+ios/Pods/
+ios/.symlinks/
+
+# Keep Podfile.lock committed for app projects.
+# Do NOT ignore:
+# ios/Podfile.lock
+
+# Xcode user and workspace files
+DerivedData/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+*.moved-aside
+*.xcuserdatad/
+xcuserdata/
+ios/Runner.xcworkspace/xcuserdata/
+ios/Runner.xcodeproj/xcuserdata/
+ios/Runner.xcodeproj/project.xcworkspace/xcuserdata/
+
+# Xcode archives and exported builds
+*.xcarchive
+*.ipa
+*.dSYM
+*.dSYM.zip
+ExportOptions.plist
+
+# iOS build outputs
+ios/build/
+
+# macOS generated files
+macos/Flutter/ephemeral/
+macos/Pods/
+macos/.symlinks/
+macos/Runner.xcworkspace/xcuserdata/
+macos/Runner.xcodeproj/xcuserdata/
+
+# Firebase config files
+# These must not be committed if the repo is public or shared with outsiders.
+**/google-services.json
+**/GoogleService-Info.plist
+**/firebase_options.dart
+**/firebase-service-account*.json
+
+# Test and tool outputs
+test/.coverage
+reports/
+screenshots/
+tmp/
+temp/
+
+# Node / web tooling logs if any are generated
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
