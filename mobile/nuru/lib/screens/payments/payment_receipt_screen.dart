@@ -14,6 +14,8 @@ import '../../core/utils/money_format.dart';
 import '../../core/services/wallet_service.dart';
 import '../tickets/widgets/dashed_divider.dart';
 import '../tickets/select_tickets_screen.dart';
+import '../contributors/contribution_details_screen.dart';
+import '../bookings/booking_detail_screen.dart';
 
 /// Premium, shareable receipt for any Nuru payment (ticket purchase,
 /// contribution, top-up, booking). Designed to match `YourTicketScreen`'s
@@ -141,8 +143,56 @@ class _PaymentReceiptScreenState extends State<PaymentReceiptScreen> {
   }
 
   void _retry() {
-    final eventId = p['event_id']?.toString();
-    if (eventId == null || eventId.isEmpty) {
+    // Route retry to the flow that originally produced this transaction,
+    // not always the ticket purchase screen.
+    final targetType = (p['target_type'] ?? '').toString().toLowerCase();
+    final eventId = p['event_id']?.toString() ?? '';
+    final targetId = p['target_id']?.toString() ?? '';
+
+    // ── Contribution retry → open the per-event Contribution Details
+    //    where the user can re-trigger payment for the same pledge.
+    if (targetType == 'contribution') {
+      if (eventId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cannot retry: original event not found.')),
+        );
+        return;
+      }
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ContributionDetailsScreen(
+            initialEvent: {
+              'event_id': eventId,
+              'event_name': _eventName,
+              'event_cover_image': _cover,
+            },
+          ),
+        ),
+      );
+      return;
+    }
+
+    // ── Booking retry → open the booking detail so the customer can
+    //    re-pay the escrow / balance from there.
+    if (targetType == 'booking') {
+      if (targetId.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cannot retry: booking not found.')),
+        );
+        return;
+      }
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => BookingDetailScreen(bookingId: targetId),
+        ),
+      );
+      return;
+    }
+
+    // ── Default: ticket purchase retry.
+    if (eventId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Cannot retry: original event not found.')),
       );

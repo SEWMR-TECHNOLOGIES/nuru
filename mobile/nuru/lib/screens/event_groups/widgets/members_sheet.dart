@@ -4,6 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/event_groups_service.dart';
+import '../../../core/widgets/nuru_skeleton.dart';
 
 class MembersSheet extends StatefulWidget {
   final String groupId;
@@ -156,7 +157,7 @@ class _MembersSheetState extends State<MembersSheet> {
         // Member list
         Expanded(
           child: _loading
-              ? const Center(child: CircularProgressIndicator())
+              ? const NuruSkeletonList(itemCount: 6)
               : ListView.builder(
                   padding: const EdgeInsets.only(bottom: 100),
                   itemCount: filtered.length,

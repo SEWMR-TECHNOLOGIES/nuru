@@ -17,6 +17,7 @@ import 'service_verification_screen.dart';
 import '../../core/l10n/l10n_helper.dart';
 import '../../core/utils/haptics.dart';
 import '../../widgets/received_payments_panel.dart';
+import '../../core/widgets/nuru_skeleton.dart';
 
 /// Owner's Service Detail — matches web ServiceDetail.tsx
 /// Tabs: Overview, Calendar, Reviews, Payments
@@ -184,7 +185,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
       return Scaffold(
         backgroundColor: _bg,
         appBar: NuruSubPageAppBar(title: context.tr('services')),
-        body: const Center(child: CircularProgressIndicator(color: _gold)),
+        body: const NuruSkeletonEventDetail(),
       );
     }
 
@@ -679,7 +680,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16),
           boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8)]),
       child: _calendarLoading
-          ? const Center(child: Padding(padding: EdgeInsets.all(40), child: CircularProgressIndicator(color: AppColors.primary)))
+          ? const Padding(padding: EdgeInsets.all(16), child: NuruSkeletonList(itemCount: 4, showAvatar: false, padding: EdgeInsets.zero))
           : Column(children: [
               Row(children: [
                 Container(width: 28, height: 28, decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
@@ -821,7 +822,7 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
         ]),
         const SizedBox(height: 12),
         if (_reviewsLoading)
-          const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator(color: AppColors.primary)))
+          const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: NuruSkeletonList(itemCount: 3, padding: EdgeInsets.zero))
         else if (_reviews.isEmpty)
           Center(child: Padding(
             padding: const EdgeInsets.all(24),

@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/event_groups_service.dart';
+import '../../../core/widgets/nuru_skeleton.dart';
 
 /// Contributors tab — stat grid + searchable, filterable contributor list.
 ///
@@ -97,7 +98,7 @@ class _ScoreboardPanelState extends State<ScoreboardPanel> {
   @override
   Widget build(BuildContext context) {
     if (_loading && _rows.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const NuruSkeletonList(itemCount: 6, showTrailing: true);
     }
     final cur = _currency();
     final pledged = (_summary?['total_pledged'] as num?) ?? 0;

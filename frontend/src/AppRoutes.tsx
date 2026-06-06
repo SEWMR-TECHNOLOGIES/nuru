@@ -58,6 +58,7 @@ import MomentDetail from "@/components/MomentDetail";
 
 
 import Index from "@/pages/Index";
+import Download from "@/pages/Download";
 import Contact from "@/pages/Contact";
 import FAQs from "@/pages/FAQs";
 import Register from "@/pages/Register";
@@ -256,6 +257,7 @@ function InnerRoutes() {
         <Route path="/contact" element={<Contact />} />
         <Route path="/data-deletion" element={<DataDeletion />} />
         <Route path="/faqs" element={<FAQs />} />
+        <Route path="/download" element={<Download />} />
         <Route path="/register" element={userIsLoggedIn ? <Navigate to="/" replace /> : <Register />} />
         <Route path="/login" element={userIsLoggedIn ? <Navigate to="/" replace /> : <Login />} />
         <Route path="/verify-email" element={<VerifyEmail />} />

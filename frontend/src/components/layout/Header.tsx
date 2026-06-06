@@ -32,7 +32,17 @@ const Header = () => {
     { name: "Features", path: "/features" },
     { name: "FAQs", path: "/faqs" },
     { name: "Contact", path: "/contact" },
+    { name: "Download", path: "/download" },
   ];
+
+  const handleDownloadClick = (e: React.MouseEvent) => {
+    if (location.pathname === "/") {
+      e.preventDefault();
+      const el = document.getElementById("download");
+      if (el) el.scrollIntoView({ behavior: "smooth" });
+      setIsOpen(false);
+    }
+  };
 
   const handleNavClick = (path: string) => {
     setIsOpen(false);
@@ -71,7 +81,10 @@ const Header = () => {
                 <Link
                   key={item.path}
                   to={item.path}
-                  onClick={() => handleNavClick(item.path)}
+                  onClick={(e) => {
+                    if (item.path === "/download") handleDownloadClick(e);
+                    handleNavClick(item.path);
+                  }}
                   className={`text-sm tracking-wide transition-colors ${
                     location.pathname === item.path
                       ? "text-foreground font-medium"
@@ -136,7 +149,10 @@ const Header = () => {
                   >
                     <Link
                       to={item.path}
-                      onClick={() => handleNavClick(item.path)}
+                      onClick={(e) => {
+                        if (item.path === "/download") handleDownloadClick(e);
+                        handleNavClick(item.path);
+                      }}
                       className="block py-4 text-3xl font-light text-foreground border-b border-border"
                     >
                       {item.name}

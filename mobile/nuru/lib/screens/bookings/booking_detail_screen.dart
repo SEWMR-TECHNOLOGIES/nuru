@@ -15,6 +15,7 @@ import '../../core/l10n/l10n_helper.dart';
 import '../../providers/wallet_provider.dart';
 import '../../widgets/cancel_booking_dialog.dart';
 import 'widgets/vendor_offline_payments_card.dart';
+import '../../core/widgets/nuru_skeleton.dart';
 
 /// Booking detail — clean, hero-led layout that mirrors the rest of the app
 /// (SVG icons, soft cards, currency from WalletProvider, Sora/Inter type).
@@ -113,26 +114,21 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     );
   }
 
-  Widget _skeleton() => ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
-        children: [
-          _shimmer(180),
-          const SizedBox(height: 14),
-          _shimmer(64),
-          const SizedBox(height: 12),
-          _shimmer(110),
-          const SizedBox(height: 12),
-          _shimmer(110),
-        ],
-      );
-
-  Widget _shimmer(double h) => Container(
-        height: h,
-        decoration: BoxDecoration(
-          color: AppColors.surfaceVariant,
-          borderRadius: BorderRadius.circular(16),
+  Widget _skeleton() => NuruSkeletonGroup(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+          children: [
+            NuruSkeleton.box(height: 180, radius: 16),
+            const SizedBox(height: 14),
+            NuruSkeleton.box(height: 64, radius: 16),
+            const SizedBox(height: 12),
+            NuruSkeleton.box(height: 110, radius: 16),
+            const SizedBox(height: 12),
+            NuruSkeleton.box(height: 110, radius: 16),
+          ],
         ),
       );
+
 
   Widget _errorView() => Center(
         child: Padding(

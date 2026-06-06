@@ -114,22 +114,76 @@ def _list_categories() -> List[Dict[str, Any]]:
     return out
 
 
+def _human_template_name(stem: str) -> str:
+    """
+    Convert file names like:
+    send_off_invitation_01
+    wedding_invitation_02
+
+    into:
+    Send Off Invitation 01
+    Wedding Invitation 02
+    """
+    return stem.replace("_", " ").replace("-", " ").title()
+
+
 def _list_templates_in(category: str) -> List[Dict[str, Any]]:
     _validate_category(category)
-    meta = _read_metadata(category)
+    shared_meta = _read_metadata(category)
     files = _storage.list_category_files(category)
     svgs = sorted([f for f in files if f.lower().endswith(".svg")])
     out = []
+
+    seen_slugs = set()
+
     for svg_name in svgs:
-        # Per-template metadata can either live in metadata.json (single
-        # template) or `<svg-stem>.json` (multi-template categories).
-        per_rel = f"{category}/{Path(svg_name).stem}.json"
-        m = meta if not _storage.exists(per_rel) else json.loads(_storage.read_text(per_rel))
-        slug = m.get("slug") or f"{category}-{Path(svg_name).stem}"
+        stem = Path(svg_name).stem
+        per_rel = f"{category}/{stem}.json"
+        has_per_template_meta = _storage.exists(per_rel)
+
+        if has_per_template_meta:
+            try:
+                template_meta = json.loads(_storage.read_text(per_rel))
+            except Exception:
+                template_meta = {}
+        else:
+            template_meta = {}
+
+        # Merge shared metadata with per-template metadata.
+        # Shared metadata gives common fields, fonts, QR placement, etc.
+        # Per-template metadata can override name, slug, thumbnail, fields, etc.
+        m = {
+            **shared_meta,
+            **template_meta,
+        }
+
+        # Slug should only come from per-template JSON.
+        # Shared metadata.json must not force every SVG to share one slug.
+        slug = (
+            template_meta.get("slug")
+            if has_per_template_meta and template_meta.get("slug")
+            else f"{category}-{stem}"
+        )
+
+        # Name should only come from per-template JSON.
+        # If no per-template name exists, generate it from SVG filename.
+        display_name = (
+            template_meta.get("name")
+            if has_per_template_meta and template_meta.get("name")
+            else _human_template_name(stem)
+        )
+
+        if slug in seen_slugs:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Duplicate card template slug detected: {slug}",
+            )
+        seen_slugs.add(slug)
+
         out.append({
             "category": category,
             "slug": slug,
-            "name": m.get("name") or Path(svg_name).stem.replace("_", " ").title(),
+            "name": display_name,
             "svg_file": svg_name,
             "thumbnail_file": m.get("thumbnail_file"),
             "editable_fields": m.get("editable_fields", []),
@@ -144,6 +198,7 @@ def _list_templates_in(category: str) -> List[Dict[str, Any]]:
             "recipient_source": (m.get("recipient_source") or "contributors"),
             "recipient_filter": m.get("recipient_filter") or [],
         })
+
     return out
 
 

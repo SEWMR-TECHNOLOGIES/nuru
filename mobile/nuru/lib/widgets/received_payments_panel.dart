@@ -2,6 +2,7 @@ import 'package:nuru/core/utils/money_format.dart' show getActiveCurrency;
 import 'package:flutter/material.dart';
 import '../core/services/received_payments_service.dart';
 import '../core/services/offline_payments_service.dart';
+import '../core/widgets/nuru_skeleton.dart';
 
 /// ReceivedPaymentsPanel — drop-in widget that shows a paginated list of
 /// payments received for an event (contributions/tickets) or a service.
@@ -142,8 +143,8 @@ class _ReceivedPaymentsPanelState extends State<ReceivedPaymentsPanel> {
 
             if (_loading)
               const Padding(
-                padding: EdgeInsets.symmetric(vertical: 24),
-                child: Center(child: CircularProgressIndicator()),
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: NuruSkeletonList(itemCount: 4, showTrailing: true, padding: EdgeInsets.zero),
               )
             else if (_error != null)
               Container(

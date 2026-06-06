@@ -880,7 +880,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               );
             }
             if (index == 3) return _feedTab == 3 ? const TrendingRail() : const SizedBox.shrink();
-            if (index == 4 && (_feedLoading || (listLen == 0 && !_feedFallbackTried && _feedTab == 0))) {
+            if (index == 4 && (_feedLoading || (listLen == 0 && !_feedFallbackTried))) {
               return const NuruSkeletonPostList(itemCount: 3);
             }
             if (index == 4 && listLen == 0) {
@@ -993,15 +993,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                   padding: const EdgeInsets.fromLTRB(16, 24, 16, 120),
                                   children: [
                                     EmptyState(
-                                      icon: _eventsSubTab == 0 ? Icons.calendar_month_outlined : _eventsSubTab == 1 ? Icons.mail_outline_rounded : Icons.groups_outlined,
+                                      icon: _eventsSubTab == 0
+                                          ? Icons.calendar_month_outlined
+                                          : _eventsSubTab == 1
+                                              ? Icons.mail_outline_rounded
+                                              : null,
+                                      iconAsset: _eventsSubTab == 2
+                                          ? 'assets/icons/users-icon.svg'
+                                          : null,
                                       title: _eventsSubTab == 0
                                           ? (_eventsSearch.isNotEmpty ? 'No matches' : 'No Events Yet')
-                                          : _eventsSubTab == 1 ? 'No invitations' : 'No committee events',
+                                          : _eventsSubTab == 1
+                                              ? 'No invitations'
+                                              : 'Not in any committee',
                                       subtitle: _eventsSubTab == 0
                                           ? (_eventsSearch.isNotEmpty
                                               ? 'Nothing matched "$_eventsSearch". Try a different keyword.'
                                               : 'Create your first event to start planning, managing guests, and tracking contributions.')
-                                          : _eventsSubTab == 1 ? 'No invitations yet' : 'Not on any committees',
+                                          : _eventsSubTab == 1
+                                              ? 'No invitations yet'
+                                              : 'You are currently not part of any event committee. When you are added to a committee, the related events will appear here.',
                                       action: _eventsSubTab == 0 && _eventsSearch.isEmpty
                                           ? SizedBox(width: 200, child: PremiumButton(label: 'Create Your First Event', icon: Icons.add_rounded, onPressed: () {
                                               Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateEventScreen()));

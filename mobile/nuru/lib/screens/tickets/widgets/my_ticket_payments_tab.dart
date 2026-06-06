@@ -1,4 +1,5 @@
 import '../../../core/widgets/nuru_refresh_indicator.dart';
+import '../../../core/widgets/nuru_skeleton.dart';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -647,12 +648,84 @@ class _MyTicketPaymentsTabState extends State<MyTicketPaymentsTab>
     );
   }
 
-  Widget _skeleton() => Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        height: 124,
-        decoration: BoxDecoration(
-            color: const Color(0xFFF3F4F6),
-            borderRadius: BorderRadius.circular(14)),
+  // Skeleton that mirrors the real payment card layout: thumb + meta
+  // column on the left, vertical divider, amount/method column on the right.
+  Widget _skeleton() => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: NuruSkeletonGroup(
+          child: Container(
+            padding: const EdgeInsets.all(11),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFFEEEEF2)),
+            ),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 6,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          NuruSkeleton.box(width: 38, height: 38, radius: 8),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                NuruSkeleton.text(width: 140, height: 11),
+                                const SizedBox(height: 6),
+                                NuruSkeleton.text(width: 60, height: 9),
+                              ],
+                            ),
+                          ),
+                        ]),
+                        const SizedBox(height: 10),
+                        NuruSkeleton.text(width: 170, height: 9),
+                        const SizedBox(height: 6),
+                        NuruSkeleton.text(width: 130, height: 9),
+                        const SizedBox(height: 6),
+                        NuruSkeleton.text(width: 90, height: 9),
+                        const SizedBox(height: 8),
+                        NuruSkeleton.box(width: 110, height: 16, radius: 5),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Container(width: 1, color: const Color(0xFFF1F2F4)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 5,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: NuruSkeleton.box(width: 70, height: 18, radius: 10),
+                        ),
+                        const SizedBox(height: 10),
+                        NuruSkeleton.text(width: 50, height: 9),
+                        const SizedBox(height: 4),
+                        NuruSkeleton.text(width: 90, height: 14),
+                        const SizedBox(height: 8),
+                        NuruSkeleton.text(width: 40, height: 9),
+                        const SizedBox(height: 4),
+                        NuruSkeleton.text(width: 80, height: 11),
+                        const SizedBox(height: 8),
+                        NuruSkeleton.text(width: 40, height: 9),
+                        const SizedBox(height: 4),
+                        NuruSkeleton.text(width: 100, height: 9),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       );
 
   Widget _empty() => Container(

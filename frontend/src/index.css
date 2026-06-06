@@ -484,13 +484,13 @@
    Targets icon imports from assets/icons via multiple selectors to cover
    both Vite dev paths (/src/assets/icons/xxx.svg) and prod hashed paths. */
 .icon-adaptive,
-img[src*="/icons/"],
-img[src*="icon-"][src$=".svg"] {
+img[src*="/icons/"]:not(.icon-original),
+img[src*="icon-"][src$=".svg"]:not(.icon-original) {
   filter: brightness(0);
 }
 .dark .icon-adaptive,
-.dark img[src*="/icons/"],
-.dark img[src*="icon-"][src$=".svg"] {
+.dark img[src*="/icons/"]:not(.icon-original),
+.dark img[src*="icon-"][src$=".svg"]:not(.icon-original) {
   filter: brightness(0) invert(1);
 }
 /* Force white icon on dark backgrounds regardless of theme */
@@ -502,22 +502,27 @@ img.invert[src*="/icons/"] {
 /* Icons inside dark-bg containers (primary buttons, active tabs, etc.) */
 .icon-on-primary .icon-adaptive,
 .bg-primary .icon-adaptive,
-.bg-primary img[src*="icon-"],
-.bg-primary img[src*="/icons/"],
+.bg-primary img[src*="icon-"]:not(.icon-original),
+.bg-primary img[src*="/icons/"]:not(.icon-original),
 [class*="bg-foreground"] .icon-adaptive,
-[class*="bg-foreground"] img[src*="icon-"],
-[class*="bg-foreground"] img[src*="/icons/"] {
+[class*="bg-foreground"] img[src*="icon-"]:not(.icon-original),
+[class*="bg-foreground"] img[src*="/icons/"]:not(.icon-original) {
   filter: brightness(0) invert(1);
 }
 .dark .icon-on-primary .icon-adaptive,
 .dark .bg-primary .icon-adaptive,
-.dark .bg-primary img[src*="icon-"],
-.dark .bg-primary img[src*="/icons/"],
+.dark .bg-primary img[src*="icon-"]:not(.icon-original),
+.dark .bg-primary img[src*="/icons/"]:not(.icon-original),
 .dark [class*="bg-foreground"] .icon-adaptive,
-.dark [class*="bg-foreground"] img[src*="icon-"],
-.dark [class*="bg-foreground"] img[src*="/icons/"] {
+.dark [class*="bg-foreground"] img[src*="icon-"]:not(.icon-original),
+.dark [class*="bg-foreground"] img[src*="/icons/"]:not(.icon-original) {
   filter: brightness(0);
 }
+/* Opt-out class to preserve original SVG colors (e.g. brand store badges) */
+img.icon-original {
+  filter: none !important;
+}
+
 
 /* Nuru Official shimmer animation */
 @keyframes nuru-shimmer {

@@ -8,6 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/event_groups_service.dart';
+import '../../../core/widgets/nuru_skeleton.dart';
 
 /// AnalyticsPanel — Contribution Progress, AI Insight, time-series bar chart,
 /// Method/Status donuts and Engagement & Chat insights.
@@ -95,7 +96,7 @@ class _AnalyticsPanelState extends State<AnalyticsPanel> {
   @override
   Widget build(BuildContext context) {
     if (_loading && _rows.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
+      return const NuruSkeletonList(itemCount: 5, showTrailing: true);
     }
     if (_rows.isEmpty) {
       return _empty();

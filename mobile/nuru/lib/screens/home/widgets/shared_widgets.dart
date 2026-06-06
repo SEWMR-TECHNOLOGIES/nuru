@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
 
@@ -54,35 +55,70 @@ class SectionHeader extends StatelessWidget {
   }
 }
 
-/// Empty state — clean, modern
+/// Empty state — clean, modern. Pass [iconAsset] to render a Nuru SVG icon
+/// from `assets/icons/` (preferred); falls back to the Material [icon] if no
+/// asset is supplied. Keeps legacy callers compiling.
 class EmptyState extends StatelessWidget {
-  final IconData icon;
+  final IconData? icon;
+  final String? iconAsset;
   final String title;
   final String subtitle;
   final Widget? action;
 
-  const EmptyState({super.key, required this.icon, required this.title, required this.subtitle, this.action});
+  const EmptyState({
+    super.key,
+    this.icon,
+    this.iconAsset,
+    required this.title,
+    required this.subtitle,
+    this.action,
+  }) : assert(icon != null || iconAsset != null,
+            'Provide either icon or iconAsset');
 
   @override
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 48),
+        padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 28),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 64, height: 64,
+              width: 72, height: 72,
               decoration: BoxDecoration(
-                color: AppColors.surfaceVariant,
-                borderRadius: BorderRadius.circular(18),
+                color: AppColors.primarySoft,
+                borderRadius: BorderRadius.circular(22),
               ),
-              child: Icon(icon, size: 28, color: AppColors.textTertiary),
+              alignment: Alignment.center,
+              child: iconAsset != null
+                  ? SvgPicture.asset(
+                      iconAsset!,
+                      width: 30,
+                      height: 30,
+                      colorFilter: const ColorFilter.mode(
+                          AppColors.primary, BlendMode.srcIn),
+                    )
+                  : Icon(icon, size: 30, color: AppColors.primary),
             ),
-            const SizedBox(height: 20),
-            Text(title, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.3)),
+            const SizedBox(height: 18),
+            Text(
+              title,
+              textAlign: TextAlign.center,
+              style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary,
+                  height: 1.3),
+            ),
             const SizedBox(height: 6),
-            Text(subtitle, style: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary, height: 1.5), textAlign: TextAlign.center),
+            Text(
+              subtitle,
+              style: GoogleFonts.inter(
+                  fontSize: 13,
+                  color: AppColors.textTertiary,
+                  height: 1.5),
+              textAlign: TextAlign.center,
+            ),
             if (action != null) ...[const SizedBox(height: 24), action!],
           ],
         ),
