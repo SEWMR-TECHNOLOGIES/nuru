@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/nuru_skeleton.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../core/widgets/nuru_refresh_indicator.dart';
 import '../../core/widgets/nuru_scrollable_tabs.dart';
@@ -372,7 +373,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
         ],
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? const NuruSkeletonList(itemCount: 6, showTrailing: true)
           : NuruRefreshIndicator(
               onRefresh: _refreshActiveTab,
               color: AppColors.primary,
@@ -698,7 +699,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
       _composeRow(),
       const SizedBox(height: 12),
       if (_postsLoading)
-        const Padding(padding: EdgeInsets.symmetric(vertical: 24), child: CircularProgressIndicator(color: AppColors.primary))
+        const NuruSkeletonPostList(itemCount: 3, padding: EdgeInsets.symmetric(horizontal: 16))
       else if (_posts.isEmpty)
         _comingSoon('No posts yet', 'Be the first to share with the community.')
       else
@@ -1012,7 +1013,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
 
   Widget _membersTab() {
     if (_membersLoading) {
-      return const Padding(padding: EdgeInsets.symmetric(vertical: 24), child: Center(child: CircularProgressIndicator(color: AppColors.primary)));
+      return const NuruSkeletonList(itemCount: 6);
     }
     if (_members.isEmpty) {
       return _comingSoon('No members yet', 'Members will appear here.');
@@ -1229,7 +1230,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
           const Divider(height: 1, color: Color(0xFFEDEDF2)),
           Expanded(
             child: _loading
-                ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+                ? const NuruSkeletonList(itemCount: 5)
                 : (_comments.isEmpty
                     ? Center(
                         child: Column(mainAxisSize: MainAxisSize.min, children: [

@@ -206,6 +206,24 @@ class MyContributionsTabState extends State<MyContributionsTab>
     final pendingCount = ((_summary['pending_count'] as num?)?.toInt() ?? 0)
         + ((_summary['active_pledges'] as num?)?.toInt() ?? 0);
 
+    final tiles = [
+      _StatTileData(
+        asset: 'assets/icons/wallet-icon.svg',
+        label: 'Total Pledged',
+        value: formatMoney(totalPledged, currency: currency),
+      ),
+      _StatTileData(
+        asset: 'assets/icons/card-icon.svg',
+        label: 'Total Paid',
+        value: formatMoney(totalPaid, currency: currency),
+      ),
+      _StatTileData(
+        asset: 'assets/icons/donation-icon.svg',
+        label: 'Pending',
+        value: '$pendingCount',
+      ),
+    ];
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
       decoration: BoxDecoration(
@@ -216,59 +234,84 @@ class MyContributionsTabState extends State<MyContributionsTab>
           BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 12, offset: const Offset(0, 2)),
         ],
       ),
-      child: Row(children: [
-        Expanded(child: _statTile(
-          asset: 'assets/icons/wallet-icon.svg',
-          label: 'Total Pledged',
-          value: formatMoney(totalPledged, currency: currency),
-        )),
-        Container(width: 1, height: 44, color: AppColors.borderLight),
-        Expanded(child: _statTile(
-          asset: 'assets/icons/card-icon.svg',
-          label: 'Total Paid',
-          value: formatMoney(totalPaid, currency: currency),
-        )),
-        Container(width: 1, height: 44, color: AppColors.borderLight),
-        Expanded(child: _statTile(
-          asset: 'assets/icons/donation-icon.svg',
-          label: 'Pending',
-          value: '$pendingCount',
-        )),
-      ]),
+      // Adaptive layout: stack vertically on narrow devices so currency
+      // amounts (e.g. "TZS 1,250,000") are never truncated. On wider
+      // screens keep the original 3-up row.
+      child: LayoutBuilder(
+        builder: (ctx, c) {
+          final stacked = c.maxWidth < 360;
+          if (stacked) {
+            return Column(
+              children: [
+                for (var i = 0; i < tiles.length; i++) ...[
+                  _statTile(asset: tiles[i].asset, label: tiles[i].label, value: tiles[i].value, stacked: true),
+                  if (i != tiles.length - 1)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Container(height: 1, color: AppColors.borderLight),
+                    ),
+                ],
+              ],
+            );
+          }
+          return Row(children: [
+            Expanded(child: _statTile(asset: tiles[0].asset, label: tiles[0].label, value: tiles[0].value)),
+            Container(width: 1, height: 44, color: AppColors.borderLight),
+            Expanded(child: _statTile(asset: tiles[1].asset, label: tiles[1].label, value: tiles[1].value)),
+            Container(width: 1, height: 44, color: AppColors.borderLight),
+            Expanded(child: _statTile(asset: tiles[2].asset, label: tiles[2].label, value: tiles[2].value)),
+          ]);
+        },
+      ),
     );
   }
 
-  Widget _statTile({required String asset, required String label, required String value}) {
+  Widget _statTile({required String asset, required String label, required String value, bool stacked = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Row(children: [
         Container(
-          width: 30, height: 30,
+          width: 32, height: 32,
           decoration: BoxDecoration(
             color: AppColors.primary.withOpacity(0.12),
             borderRadius: BorderRadius.circular(10),
           ),
           alignment: Alignment.center,
           child: SvgPicture.asset(
-            asset, width: 15, height: 15,
+            asset, width: 16, height: 16,
             colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn),
           ),
         ),
-        const SizedBox(width: 6),
+        const SizedBox(width: 8),
         Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Text(label, maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.inter(fontSize: 9.5, color: AppColors.textTertiary, fontWeight: FontWeight.w500)),
+              style: GoogleFonts.inter(fontSize: 10.5, color: AppColors.textTertiary, fontWeight: FontWeight.w600)),
             const SizedBox(height: 2),
-            Text(value, maxLines: 1, overflow: TextOverflow.ellipsis,
-              style: GoogleFonts.inter(
-                fontSize: 10.5, fontWeight: FontWeight.w800, color: AppColors.primary, height: 1.1,
-              )),
+            // FittedBox + scaleDown keeps long amounts readable on every
+            // screen size without truncating with an ellipsis.
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                value,
+                maxLines: 1,
+                softWrap: false,
+                style: GoogleFonts.inter(
+                  fontSize: stacked ? 14 : 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.primary,
+                  height: 1.1,
+                ),
+              ),
+            ),
           ]),
         ),
       ]),
     );
   }
+
+
 
   // ── Search ──────────────────────────────────────────────────────
   Widget _searchBar() {
@@ -643,4 +686,11 @@ class MyContributionsTabState extends State<MyContributionsTab>
     try { return DateFormat('d MMM yyyy').format(DateTime.parse(iso).toLocal()); }
     catch (_) { return iso.split('T').first; }
   }
+}
+
+class _StatTileData {
+  final String asset;
+  final String label;
+  final String value;
+  const _StatTileData({required this.asset, required this.label, required this.value});
 }

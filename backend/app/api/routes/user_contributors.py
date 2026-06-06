@@ -50,7 +50,15 @@ def _wa_block(wa: Optional[dict]) -> dict:
     }
 
 
-def _contributor_dict(c: UserContributor, wa_map: Optional[dict] = None) -> dict:
+def _contributor_dict(c: UserContributor, wa_map: Optional[dict] = None,
+                      nuru_user_map: Optional[dict] = None) -> dict:
+    """Serialize a UserContributor. Enriches with linked Nuru user (avatar +
+    flag) so the mobile address book can show real profile pictures whenever
+    the contributor has a Nuru account. Resolution order:
+      1. The persisted contributor_user_id FK (loaded relationship)
+      2. nuru_user_map: phone -> {id, profile_picture_url, name} prepared by
+         the caller via a single batched query (avoids N+1).
+    """
     from utils.phone_numbers import normalize_phone
     wa_primary = None
     wa_secondary = None
@@ -62,10 +70,28 @@ def _contributor_dict(c: UserContributor, wa_map: Optional[dict] = None) -> dict
         if sp:
             n2 = normalize_phone(sp).get("normalized")
             wa_secondary = wa_map.get(n2) if n2 else None
+
+    linked_user = None
+    try:
+        linked_user = c.contributor_user
+    except Exception:
+        linked_user = None
+    if linked_user is None and nuru_user_map and c.phone:
+        key = _normalize_phone_digits(c.phone)
+        if key:
+            linked_user = nuru_user_map.get(key)
+
+    nuru_user_id = None
+    avatar_url = None
+    if linked_user is not None:
+        nuru_user_id = str(getattr(linked_user, "id", "") or "") or None
+        avatar_url = getattr(linked_user, "profile_picture_url", None) or \
+            getattr(linked_user, "provider_avatar_url", None)
+
     return {
         "id": str(c.id),
         "user_id": str(c.user_id),
-        "contributor_user_id": str(c.contributor_user_id) if c.contributor_user_id else None,
+        "contributor_user_id": str(c.contributor_user_id) if c.contributor_user_id else nuru_user_id,
         "name": c.name,
         "email": c.email,
         "phone": c.phone,
@@ -75,10 +101,47 @@ def _contributor_dict(c: UserContributor, wa_map: Optional[dict] = None) -> dict
         "notify_target": getattr(c, "notify_target", None) or "primary",
         "created_at": c.created_at.isoformat() if c.created_at else None,
         "updated_at": c.updated_at.isoformat() if c.updated_at else None,
+        # Linked Nuru-account enrichment (avatar + flag for the mobile address book).
+        "is_nuru_user": linked_user is not None,
+        "avatar_url": avatar_url,
+        "nuru_user": ({
+            "id": nuru_user_id,
+            "avatar_url": avatar_url,
+            "name": getattr(linked_user, "full_name", None) or getattr(linked_user, "name", None),
+        } if linked_user is not None else None),
         # WhatsApp availability (cached; never blocks request path)
         **_wa_block(wa_primary),
         "secondary_whatsapp": _wa_block(wa_secondary) if getattr(c, "secondary_phone", None) else None,
     }
+
+
+def _build_nuru_user_map(db: Session, contribs) -> dict:
+    """Batch-resolve Nuru users for a list of contributors by last-9-digit
+    phone match. Returns {last9_digits: User}. Skips contributors that
+    already have contributor_user_id set."""
+    digits = set()
+    for c in contribs:
+        if getattr(c, "contributor_user_id", None):
+            continue
+        p = getattr(c, "phone", None)
+        if not p:
+            continue
+        d = _normalize_phone_digits(p)
+        if d:
+            digits.add(d)
+    if not digits:
+        return {}
+    from sqlalchemy import func as _f
+    rows = db.query(User).filter(
+        User.phone.isnot(None),
+        _f.right(_f.regexp_replace(User.phone, r'[^0-9]', '', 'g'), 9).in_(list(digits)),
+    ).all()
+    out = {}
+    for u in rows:
+        d = _normalize_phone_digits(u.phone or "")
+        if d and d not in out:
+            out[d] = u
+    return out
 
 
 def _normalize_phone_digits(phone: str) -> str:
@@ -367,7 +430,9 @@ def get_all_contributors(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    q = db.query(UserContributor).filter(UserContributor.user_id == current_user.id)
+    q = db.query(UserContributor).options(
+        joinedload(UserContributor.contributor_user)
+    ).filter(UserContributor.user_id == current_user.id)
 
     if search:
         like = f"%{search}%"
@@ -393,9 +458,13 @@ def get_all_contributors(
 
     from utils.whatsapp_availability import statuses_by_phones
     wa_map = statuses_by_phones(db, _collect_contributor_phones(contributors))
+    nuru_user_map = _build_nuru_user_map(db, contributors)
 
     return standard_response(True, "Contributors fetched", {
-        "contributors": [_contributor_dict(c, wa_map=wa_map) for c in contributors],
+        "contributors": [
+            _contributor_dict(c, wa_map=wa_map, nuru_user_map=nuru_user_map)
+            for c in contributors
+        ],
         "pagination": {
             "page": page,
             "limit": limit,

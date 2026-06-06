@@ -4,6 +4,7 @@ import { ArrowUpRight } from "lucide-react";
 import Layout from "@/components/layout/Layout";
 import { useMeta } from "@/hooks/useMeta";
 import LivingLedgerHero from "@/components/landing/LivingLedgerHero";
+import DownloadAppSection from "@/components/landing/DownloadAppSection";
 
 /**
  * Landing page — copy is grounded in the official Nuru Workspace
@@ -391,6 +392,9 @@ const Index = () => {
           </div>
         </div>
       </section>
+
+      {/* ── 8. Download app ─────────────────────────────────────── */}
+      <DownloadAppSection />
     </Layout>
   );
 };

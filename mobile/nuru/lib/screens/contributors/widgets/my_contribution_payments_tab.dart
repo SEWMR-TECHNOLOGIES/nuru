@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/received_payments_service.dart';
@@ -8,6 +9,7 @@ import '../../../core/widgets/nuru_pagination.dart';
 import '../../../core/widgets/nuru_skeleton.dart';
 import '../../../core/widgets/app_icon.dart';
 import '../../payments/payment_receipt_screen.dart';
+import '../contribution_details_screen.dart';
 
 String _prettyTag(String raw) {
   if (raw.isEmpty) return raw;
@@ -315,9 +317,19 @@ class _MyContributionPaymentsTabState extends State<MyContributionPaymentsTab>
             border: Border.all(color: _filter == 'all' ? _hair : _navy),
           ),
           child: Center(
-            child: AppIcon('filter',
-                size: 18,
-                color: _filter == 'all' ? _navy : Colors.white),
+            // Direct SvgPicture (rather than AppIcon) — on iOS, AppIcon's
+            // colorFilter rendering on stroke-only SVGs occasionally
+            // produced an invisible glyph. Using SvgPicture.asset with an
+            // explicit srcIn ColorFilter is reliable on both platforms.
+            child: SvgPicture.asset(
+              'assets/icons/filter-icon.svg',
+              width: 20,
+              height: 20,
+              colorFilter: ColorFilter.mode(
+                _filter == 'all' ? _navy : Colors.white,
+                BlendMode.srcIn,
+              ),
+            ),
           ),
         ),
       ),
@@ -539,10 +551,11 @@ class _MyContributionPaymentsTabState extends State<MyContributionPaymentsTab>
         : 0.0;
     final code = (p['transaction_code'] ?? '').toString();
     final eventName = (p['event_name'] ?? '').toString();
-    final desc = (p['description'] ?? 'Event Contribution')
-        .toString()
-        .replaceFirst(RegExp(r'^\s*Nuru\s*[·•\-:]\s*', caseSensitive: false), '')
-        .replaceFirst(RegExp(r'^\s*Nuru\s+', caseSensitive: false), '');
+    // Always show a clean fixed label — event name is rendered separately
+    // as the subtitle, and the raw backend description
+    // (`Nuru · Event Contribution · For {event} · by {payer} · ref …`)
+    // would otherwise duplicate it.
+    const desc = 'Event Contribution';
     final method = (p['method_type'] ?? '').toString();
     final provider = (p['provider_name'] ?? '').toString();
     final ts = (p['completed_at'] ?? p['confirmed_at'] ?? p['initiated_at'])
@@ -744,12 +757,23 @@ class _MyContributionPaymentsTabState extends State<MyContributionPaymentsTab>
                                       height: 26,
                                       child: ElevatedButton.icon(
                                         onPressed: () {
+                                          final eid = p['event_id']?.toString() ?? '';
+                                          if (eid.isEmpty) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(content: Text('Cannot retry: event not found.')),
+                                            );
+                                            return;
+                                          }
                                           Navigator.push(
                                             context,
                                             MaterialPageRoute(
-                                              builder: (_) =>
-                                                  PaymentReceiptScreen(
-                                                      payment: p),
+                                              builder: (_) => ContributionDetailsScreen(
+                                                initialEvent: {
+                                                  'event_id': eid,
+                                                  'event_name': p['event_name'] ?? '',
+                                                  'event_cover_image': p['event_cover_image'] ?? '',
+                                                },
+                                              ),
                                             ),
                                           );
                                         },
