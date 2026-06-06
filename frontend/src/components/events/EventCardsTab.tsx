@@ -17,6 +17,8 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import SentCardsPanel from "./SentCardsPanel";
 import { Loader2 } from "lucide-react";
 import {
   eventCardsApi,
@@ -1075,10 +1077,19 @@ export default function EventCardsTab({ eventId }: Props) {
   const lockedIds = new Set(activeTemplate?.metadata?.locked_ids || []);
 
   return (
-    <div className="space-y-6">
+    <Tabs defaultValue="templates" className="space-y-4">
+      <TabsList>
+        <TabsTrigger value="templates">Templates</TabsTrigger>
+        <TabsTrigger value="sent">Sent Cards</TabsTrigger>
+      </TabsList>
+      <TabsContent value="sent" className="mt-4">
+        <SentCardsPanel eventId={eventId} />
+      </TabsContent>
+      <TabsContent value="templates" className="mt-4 space-y-6">
       {/* Category pills */}
       {categories.length > 1 && (
         <div className="flex flex-wrap gap-2">
+
           {categories.map((c) => (
             <button
               key={c.category}
@@ -1375,8 +1386,10 @@ export default function EventCardsTab({ eventId }: Props) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </TabsContent>
+    </Tabs>
   );
+
 }
 
 interface BatchesViewProps {

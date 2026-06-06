@@ -10,6 +10,33 @@
  */
 import { get, post, put, resolveApiBaseUrl } from "./helpers";
 
+export interface SentCardTemplateSummary {
+  template_id: string;
+  event_card_id: string;
+  slug: string;
+  name: string;
+  category: string;
+  thumbnail_url?: string | null;
+  recipient_count: number;
+  total_sends: number;
+  last_sent_at?: string | null;
+}
+
+export type WhatsAppStatus = "on_whatsapp" | "not_on_whatsapp" | "unknown";
+
+export interface SentCardRecipient {
+  sent_id: string;
+  recipient_name: string;
+  recipient_phone?: string | null;
+  rendered_card_url?: string | null;
+  sent_at?: string | null;
+  delivery_status?: string | null;
+  delivery_channel?: string | null;
+  whatsapp_status: WhatsAppStatus;
+}
+
+
+
 export interface CardCategory {
   category: string;
   name: string;
@@ -143,6 +170,44 @@ export const eventCardsApi = {
         pre_rendered_images: preRenderedImages || undefined,
       },
     ),
+
+  // ── Sent Cards browser ────────────────────────────────────────────
+  listSentCardTemplates: (eventId: string) =>
+    get<{ templates: SentCardTemplateSummary[] }>(`/events/${eventId}/sent-cards/templates`),
+
+  listSentCardRecipients: (eventId: string, templateId: string) =>
+    get<{ recipients: SentCardRecipient[] }>(
+      `/events/${eventId}/sent-cards/templates/${encodeURIComponent(templateId)}/recipients`,
+    ),
+
+  /** Streams a ZIP of PNGs or a combined PDF back to the browser. */
+  downloadSentCards: async (
+    eventId: string,
+    sentIds: string[],
+    format: "images" | "pdf",
+  ): Promise<{ blob: Blob; filename: string }> => {
+    const base = resolveApiBaseUrl();
+    const helpers: any = await import("./helpers");
+    const authHeaders =
+      (typeof helpers.getAuthHeaders === "function" ? await helpers.getAuthHeaders() : null) || {};
+    const resp = await fetch(`${base}/events/${eventId}/sent-cards/download`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...authHeaders },
+      body: JSON.stringify({ sent_ids: sentIds, format }),
+    });
+    if (!resp.ok) {
+      let detail = `Download failed (${resp.status})`;
+      try { const j = await resp.json(); detail = j?.detail || j?.message || detail; } catch {}
+      throw new Error(detail);
+    }
+    const dispo = resp.headers.get("content-disposition") || "";
+    const m = dispo.match(/filename="?([^";]+)"?/i);
+    const filename = m?.[1] || (format === "pdf" ? "cards.pdf" : "cards.zip");
+    const blob = await resp.blob();
+    return { blob, filename };
+  },
+
+
 
   /** Direct URL helpers (these endpoints return image bytes, not JSON). */
   previewPngUrl: (eventId: string, category: string, opts?: { contributorId?: string; width?: number }) => {
