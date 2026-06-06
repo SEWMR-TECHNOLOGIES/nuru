@@ -1657,8 +1657,45 @@ def download_sent_cards(
     if not items:
         raise HTTPException(status_code=404, detail="No generated cards are available for download yet.")
 
-    import io
+    import io, time
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+
+    def _png_to_pdf_bytes(png_bytes: bytes) -> bytes:
+        from PIL import Image
+        from reportlab.pdfgen import canvas
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.utils import ImageReader
+        page_w, page_h = A4
+        margin = 24.0
+        avail_w = page_w - 2 * margin
+        avail_h = page_h - 2 * margin
+        img = Image.open(io.BytesIO(png_bytes))
+        iw, ih = img.size
+        scale = min(avail_w / max(iw, 1), avail_h / max(ih, 1))
+        w = iw * scale
+        h = ih * scale
+        x = (page_w - w) / 2
+        y = (page_h - h) / 2
+        pbuf = io.BytesIO()
+        c = canvas.Canvas(pbuf, pagesize=A4)
+        c.drawImage(
+            ImageReader(io.BytesIO(png_bytes)),
+            x, y, width=w, height=h,
+            preserveAspectRatio=True, mask='auto',
+        )
+        c.showPage()
+        c.save()
+        return pbuf.getvalue()
+
     if fmt == "images":
+        # Single image → return raw PNG, no zip (fast).
+        if len(items) == 1:
+            item = items[0]
+            return Response(
+                content=item["png"],
+                media_type="image/png",
+                headers={"Content-Disposition": f'attachment; filename="{item["filename"]}"'},
+            )
         import zipfile
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
@@ -1672,49 +1709,45 @@ def download_sent_cards(
                 else:
                     seen_names[name] = 1
                 zf.writestr(name, item["png"])
-        buf.seek(0)
-        zname = f"{event_seg}_cards.zip"
+        zname = f"invitation_cards_{timestamp}.zip"
         return Response(
             content=buf.getvalue(),
             media_type="application/zip",
             headers={"Content-Disposition": f'attachment; filename="{zname}"'},
         )
 
-    # PDF: one card per page, A4, preserve aspect ratio, centered.
-    from PIL import Image
-    from reportlab.pdfgen import canvas
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib.utils import ImageReader
-    page_w, page_h = A4
-    margin = 24.0
-    avail_w = page_w - 2 * margin
-    avail_h = page_h - 2 * margin
+    # PDF
+    if len(items) == 1:
+        item = items[0]
+        pdf = _png_to_pdf_bytes(item["png"])
+        base = os.path.splitext(item["filename"])[0]
+        return Response(
+            content=pdf,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f'attachment; filename="{base}.pdf"'},
+        )
+    # Multiple PDFs → zip of per-recipient PDFs (names = contributor).
+    import zipfile
     buf = io.BytesIO()
-    c = canvas.Canvas(buf, pagesize=A4)
-    for item in items:
-        try:
-            img = Image.open(io.BytesIO(item["png"]))
-            iw, ih = img.size
-            if iw <= 0 or ih <= 0:
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        seen_names: Dict[str, int] = {}
+        for item in items:
+            try:
+                pdf = _png_to_pdf_bytes(item["png"])
+            except Exception as exc:
+                print(f"[sent_cards_download] pdf gen failed: {exc!r}")
                 continue
-            scale = min(avail_w / iw, avail_h / ih)
-            w = iw * scale
-            h = ih * scale
-            x = (page_w - w) / 2
-            y = (page_h - h) / 2
-            c.drawImage(
-                ImageReader(io.BytesIO(item["png"])),
-                x, y, width=w, height=h,
-                preserveAspectRatio=True, mask='auto',
-            )
-            c.showPage()
-        except Exception as exc:
-            print(f"[sent_cards_download] pdf page failed: {exc!r}")
-            continue
-    c.save()
-    pname = f"{event_seg}_selected-cards.pdf"
+            base = os.path.splitext(item["filename"])[0]
+            name = f"{base}.pdf"
+            if name in seen_names:
+                seen_names[name] += 1
+                name = f"{base}-{seen_names[name]}.pdf"
+            else:
+                seen_names[name] = 1
+            zf.writestr(name, pdf)
+    zname = f"invitation_cards_{timestamp}.zip"
     return Response(
         content=buf.getvalue(),
-        media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{pname}"'},
+        media_type="application/zip",
+        headers={"Content-Disposition": f'attachment; filename="{zname}"'},
     )

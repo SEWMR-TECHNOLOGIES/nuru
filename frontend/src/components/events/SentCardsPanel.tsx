@@ -90,6 +90,7 @@ export default function SentCardsPanel({ eventId }: Props) {
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
+  const [waFilter, setWaFilter] = useState<"all" | "whatsapp" | "normal">("all");
   const [downloading, setDownloading] = useState<"images" | "pdf" | null>(null);
 
   const refreshTemplates = useCallback(async () => {
@@ -112,6 +113,7 @@ export default function SentCardsPanel({ eventId }: Props) {
     setActiveTemplate(tpl);
     setSelectedIds(new Set());
     setSearch("");
+    setWaFilter("all");
     setLoadingRecipients(true);
     setRecipientsError(null);
     setRecipients([]);
@@ -126,14 +128,29 @@ export default function SentCardsPanel({ eventId }: Props) {
     }
   }, [eventId]);
 
+  const counts = useMemo(() => {
+    let whatsapp = 0;
+    let normal = 0;
+    for (const r of recipients) {
+      if (r.whatsapp_status === "on_whatsapp") whatsapp += 1;
+      else if (r.whatsapp_status === "not_on_whatsapp") normal += 1;
+    }
+    return { all: recipients.length, whatsapp, normal };
+  }, [recipients]);
+
   const filteredRecipients = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return recipients;
-    return recipients.filter((r) =>
-      (r.recipient_name || "").toLowerCase().includes(q) ||
-      (r.recipient_phone || "").toLowerCase().includes(q),
-    );
-  }, [recipients, search]);
+    return recipients.filter((r) => {
+      if (waFilter === "whatsapp" && r.whatsapp_status !== "on_whatsapp") return false;
+      if (waFilter === "normal" && r.whatsapp_status !== "not_on_whatsapp") return false;
+      if (!q) return true;
+      return (
+        (r.recipient_name || "").toLowerCase().includes(q) ||
+        (r.recipient_phone || "").toLowerCase().includes(q)
+      );
+    });
+  }, [recipients, search, waFilter]);
+
 
   const allFilteredSelected =
     filteredRecipients.length > 0 &&
@@ -162,22 +179,114 @@ export default function SentCardsPanel({ eventId }: Props) {
 
   const clearSelection = () => setSelectedIds(new Set());
 
+  const safeSeg = (s: string) =>
+    (s || "").trim().replace(/[^a-zA-Z0-9._-]+/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "") || "card";
+
+  const timestamp = () =>
+    new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+
+  // Fetch a card URL → Blob (CORS-friendly; falls back to fetch w/o mode).
+  const fetchCardBlob = async (url: string): Promise<Blob> => {
+    try {
+      const r = await fetch(url, { mode: "cors", cache: "force-cache" });
+      if (r.ok) return await r.blob();
+    } catch {}
+    const r2 = await fetch(url, { cache: "force-cache" });
+    if (!r2.ok) throw new Error(`Failed to fetch card (${r2.status})`);
+    return await r2.blob();
+  };
+
+  const blobToDataUrl = (blob: Blob): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const fr = new FileReader();
+      fr.onload = () => resolve(String(fr.result));
+      fr.onerror = () => reject(fr.error);
+      fr.readAsDataURL(blob);
+    });
+
+  const loadImageSize = (dataUrl: string): Promise<{ w: number; h: number }> =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+      img.onerror = () => reject(new Error("Image decode failed"));
+      img.src = dataUrl;
+    });
+
   const doDownload = async (format: "images" | "pdf") => {
     if (selectedIds.size === 0) {
       toast({ title: "Select recipients first", description: "Pick at least one recipient to download.", variant: "destructive" });
       return;
     }
+    const chosen = recipients.filter(
+      (r) => selectedIds.has(r.sent_id) && !!r.rendered_card_url,
+    );
+    if (chosen.length === 0) {
+      toast({ title: "No card image", description: "Selected recipients have no rendered card yet.", variant: "destructive" });
+      return;
+    }
     setDownloading(format);
     try {
-      const { blob, filename } = await eventCardsApi.downloadSentCards(
-        eventId,
-        Array.from(selectedIds),
-        format,
+      // Fetch every selected card in parallel — high quality, original PNG.
+      const fetched = await Promise.all(
+        chosen.map(async (r) => ({
+          rec: r,
+          blob: await fetchCardBlob(r.rendered_card_url as string),
+        })),
       );
-      triggerBlobDownload(blob, filename);
+
+      if (format === "images") {
+        if (fetched.length === 1) {
+          const { rec, blob } = fetched[0];
+          triggerBlobDownload(blob, `${safeSeg(rec.recipient_name || "card")}.png`);
+        } else {
+          const { default: JSZip } = await import("jszip");
+          const zip = new JSZip();
+          const used = new Set<string>();
+          for (const { rec, blob } of fetched) {
+            let base = safeSeg(rec.recipient_name || "card");
+            let name = `${base}.png`;
+            let i = 2;
+            while (used.has(name)) name = `${base}_${i++}.png`;
+            used.add(name);
+            zip.file(name, blob);
+          }
+          const out = await zip.generateAsync({ type: "blob" });
+          triggerBlobDownload(out, `invitation_cards_${timestamp()}.zip`);
+        }
+      } else {
+        // PDF: always one combined PDF, one page per card (no zip — zipped PDFs were unreadable).
+        const { jsPDF } = await import("jspdf");
+        // Decode all images first so we can size each page to the source PNG (max quality, no scaling loss).
+        const pages = await Promise.all(
+          fetched.map(async ({ rec, blob }) => {
+            const dataUrl = await blobToDataUrl(blob);
+            const { w, h } = await loadImageSize(dataUrl);
+            return { rec, dataUrl, w, h };
+          }),
+        );
+        const first = pages[0];
+        const pdf = new jsPDF({
+          orientation: first.w >= first.h ? "landscape" : "portrait",
+          unit: "px",
+          format: [first.w, first.h],
+          compress: true,
+        });
+        pdf.addImage(first.dataUrl, "PNG", 0, 0, first.w, first.h, undefined, "FAST");
+        for (let i = 1; i < pages.length; i++) {
+          const p = pages[i];
+          pdf.addPage([p.w, p.h], p.w >= p.h ? "landscape" : "portrait");
+          pdf.addImage(p.dataUrl, "PNG", 0, 0, p.w, p.h, undefined, "FAST");
+        }
+        const filename =
+          pages.length === 1
+            ? `${safeSeg(pages[0].rec.recipient_name || "card")}.pdf`
+            : `invitation_cards_${timestamp()}.pdf`;
+        pdf.save(filename);
+      }
+
       toast({
-        title: format === "pdf" ? "PDF ready" : "Images ready",
-        description: `Downloaded ${selectedIds.size} card${selectedIds.size === 1 ? "" : "s"}.`,
+        title: format === "pdf" ? "PDF ready" : fetched.length === 1 ? "Card downloaded" : "Cards ready",
+        description: `Downloaded ${fetched.length} card${fetched.length === 1 ? "" : "s"}.`,
       });
     } catch (err: any) {
       toast({
@@ -189,6 +298,7 @@ export default function SentCardsPanel({ eventId }: Props) {
       setDownloading(null);
     }
   };
+
 
   // ── Render: template list ───────────────────────────────────────
   if (!activeTemplate) {
@@ -263,6 +373,31 @@ export default function SentCardsPanel({ eventId }: Props) {
             Last sent {formatDate(activeTemplate.last_sent_at)}
           </p>
         </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        {(["all", "whatsapp", "normal"] as const).map((key) => {
+          const label = key === "all" ? "All" : key === "whatsapp" ? "WhatsApp" : "Normal";
+          const count = counts[key];
+          const active = waFilter === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => { setWaFilter(key); setSelectedIds(new Set()); }}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium transition ${
+                active
+                  ? "border-primary bg-primary text-primary-foreground"
+                  : "border-border bg-background text-foreground hover:bg-muted"
+              }`}
+            >
+              {label}
+              <span className={`rounded-full px-1.5 py-0.5 text-[10px] ${active ? "bg-primary-foreground/20" : "bg-muted text-muted-foreground"}`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
