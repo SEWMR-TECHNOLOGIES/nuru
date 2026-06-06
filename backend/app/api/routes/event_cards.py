@@ -1404,3 +1404,317 @@ def public_card_by_token_landing(token: str, db: Session = Depends(get_db)):
  <p>Plan Smarter. Celebrate Better.</p>
 </body></html>"""
     return HTMLResponse(content=html)
+
+
+# ──────────────────────────────────────────────
+# Sent Cards browsing + bulk download (read-only, reuses existing
+# rendered_card_url stored at send time; never regenerates new storage
+# files. Streams ad-hoc ZIP/PDF exports back to the organiser.)
+# ──────────────────────────────────────────────
+
+_SAFE_FNAME_RE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def _safe_filename_segment(value: str, fallback: str = "card", max_len: int = 60) -> str:
+    s = (value or "").strip()
+    if not s:
+        return fallback
+    s = _SAFE_FNAME_RE.sub("-", s).strip("-_.")
+    if not s:
+        return fallback
+    return s[:max_len]
+
+
+def _derive_whatsapp_status(row: SentEventCard) -> str:
+    """Best-effort WhatsApp availability label using existing send records."""
+    if row.whatsapp_message_id:
+        return "on_whatsapp"
+    err = (row.error_message or "").lower()
+    if "not_on_whatsapp" in err:
+        return "not_on_whatsapp"
+    ch = (row.delivery_channel or "").lower()
+    if "whatsapp" in ch:
+        return "on_whatsapp"
+    return "unknown"
+
+
+def _get_sent_card_png_bytes(db: Session, row: SentEventCard) -> Optional[bytes]:
+    """Reuse the already-generated card. Tries (1) on-disk cache, (2) the
+    saved rendered_card_url, (3) on-the-fly server render as last resort.
+    Never writes to persistent storage."""
+    cache_key = f"{row.id}.png"
+    cached = _storage.cache_get(cache_key)
+    if cached:
+        return cached
+    url = row.rendered_card_url
+    if url and url.startswith(("http://", "https://")):
+        try:
+            import httpx
+            with httpx.Client(timeout=20.0, follow_redirects=True) as client:
+                resp = client.get(url)
+                if resp.status_code == 200 and resp.content:
+                    return resp.content
+        except Exception as exc:
+            print(f"[sent_cards_download] fetch failed for sid={row.id}: {exc!r}")
+    try:
+        ec = (
+            db.query(EventCard).filter(EventCard.id == row.event_card_id).first()
+            if row.event_card_id
+            else None
+        )
+        if not ec:
+            ec = (
+                db.query(EventCard)
+                .filter(EventCard.event_id == row.event_id, EventCard.is_active.is_(True))
+                .first()
+            )
+        if not ec:
+            return None
+        tpl = db.query(CardTemplate).filter(CardTemplate.id == ec.card_template_id).first()
+        event = db.query(Event).filter(Event.id == row.event_id).first()
+        if not tpl or not event:
+            return None
+        svg, _ec, _tpl = _render_event_card_svg(
+            db, event, ec.category,
+            contributor_name=row.recipient_name,
+            qr_payload=row.recipient_qr_payload,
+        )
+        png = _render_png_bytes(svg, tpl, width=1080)
+        if png:
+            _storage.cache_put(cache_key, png)
+        return png
+    except Exception as exc:
+        print(f"[sent_cards_download] render fallback failed for sid={row.id}: {exc!r}")
+        return None
+
+
+@router.get("/events/{event_id}/sent-cards/templates")
+def list_sent_card_templates(
+    event_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Unique card templates that have at least one delivery record for this
+    event, with recipient counts and the most-recent send timestamp."""
+    event = _assert_event_manager(db, event_id, current_user)
+    rows = (
+        db.query(SentEventCard, EventCard, CardTemplate)
+        .join(EventCard, SentEventCard.event_card_id == EventCard.id)
+        .join(CardTemplate, EventCard.card_template_id == CardTemplate.id)
+        .filter(SentEventCard.event_id == event.id)
+        .all()
+    )
+    by_tpl: Dict[str, Dict[str, Any]] = {}
+    recipients_seen: Dict[str, set] = {}
+    for s, ec, t in rows:
+        key = str(t.id)
+        entry = by_tpl.get(key)
+        if not entry:
+            entry = {
+                "template_id": str(t.id),
+                "event_card_id": str(ec.id),
+                "slug": t.slug,
+                "name": t.name,
+                "category": t.category,
+                "thumbnail_url": (
+                    f"/api/v1/cards/templates/{t.slug}/asset/{(t.metadata_json or {}).get('thumbnail_file')}"
+                    if (t.metadata_json or {}).get("thumbnail_file") else None
+                ),
+                "recipient_count": 0,
+                "total_sends": 0,
+                "last_sent_at": None,
+            }
+            by_tpl[key] = entry
+            recipients_seen[key] = set()
+        entry["total_sends"] += 1
+        rkey = str(s.contributor_id or s.guest_attendee_id or s.recipient_phone or s.id)
+        recipients_seen[key].add(rkey)
+        ts = s.sent_at or s.created_at
+        if ts:
+            iso = ts.isoformat()
+            if not entry["last_sent_at"] or iso > entry["last_sent_at"]:
+                entry["last_sent_at"] = iso
+    out = []
+    for k, entry in by_tpl.items():
+        entry["recipient_count"] = len(recipients_seen.get(k, set()))
+        out.append(entry)
+    out.sort(key=lambda x: x.get("last_sent_at") or "", reverse=True)
+    return standard_response(True, "OK", {"templates": out})
+
+
+@router.get("/events/{event_id}/sent-cards/templates/{template_id}/recipients")
+def list_sent_card_recipients(
+    event_id: str,
+    template_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Latest send per recipient for a given template."""
+    event = _assert_event_manager(db, event_id, current_user)
+    try:
+        tpl_uuid = uuid.UUID(template_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid template id")
+    ec_ids = [
+        ec.id for ec in db.query(EventCard).filter(
+            EventCard.event_id == event.id,
+            EventCard.card_template_id == tpl_uuid,
+        ).all()
+    ]
+    if not ec_ids:
+        return standard_response(True, "OK", {"recipients": []})
+    rows = (
+        db.query(SentEventCard)
+        .filter(SentEventCard.event_id == event.id, SentEventCard.event_card_id.in_(ec_ids))
+        .order_by(SentEventCard.sent_at.desc().nullslast(), SentEventCard.created_at.desc())
+        .all()
+    )
+    latest: Dict[str, SentEventCard] = {}
+    for r in rows:
+        key = str(r.contributor_id or r.guest_attendee_id or r.recipient_phone or r.id)
+        if key in latest:
+            continue
+        latest[key] = r
+    api_base = _public_api_base(os.getenv("API_PUBLIC_HOST", "nuru.tz"))
+    out = []
+    for r in latest.values():
+        url = r.rendered_card_url or f"{api_base}/api/v1/cards/public/{r.id}.png"
+        ts = r.sent_at or r.created_at
+        out.append({
+            "sent_id": str(r.id),
+            "recipient_name": r.recipient_name,
+            "recipient_phone": r.recipient_phone,
+            "rendered_card_url": url,
+            "sent_at": ts.isoformat() if ts else None,
+            "delivery_status": r.delivery_status,
+            "delivery_channel": r.delivery_channel,
+            "whatsapp_status": _derive_whatsapp_status(r),
+        })
+    out.sort(key=lambda x: (x.get("recipient_name") or "").lower())
+    return standard_response(True, "OK", {"recipients": out})
+
+
+@router.post("/events/{event_id}/sent-cards/download")
+def download_sent_cards(
+    event_id: str,
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Bundle the most recent generated card for each selected recipient
+    into either a ZIP of PNGs or a single PDF. The existing rendered_card_url
+    is reused — no new card files are persisted."""
+    event = _assert_event_manager(db, event_id, current_user)
+    raw_ids = body.get("sent_ids") or []
+    fmt = (body.get("format") or "images").lower()
+    if fmt not in ("images", "pdf"):
+        raise HTTPException(status_code=400, detail="format must be 'images' or 'pdf'")
+    if not isinstance(raw_ids, list) or not raw_ids:
+        raise HTTPException(status_code=400, detail="sent_ids is required")
+    try:
+        uuids = [uuid.UUID(str(x)) for x in raw_ids]
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid sent_id in list")
+    rows = (
+        db.query(SentEventCard)
+        .filter(SentEventCard.event_id == event.id, SentEventCard.id.in_(uuids))
+        .all()
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="No matching sent cards on this event.")
+
+    ec_ids = {r.event_card_id for r in rows if r.event_card_id}
+    ec_map: Dict[Any, EventCard] = {}
+    if ec_ids:
+        for ec in db.query(EventCard).filter(EventCard.id.in_(ec_ids)).all():
+            ec_map[ec.id] = ec
+    tpl_map: Dict[Any, CardTemplate] = {}
+    tpl_ids = {ec.card_template_id for ec in ec_map.values()}
+    if tpl_ids:
+        for t in db.query(CardTemplate).filter(CardTemplate.id.in_(tpl_ids)).all():
+            tpl_map[t.id] = t
+
+    event_seg = _safe_filename_segment(event.name or "event", fallback="event")
+
+    items: List[Dict[str, Any]] = []
+    for r in rows:
+        png = _get_sent_card_png_bytes(db, r)
+        if not png:
+            continue
+        ec = ec_map.get(r.event_card_id) if r.event_card_id else None
+        tpl = tpl_map.get(ec.card_template_id) if ec else None
+        tpl_name = tpl.name if tpl else "card"
+        name_parts = [
+            event_seg,
+            _safe_filename_segment(tpl_name, fallback="card"),
+            _safe_filename_segment(r.recipient_name or "guest", fallback="guest"),
+        ]
+        if r.recipient_phone:
+            name_parts.append(_safe_filename_segment(r.recipient_phone, fallback=""))
+        fname = "_".join([p for p in name_parts if p]) + ".png"
+        items.append({"filename": fname, "png": png})
+
+    if not items:
+        raise HTTPException(status_code=404, detail="No generated cards are available for download yet.")
+
+    import io
+    if fmt == "images":
+        import zipfile
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+            seen_names: Dict[str, int] = {}
+            for item in items:
+                name = item["filename"]
+                if name in seen_names:
+                    seen_names[name] += 1
+                    base, ext = os.path.splitext(name)
+                    name = f"{base}-{seen_names[name]}{ext}"
+                else:
+                    seen_names[name] = 1
+                zf.writestr(name, item["png"])
+        buf.seek(0)
+        zname = f"{event_seg}_cards.zip"
+        return Response(
+            content=buf.getvalue(),
+            media_type="application/zip",
+            headers={"Content-Disposition": f'attachment; filename="{zname}"'},
+        )
+
+    # PDF: one card per page, A4, preserve aspect ratio, centered.
+    from PIL import Image
+    from reportlab.pdfgen import canvas
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.utils import ImageReader
+    page_w, page_h = A4
+    margin = 24.0
+    avail_w = page_w - 2 * margin
+    avail_h = page_h - 2 * margin
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    for item in items:
+        try:
+            img = Image.open(io.BytesIO(item["png"]))
+            iw, ih = img.size
+            if iw <= 0 or ih <= 0:
+                continue
+            scale = min(avail_w / iw, avail_h / ih)
+            w = iw * scale
+            h = ih * scale
+            x = (page_w - w) / 2
+            y = (page_h - h) / 2
+            c.drawImage(
+                ImageReader(io.BytesIO(item["png"])),
+                x, y, width=w, height=h,
+                preserveAspectRatio=True, mask='auto',
+            )
+            c.showPage()
+        except Exception as exc:
+            print(f"[sent_cards_download] pdf page failed: {exc!r}")
+            continue
+    c.save()
+    pname = f"{event_seg}_selected-cards.pdf"
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{pname}"'},
+    )
