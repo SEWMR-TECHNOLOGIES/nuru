@@ -22,6 +22,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import pytz
 from passlib.hash import bcrypt
+from sqlalchemy.exc import IntegrityError
 
 from core.celery_app import celery_app
 from core.database import SessionLocal
@@ -95,9 +96,10 @@ def _resolve_or_create_user(db, raw_phone: str, full_name: str, registered_by: s
 
 
     plus_form = f"+{normalized}"
+    username = f"u{normalized}"
     existing = (
         db.query(User)
-        .filter((User.phone == normalized) | (User.phone == plus_form))
+        .filter((User.phone == normalized) | (User.phone == plus_form) | (User.username == username))
         .first()
     )
     if existing:
@@ -114,13 +116,22 @@ def _resolve_or_create_user(db, raw_phone: str, full_name: str, registered_by: s
         first_name=first_name,
         last_name=last_name or first_name,
         phone=normalized,
-        username=f"u{normalized}",
-        password=bcrypt.hash("Nuru@2026"),
-        registered_by=registered_by or None,
+        username=username,
+        password_hash=bcrypt.hash("Nuru@2026"),
     )
     db.add(user)
     try:
         db.flush()
+    except IntegrityError:
+        db.rollback()
+        existing_after_race = (
+            db.query(User)
+            .filter((User.phone == normalized) | (User.phone == plus_form) | (User.username == username))
+            .first()
+        )
+        if existing_after_race:
+            return (existing_after_race, False, None)
+        return (None, False, "Could not create user because that phone or username already exists")
     except Exception as e:
         db.rollback()
         return (None, False, f"Could not create user: {e}")
@@ -345,18 +356,21 @@ def process_member_import_job(self, job_id: str) -> Dict[str, Any]:
                 else:
                     duplicate_count += 1
             except Exception as e:  # pragma: no cover
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
                 failure_count += 1
                 errors.append({"row": row_num, "message": str(e)})
             finally:
-                if (idx + 1) % 25 == 0:
-                    job.processed_rows = idx + 1
-                    job.successful_rows = success_count
-                    job.reused_rows = reused_count
-                    job.duplicate_rows = duplicate_count
-                    job.invalid_phone_rows = invalid_phone_count
-                    job.failed_rows = failure_count
-                    job.errors = errors
-                    db.commit()
+                job.processed_rows = idx + 1
+                job.successful_rows = success_count
+                job.reused_rows = reused_count
+                job.duplicate_rows = duplicate_count
+                job.invalid_phone_rows = invalid_phone_count
+                job.failed_rows = failure_count
+                job.errors = errors
+                db.commit()
 
         db.commit()
 
