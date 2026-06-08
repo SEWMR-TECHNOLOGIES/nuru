@@ -745,9 +745,15 @@ def send_pledge_thank_you_cards(
     dispatch_event_id = event.id
     dispatch_sender_user_id = current_user.id
 
+    # When True, we create SentEventCard rows in 'prepared' state and skip
+    # the WhatsApp/SMS dispatch entirely. The organiser can later browse
+    # them under the Prepared Cards tab and send them in bulk.
+    prepare_only = bool(body.get("prepare_only"))
+
     raw_guest_ids = body.get("guest_ids")
     raw_contrib_ids = body.get("contributor_ids")
     is_guest_dispatch = bool(raw_guest_ids)
+
 
     if is_guest_dispatch:
         if not isinstance(raw_guest_ids, list) or not raw_guest_ids:
@@ -801,12 +807,18 @@ def send_pledge_thank_you_cards(
         if not attendees:
             raise HTTPException(status_code=404, detail="No selected guests found on this event.")
         for att in attendees:
-            # Display name — reuse the canonical resolver from user_events.
-            try:
-                from api.routes.user_events import _resolve_guest_name as _grn
-                display_name = _grn(db, att) or att.guest_name or "Guest"
-            except Exception:
-                display_name = att.guest_name or "Guest"
+            # Display name — prefer the organiser-supplied common_name (e.g.
+            # "Mr & Mrs Mpinzile") for cards, then fall back to the canonical
+            # resolver from user_events.
+            common = (getattr(att, "common_name", None) or "").strip()
+            if common:
+                display_name = common
+            else:
+                try:
+                    from api.routes.user_events import _resolve_guest_name as _grn
+                    display_name = _grn(db, att) or att.guest_name or "Guest"
+                except Exception:
+                    display_name = att.guest_name or "Guest"
             # Phone — attendee → linked user → linked contributor → guest_phone.
             phone = None
             if att.attendee_id:
@@ -872,6 +884,32 @@ def send_pledge_thank_you_cards(
             pre_url = pre_rendered.get(str(ec.id))
             if pre_url:
                 sid_to_pre_rendered[str(sent.id)] = pre_url
+
+    # ── Prepare-only path: stash rows under 'prepared' and stop here. ──
+    # The browser-side pre-rendered URL (if any) is recorded on
+    # ``rendered_card_url`` so the Prepared Cards tab can render a thumbnail
+    # immediately without re-running the SVG renderer.
+    if prepare_only:
+        for sid in sent_card_ids:
+            try:
+                row = db.query(SentEventCard).filter(SentEventCard.id == uuid.UUID(sid)).first()
+            except Exception:
+                row = None
+            if not row:
+                continue
+            row.delivery_status = "prepared"
+            pre_url = sid_to_pre_rendered.get(sid)
+            if pre_url and not row.rendered_card_url:
+                row.rendered_card_url = pre_url
+        db.commit()
+        return standard_response(
+            True,
+            f"Prepared {len(sent_card_ids)} cards.",
+            {"prepared": len(sent_card_ids), "sent_ids": [str(x) for x in sent_card_ids]},
+        )
+
+
+
 
 
 
@@ -1250,6 +1288,184 @@ def send_pledge_thank_you_cards(
 
 
 # ──────────────────────────────────────────────
+# Prepared Cards (status='prepared' rows on sent_event_cards)
+# Three-tab Cards layout: Templates / Prepared / Sent.
+# Preparing = create the per-recipient SentEventCard row without dispatching.
+# Sending later flips the status and reuses the existing dispatch path.
+# ──────────────────────────────────────────────
+
+
+@router.get("/events/{event_id}/prepared-cards")
+def list_prepared_cards(
+    event_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    event = _assert_event_manager(db, event_id, current_user)
+    rows = (
+        db.query(SentEventCard)
+        .filter(
+            SentEventCard.event_id == event.id,
+            SentEventCard.delivery_status == "prepared",
+        )
+        .order_by(SentEventCard.created_at.desc())
+        .all()
+    )
+    ec_ids = {r.event_card_id for r in rows if r.event_card_id}
+    ecs = {
+        ec.id: ec
+        for ec in db.query(EventCard).filter(EventCard.id.in_(ec_ids)).all()
+    } if ec_ids else {}
+    tpl_ids = {ec.card_template_id for ec in ecs.values() if ec.card_template_id}
+    tpls = {
+        t.id: t
+        for t in db.query(CardTemplate).filter(CardTemplate.id.in_(tpl_ids)).all()
+    } if tpl_ids else {}
+
+    items = []
+    for r in rows:
+        ec = ecs.get(r.event_card_id) if r.event_card_id else None
+        tpl = tpls.get(ec.card_template_id) if ec and ec.card_template_id else None
+        items.append({
+            "sent_id": str(r.id),
+            "recipient_type": "guest" if r.guest_attendee_id else "contributor",
+            "recipient_id": str(r.guest_attendee_id or r.contributor_id or ""),
+            "recipient_name": r.recipient_name,
+            "recipient_phone": r.recipient_phone,
+            "rendered_card_url": r.rendered_card_url,
+            "category": ec.category if ec else None,
+            "template_id": str(tpl.id) if tpl else None,
+            "template_slug": tpl.slug if tpl else None,
+            "template_name": tpl.name if tpl else None,
+            "prepared_at": r.created_at.isoformat() if r.created_at else None,
+        })
+    return standard_response(True, "OK", {"prepared_cards": items})
+
+
+@router.post("/events/{event_id}/prepared-cards/discard")
+def discard_prepared_cards(
+    event_id: str,
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    event = _assert_event_manager(db, event_id, current_user)
+    raw_ids = body.get("sent_ids") or []
+    if not isinstance(raw_ids, list) or not raw_ids:
+        raise HTTPException(status_code=400, detail="sent_ids is required")
+    try:
+        uuids = [uuid.UUID(str(x)) for x in raw_ids]
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid sent_id")
+    rows = (
+        db.query(SentEventCard)
+        .filter(
+            SentEventCard.event_id == event.id,
+            SentEventCard.id.in_(uuids),
+            SentEventCard.delivery_status == "prepared",
+        )
+        .all()
+    )
+    n = 0
+    for r in rows:
+        db.delete(r)
+        n += 1
+    db.commit()
+    return standard_response(True, f"Discarded {n} prepared cards.", {"discarded": n})
+
+
+@router.post("/events/{event_id}/prepared-cards/send")
+def send_prepared_cards(
+    event_id: str,
+    body: dict = Body(...),
+    background_tasks: BackgroundTasks = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Send a set of previously prepared cards.
+
+    Reuses the existing dispatch path by deleting the prepared placeholder rows
+    and re-invoking ``send_pledge_thank_you_cards`` per category — the
+    pre-rendered URL recorded at prepare time (``rendered_card_url``) is
+    forwarded as ``pre_rendered_images`` so we never re-render server-side.
+    """
+    event = _assert_event_manager(db, event_id, current_user)
+    raw_ids = body.get("sent_ids") or []
+    if not isinstance(raw_ids, list) or not raw_ids:
+        raise HTTPException(status_code=400, detail="sent_ids is required")
+    try:
+        uuids = [uuid.UUID(str(x)) for x in raw_ids]
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid sent_id")
+
+    rows = (
+        db.query(SentEventCard)
+        .filter(
+            SentEventCard.event_id == event.id,
+            SentEventCard.id.in_(uuids),
+            SentEventCard.delivery_status == "prepared",
+        )
+        .all()
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="No prepared cards selected.")
+
+    ec_ids = {r.event_card_id for r in rows if r.event_card_id}
+    ecs = {
+        ec.id: ec
+        for ec in db.query(EventCard).filter(EventCard.id.in_(ec_ids)).all()
+    } if ec_ids else {}
+
+    # bucket by (category, recipient_kind)
+    buckets: Dict[tuple, Dict[str, Any]] = {}
+    for r in rows:
+        ec = ecs.get(r.event_card_id) if r.event_card_id else None
+        if not ec:
+            continue
+        kind = "guest" if r.guest_attendee_id else "contributor"
+        key = (ec.category, kind)
+        b = buckets.setdefault(key, {"ids": [], "pre_rendered": {}})
+        rec_id = str(r.guest_attendee_id if kind == "guest" else r.contributor_id)
+        b["ids"].append(rec_id)
+        if r.rendered_card_url:
+            b["pre_rendered"][rec_id] = r.rendered_card_url
+
+    # Drop the placeholder rows so the dispatch can mint fresh ones with
+    # the proper QR / stable-token wiring.
+    for r in rows:
+        db.delete(r)
+    db.commit()
+
+    total_queued = 0
+    for (cat, kind), b in buckets.items():
+        inner_body: Dict[str, Any] = {"pre_rendered_images": b["pre_rendered"]}
+        if kind == "guest":
+            inner_body["guest_ids"] = b["ids"]
+        else:
+            inner_body["contributor_ids"] = b["ids"]
+        try:
+            resp = send_pledge_thank_you_cards(
+                event_id=str(event.id),
+                category=cat,
+                body=inner_body,
+                background_tasks=background_tasks,
+                db=db,
+                current_user=current_user,
+            )
+            data = (resp or {}).get("data") if isinstance(resp, dict) else None
+            total_queued += int((data or {}).get("queued", 0))
+        except Exception as exc:
+            print(f"[prepared_cards_send] dispatch failed cat={cat} kind={kind}: {exc!r}")
+
+    return standard_response(
+        True,
+        f"Sending {total_queued} prepared cards.",
+        {"queued": total_queued},
+    )
+
+
+
+# ──────────────────────────────────────────────
 # Public (no-auth) endpoints
 # ──────────────────────────────────────────────
 
@@ -1501,7 +1717,12 @@ def list_sent_card_templates(
         db.query(SentEventCard, EventCard, CardTemplate)
         .join(EventCard, SentEventCard.event_card_id == EventCard.id)
         .join(CardTemplate, EventCard.card_template_id == CardTemplate.id)
-        .filter(SentEventCard.event_id == event.id)
+        .filter(
+            SentEventCard.event_id == event.id,
+            # Hide the "prepared but not yet sent" rows — they live on the
+            # Prepared Cards tab. Sent Cards only shows actual deliveries.
+            SentEventCard.delivery_status != "prepared",
+        )
         .all()
     )
     by_tpl: Dict[str, Dict[str, Any]] = {}
@@ -1565,7 +1786,11 @@ def list_sent_card_recipients(
         return standard_response(True, "OK", {"recipients": []})
     rows = (
         db.query(SentEventCard)
-        .filter(SentEventCard.event_id == event.id, SentEventCard.event_card_id.in_(ec_ids))
+        .filter(
+            SentEventCard.event_id == event.id,
+            SentEventCard.event_card_id.in_(ec_ids),
+            SentEventCard.delivery_status != "prepared",
+        )
         .order_by(SentEventCard.sent_at.desc().nullslast(), SentEventCard.created_at.desc())
         .all()
     )

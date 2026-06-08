@@ -241,6 +241,9 @@ export interface EventGuest {
   user_id?: string;
   contributor_id?: string;
   name: string;
+  /** Optional display label used on invitation cards (e.g. "Mr & Mrs Doe").
+   *  Falls back to `name` when blank. */
+  common_name?: string;
   avatar?: string;
   email?: string;
   phone?: string;

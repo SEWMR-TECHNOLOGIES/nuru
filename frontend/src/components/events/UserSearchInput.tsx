@@ -120,7 +120,23 @@ const UserSearchInput = ({ onSelect, placeholder = "Search by email or phone..."
       </div>
 
       {showDropdown && query.length >= 2 && (
-        <div className="absolute z-50 w-full mt-1 bg-background border border-border rounded-lg shadow-lg max-h-72 overflow-y-auto">
+        <div className="absolute z-50 w-full mt-1 bg-background border border-border rounded-lg shadow-lg max-h-[28rem] overflow-y-auto">
+          {/* Always-visible "register missing member" affordance — organisers
+              don't need to wait for empty results to add someone new. The
+              backend signup endpoint still de-dupes by phone so an existing
+              user is reused instead of being created twice. */}
+          {allowRegister && !showRegisterForm && (
+            <div className="flex items-center justify-between gap-2 p-2 border-b border-border bg-muted/30">
+              <p className="text-xs text-muted-foreground">
+                Can't find them?
+              </p>
+              <Button size="sm" variant="ghost" onClick={() => setShowRegisterForm(true)}>
+                <UserPlus className="w-4 h-4 mr-1.5" />
+                Register missing member
+              </Button>
+            </div>
+          )}
+
           {/* Loading skeleton */}
           {loading && (
             <div className="p-2 space-y-2">
@@ -159,20 +175,10 @@ const UserSearchInput = ({ onSelect, placeholder = "Search by email or phone..."
             </button>
           ))}
 
-          {/* No results — register option */}
-          {noResults && allowRegister && !showRegisterForm && (
-            <div className="p-4 text-center">
-              <p className="text-sm text-muted-foreground mb-3">No users found for "{query}"</p>
-              <Button size="sm" variant="outline" onClick={() => setShowRegisterForm(true)}>
-                <UserPlus className="w-4 h-4 mr-2" />
-                Register New User
-              </Button>
-            </div>
-          )}
-
-          {noResults && !allowRegister && (
-            <div className="p-3 text-sm text-muted-foreground text-center">
-              No users found
+          {/* No-results hint (registration is already available above) */}
+          {noResults && !showRegisterForm && (
+            <div className="p-3 text-xs text-muted-foreground text-center">
+              No users found for "{query}".
             </div>
           )}
 
@@ -199,12 +205,20 @@ const UserSearchInput = ({ onSelect, placeholder = "Search by email or phone..."
                 value={registerData.phone}
                 onChange={(e) => setRegisterData(prev => ({ ...prev, phone: e.target.value }))}
               />
+              <Input
+                placeholder="Email (optional)"
+                value={registerData.email}
+                onChange={(e) => setRegisterData(prev => ({ ...prev, email: e.target.value }))}
+              />
               <div className="flex gap-2">
                 <Button size="sm" className="flex-1" onClick={handleRegister} disabled={registering}>
                   {registering ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Registering...</> : "Register & Select"}
                 </Button>
                 <Button size="sm" variant="outline" onClick={() => setShowRegisterForm(false)}>Cancel</Button>
               </div>
+              <p className="text-xs text-muted-foreground">
+                If this phone is already registered, the existing user will be selected instead of creating a duplicate.
+              </p>
               <p className="text-xs text-muted-foreground">Default password: Nuru@2026</p>
             </div>
           )}

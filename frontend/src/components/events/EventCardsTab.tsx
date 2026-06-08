@@ -19,6 +19,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import SentCardsPanel from "./SentCardsPanel";
+import PreparedCardsPanel from "./PreparedCardsPanel";
+
 import { Loader2 } from "lucide-react";
 import {
   eventCardsApi,
@@ -553,7 +555,15 @@ export default function EventCardsTab({ eventId }: Props) {
     [eventId, activeTemplate?.slug],
   );
 
-  const openSend = useCallback(async () => {
+  // When true, the batch flow stages the rendered cards on the Prepared
+  // Cards tab instead of dispatching them via WhatsApp/SMS immediately.
+  const prepareModeRef = useRef(false);
+  const [prepareModeUi, setPrepareModeUi] = useState(false);
+
+  const openSend = useCallback(async (opts: { prepareOnly?: boolean } = {}) => {
+    const prepareOnly = !!opts.prepareOnly;
+    prepareModeRef.current = prepareOnly;
+    setPrepareModeUi(prepareOnly);
     let activeSavedCard = savedCard;
 
     if (audience === "guests" && !activeSavedCard) {
@@ -581,6 +591,7 @@ export default function EventCardsTab({ eventId }: Props) {
     }
     setSendOpen(true);
   }, [savedCard, audience, persistActiveCard, fetchEventContributors, fetchEventGuests, currentJobId]);
+
 
   const toggleContributor = (id: string) => {
     setSelectedContributorIds((prev) => {
@@ -937,18 +948,28 @@ export default function EventCardsTab({ eventId }: Props) {
       }
       updateProgress(undefined, "sending");
       try {
+        const prepareOnly = prepareModeRef.current;
         if (isGuestRun) {
-          await eventCardsApi.sendToGuests(eventId, activeCategory, preparedIds, preRendered);
+          if (prepareOnly) {
+            await eventCardsApi.prepareForGuests(eventId, activeCategory, preparedIds, preRendered);
+          } else {
+            await eventCardsApi.sendToGuests(eventId, activeCategory, preparedIds, preRendered);
+          }
         } else {
-          await eventCardsApi.sendToContributors(eventId, activeCategory, preparedIds, preRendered);
+          if (prepareOnly) {
+            await eventCardsApi.prepareForContributors(eventId, activeCategory, preparedIds, preRendered);
+          } else {
+            await eventCardsApi.sendToContributors(eventId, activeCategory, preparedIds, preRendered);
+          }
         }
         return { sentIds: preparedIds, failed: attemptedFailed, rendererStuck, unattempted };
       } catch (e: any) {
-        const reason = e?.message || "Send request failed";
+        const reason = e?.message || (prepareModeRef.current ? "Prepare request failed" : "Send request failed");
         preparedIds.forEach((id) => attemptedFailed.push({ recipient_id: id, name: idToName[id] || (isGuestRun ? "Guest" : "Friend"), reason }));
         return { sentIds: [], failed: attemptedFailed, rendererStuck, unattempted };
       }
     },
+
     [activeTemplate, activeCategory, eventId, values, eligibleContributors, audience],
   );
 
@@ -1080,11 +1101,16 @@ export default function EventCardsTab({ eventId }: Props) {
     <Tabs defaultValue="templates" className="space-y-4">
       <TabsList>
         <TabsTrigger value="templates">Templates</TabsTrigger>
+        <TabsTrigger value="prepared">Prepared Cards</TabsTrigger>
         <TabsTrigger value="sent">Sent Cards</TabsTrigger>
       </TabsList>
+      <TabsContent value="prepared" className="mt-4">
+        <PreparedCardsPanel eventId={eventId} />
+      </TabsContent>
       <TabsContent value="sent" className="mt-4">
         <SentCardsPanel eventId={eventId} />
       </TabsContent>
+
       <TabsContent value="templates" className="mt-4 space-y-6">
       {/* Category pills */}
       {categories.length > 1 && (
@@ -1204,11 +1230,20 @@ export default function EventCardsTab({ eventId }: Props) {
                 </Button>
                 <Button
                   variant="outline"
+                  onClick={() => { void openSend({ prepareOnly: true }); }}
+                  disabled={saving || (!savedCard && audience !== "guests")}
+                  title="Render cards now and stage them on the Prepared Cards tab without sending"
+                >
+                  Prepare cards
+                </Button>
+                <Button
+                  variant="outline"
                   onClick={() => { void openSend(); }}
                   disabled={saving || (!savedCard && audience !== "guests")}
                 >
                   Send to {recipientNounPlural}
                 </Button>
+
               </div>
             </CardContent>
           </Card>
@@ -1246,12 +1281,14 @@ export default function EventCardsTab({ eventId }: Props) {
         <DialogContent className="max-w-2xl h-[90vh] flex flex-col p-0 gap-0">
           <DialogHeader className="px-6 pt-6 pb-3 shrink-0 border-b border-border">
             <DialogTitle>
-              {sendStep === "pick" ? `Send card to ${recipientNounPlural}` : "Send in batches"}
+              {sendStep === "pick"
+                ? (prepareModeUi ? `Prepare cards for ${recipientNounPlural}` : `Send card to ${recipientNounPlural}`)
+                : (prepareModeUi ? "Prepare in batches" : "Send in batches")}
             </DialogTitle>
             <DialogDescription>
               {sendStep === "pick"
-                ? `Pick ${recipientNounPlural} and choose a batch size. You'll send each batch manually.`
-                : "Send each batch manually. The browser only processes one batch at a time."}
+                ? `Pick ${recipientNounPlural} and choose a batch size. You'll ${prepareModeUi ? "prepare" : "send"} each batch manually.`
+                : `${prepareModeUi ? "Prepare" : "Send"} each batch manually. The browser only processes one batch at a time.`}
             </DialogDescription>
           </DialogHeader>
 
@@ -1361,6 +1398,7 @@ export default function EventCardsTab({ eventId }: Props) {
                 persistBatches(batches.map((b) => (b.batch_no === n ? { ...b, sent_ids: [], failed: [], status: "not_sent", started_at: undefined, finished_at: undefined } : b)));
               }}
               onCancelActive={cancelActiveBatch}
+              prepareMode={prepareModeUi}
             />
           )}
           </div>
@@ -1417,6 +1455,7 @@ interface BatchesViewProps {
   onResendAll: (n: number) => void;
   onClearReport: (n: number) => void;
   onCancelActive: () => void;
+  prepareMode?: boolean;
 }
 
 const STATUS_LABELS: Record<BatchStatus, string> = {
@@ -1441,8 +1480,15 @@ const STATUS_BADGE: Record<BatchStatus, string> = {
 
 function BatchesView({
   batches, batchSize, activeBatchNo, activeBatchProgress, recipientInfo,
-  onSendBatch, onRetryFailed, onSafeRetry, onResetRenderer, onResendAll, onClearReport, onCancelActive,
+  onSendBatch, onRetryFailed, onSafeRetry, onResetRenderer, onResendAll, onClearReport, onCancelActive, prepareMode,
 }: BatchesViewProps) {
+  const verb = prepareMode ? "Prepare" : "Send";
+  const verbLower = prepareMode ? "prepare" : "send";
+  const pastTense = prepareMode ? "prepared" : "sent";
+  const presentTense = prepareMode ? "Preparing" : "Sending";
+  const STATUS_LABELS_LOCAL: Record<BatchStatus, string> = prepareMode
+    ? { ...STATUS_LABELS, not_sent: "Not prepared", sending: "Preparing", sent: "Prepared" }
+    : STATUS_LABELS;
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const toggle = (n: number) => setExpanded((p) => {
     const next = new Set(p);
@@ -1461,7 +1507,7 @@ function BatchesView({
     <div className="space-y-3">
       <div className="rounded-lg border border-border bg-muted/30 p-3 text-xs space-y-1">
         <p className="font-medium text-foreground">
-          {totalSelected} selected · {totalSent} sent · {totalFailed} failed · {totalPending} pending
+          {totalSelected} selected · {totalSent} {pastTense} · {totalFailed} failed · {totalPending} pending
         </p>
         <p className="text-muted-foreground">
           {completed} of {batches.length} batches completed · {remaining} remaining · batch size {batchSize}
@@ -1490,11 +1536,11 @@ function BatchesView({
                       Batch {b.batch_no} · {start}–{end} of {totalSelected}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {b.recipient_ids.length} recipients · sent {sentCount} · failed {failedCount} · pending {pendingCount}
+                      {b.recipient_ids.length} recipients · {pastTense} {sentCount} · failed {failedCount} · pending {pendingCount}
                     </p>
                   </div>
                   <span className={`text-[10px] uppercase tracking-wide px-2 py-0.5 rounded-full font-medium ${STATUS_BADGE[b.status]}`}>
-                    {STATUS_LABELS[b.status]}
+                    {STATUS_LABELS_LOCAL[b.status]}
                   </span>
                 </div>
 
@@ -1502,7 +1548,7 @@ function BatchesView({
                   <div className="text-xs text-muted-foreground space-y-1">
                     <p className="font-medium text-foreground">
                       {activeBatchProgress.phase === "sending"
-                        ? `Sending prepared cards…`
+                        ? (prepareMode ? "Staging prepared cards…" : "Sending prepared cards…")
                         : `Card ${Math.min(activeBatchProgress.done + 1, activeBatchProgress.total)} of ${activeBatchProgress.total}${activeBatchProgress.currentName ? `: ${activeBatchProgress.currentName}` : ""}`}
                     </p>
                     <p>
@@ -1528,12 +1574,12 @@ function BatchesView({
                 <div className="flex flex-wrap gap-2">
                   {b.status === "not_sent" && (
                     <Button size="sm" onClick={() => onSendBatch(b.batch_no)} disabled={activeBatchNo !== null}>
-                      {isActive ? <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> Sending</> : "Send batch"}
+                      {isActive ? <><Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> {presentTense}</> : `${verb} batch`}
                     </Button>
                   )}
                   {(b.status === "partial_failure" || b.status === "cancelled" || b.status === "renderer_stuck") && pendingCount > 0 && (
                     <Button size="sm" onClick={() => onSendBatch(b.batch_no)} disabled={activeBatchNo !== null}>
-                      Send remaining ({pendingCount})
+                      {verb} remaining ({pendingCount})
                     </Button>
                   )}
                   {failedCount > 0 && (
@@ -1548,7 +1594,7 @@ function BatchesView({
                   )}
                   {(b.status === "sent" || b.status === "partial_failure" || b.status === "failed" || b.status === "cancelled" || b.status === "renderer_stuck") && (
                     <Button size="sm" variant="ghost" onClick={() => onResendAll(b.batch_no)} disabled={activeBatchNo !== null}>
-                      Resend all
+                      {prepareMode ? "Re-prepare all" : "Resend all"}
                     </Button>
                   )}
                   {b.status === "sent" && (

@@ -35,6 +35,22 @@ export interface SentCardRecipient {
   whatsapp_status: WhatsAppStatus;
 }
 
+export interface PreparedCard {
+  sent_id: string;
+  recipient_type: "guest" | "contributor";
+  recipient_id: string;
+  recipient_name: string;
+  recipient_phone?: string | null;
+  rendered_card_url?: string | null;
+  category?: string | null;
+  template_id?: string | null;
+  template_slug?: string | null;
+  template_name?: string | null;
+  prepared_at?: string | null;
+}
+
+
+
 
 
 export interface CardCategory {
@@ -170,6 +186,51 @@ export const eventCardsApi = {
         pre_rendered_images: preRenderedImages || undefined,
       },
     ),
+
+  // ── Prepared Cards (status='prepared' rows). ─────────────────────
+  /** Identical to send, but only creates the per-recipient SentEventCard
+   *  rows — no WhatsApp/SMS dispatch. Pre-rendered URLs (if provided) are
+   *  stashed on the row so the Prepared Cards tab can show thumbnails. */
+  prepareForContributors: (
+    eventId: string,
+    category: string,
+    contributorIds: string[],
+    preRenderedImages?: Record<string, string>,
+  ) =>
+    post<{ prepared: number; sent_ids: string[] }>(
+      `/events/${eventId}/cards/${encodeURIComponent(category)}/send`,
+      {
+        contributor_ids: contributorIds,
+        pre_rendered_images: preRenderedImages || undefined,
+        prepare_only: true,
+      },
+    ),
+
+  prepareForGuests: (
+    eventId: string,
+    category: string,
+    guestIds: string[],
+    preRenderedImages?: Record<string, string>,
+  ) =>
+    post<{ prepared: number; sent_ids: string[] }>(
+      `/events/${eventId}/cards/${encodeURIComponent(category)}/send`,
+      {
+        guest_ids: guestIds,
+        pre_rendered_images: preRenderedImages || undefined,
+        prepare_only: true,
+      },
+    ),
+
+  listPreparedCards: (eventId: string) =>
+    get<{ prepared_cards: PreparedCard[] }>(`/events/${eventId}/prepared-cards`),
+
+  sendPreparedCards: (eventId: string, sentIds: string[]) =>
+    post<{ queued: number }>(`/events/${eventId}/prepared-cards/send`, { sent_ids: sentIds }),
+
+  discardPreparedCards: (eventId: string, sentIds: string[]) =>
+    post<{ discarded: number }>(`/events/${eventId}/prepared-cards/discard`, { sent_ids: sentIds }),
+
+
 
   // ── Sent Cards browser ────────────────────────────────────────────
   listSentCardTemplates: (eventId: string) =>
