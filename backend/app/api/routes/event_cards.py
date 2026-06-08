@@ -836,6 +836,29 @@ def send_pledge_thank_you_cards(
                 qr_payload = inv.invitation_code if inv and inv.invitation_code else None
             if not qr_payload:
                 qr_payload = str(att.id)
+            existing = None
+            if prepare_only:
+                existing = (
+                    db.query(SentEventCard)
+                    .filter(
+                        SentEventCard.event_id == dispatch_event_id,
+                        SentEventCard.event_card_id == dispatch_event_card_id,
+                        SentEventCard.guest_attendee_id == att.id,
+                        SentEventCard.delivery_status == "prepared",
+                    )
+                    .first()
+                )
+            if existing:
+                existing.recipient_name = display_name
+                existing.recipient_phone = phone
+                existing.recipient_qr_payload = qr_payload
+                existing.sent_by_user_id = dispatch_sender_user_id
+                db.commit()
+                sent_card_ids.append(str(existing.id))
+                pre_url = pre_rendered.get(str(att.id))
+                if pre_url:
+                    sid_to_pre_rendered[str(existing.id)] = pre_url
+                continue
             sent = SentEventCard(
                 event_id=dispatch_event_id,
                 guest_attendee_id=att.id,
@@ -866,6 +889,28 @@ def send_pledge_thank_you_cards(
 
         for ec in contributors:
             if not ec.contributor:
+                continue
+            existing = None
+            if prepare_only:
+                existing = (
+                    db.query(SentEventCard)
+                    .filter(
+                        SentEventCard.event_id == dispatch_event_id,
+                        SentEventCard.event_card_id == dispatch_event_card_id,
+                        SentEventCard.contributor_id == ec.id,
+                        SentEventCard.delivery_status == "prepared",
+                    )
+                    .first()
+                )
+            if existing:
+                existing.recipient_name = ec.contributor.name or "Friend"
+                existing.recipient_phone = ec.contributor.phone
+                existing.sent_by_user_id = dispatch_sender_user_id
+                db.commit()
+                sent_card_ids.append(str(existing.id))
+                pre_url = pre_rendered.get(str(ec.id))
+                if pre_url:
+                    sid_to_pre_rendered[str(existing.id)] = pre_url
                 continue
             sent = SentEventCard(
                 event_id=dispatch_event_id,
@@ -899,7 +944,10 @@ def send_pledge_thank_you_cards(
                 continue
             row.delivery_status = "prepared"
             pre_url = sid_to_pre_rendered.get(sid)
-            if pre_url and not row.rendered_card_url:
+            if pre_url:
+                # Always overwrite with the latest pre-rendered URL so re-
+                # preparing the same recipient replaces the existing card
+                # rather than leaving a stale version behind.
                 row.rendered_card_url = pre_url
         db.commit()
         return standard_response(
