@@ -38,15 +38,22 @@ async function uploadImportFile(
 ) {
   const base = resolveApiBaseUrl();
   const helpers: any = await import("./helpers");
-  const authHeaders =
+  const rawHeaders: Record<string, string> =
     (typeof helpers.getAuthHeaders === "function" ? await helpers.getAuthHeaders() : null) || {};
+  // Drop Content-Type so the browser can set the multipart boundary itself.
+  // Without this, FastAPI cannot parse the form fields and returns 422.
+  const authHeaders: Record<string, string> = {};
+  for (const [k, v] of Object.entries(rawHeaders)) {
+    if (k.toLowerCase() === "content-type") continue;
+    authHeaders[k] = v as string;
+  }
   const fd = new FormData();
   fd.append("file", file);
   fd.append("notify_sms", String(notifySms));
   const path = mode === "committee" ? "committee/import" : "guests/import";
   const resp = await fetch(`${base}/user-events/${eventId}/${path}`, {
     method: "POST",
-    headers: { ...authHeaders },
+    headers: authHeaders,
     body: fd,
   });
   const json = await resp.json().catch(() => ({}));

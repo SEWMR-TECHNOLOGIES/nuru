@@ -4394,39 +4394,28 @@ def _parse_member_upload(
     filename: str,
     mode: str,
 ) -> tuple[list[dict], list[dict]]:
-    """Returns (rows, parse_errors). Accepts CSV and XLSX.
+    """Returns (rows, parse_errors). Accepts CSV.
+
+    XLSX is converted to CSV in the browser before upload (see
+    MemberImportDialog.tsx), so this parser only needs to handle CSV.
 
     Expected columns (case-insensitive, in order or by header):
       committee → s/n, full name, phone
       guests    → s/n, full name, phone, common name
     """
-    name_lc = (filename or "").lower()
-    is_xlsx = name_lc.endswith(".xlsx") or name_lc.endswith(".xlsm")
-
     def _norm_header(h: str) -> str:
         return (h or "").strip().lower().replace("/", "").replace("_", " ").replace("-", " ").strip()
 
     raw_rows: list[list[str]] = []
-    if is_xlsx:
-        try:
-            from openpyxl import load_workbook
-            from io import BytesIO
-            wb = load_workbook(BytesIO(file_bytes), data_only=True, read_only=True)
-            ws = wb.active
-            for row in ws.iter_rows(values_only=True):
-                raw_rows.append(["" if c is None else str(c) for c in row])
-        except Exception as e:
-            return ([], [{"row": 0, "message": f"Could not read XLSX file: {e}"}])
-    else:
-        try:
-            import csv
-            from io import StringIO
-            text = file_bytes.decode("utf-8-sig", errors="replace")
-            reader = csv.reader(StringIO(text))
-            for row in reader:
-                raw_rows.append([("" if c is None else str(c)) for c in row])
-        except Exception as e:
-            return ([], [{"row": 0, "message": f"Could not read CSV file: {e}"}])
+    try:
+        import csv
+        from io import StringIO
+        text = file_bytes.decode("utf-8-sig", errors="replace")
+        reader = csv.reader(StringIO(text))
+        for row in reader:
+            raw_rows.append([("" if c is None else str(c)) for c in row])
+    except Exception as e:
+        return ([], [{"row": 0, "message": f"Could not read CSV file: {e}"}])
 
     if not raw_rows:
         return ([], [{"row": 0, "message": "File is empty"}])
@@ -4507,8 +4496,23 @@ def _enqueue_member_import(
         from tasks.member_imports import process_member_import_job
         process_member_import_job.delay(str(job.id))
     except Exception as e:
-        # Don't lose the job — leave it queued so a worker restart picks it up.
-        print(f"[member_import] failed to enqueue celery task: {e}")
+        # Celery / Redis not reachable (e.g. local Windows dev box without a
+        # worker running). Fall back to a background thread so the import
+        # still completes without requiring the broker.
+        print(f"[member_import] celery enqueue failed, running inline: {e}")
+        try:
+            import threading
+            from tasks.member_imports import process_member_import_job as _proc
+            job_id_str = str(job.id)
+            def _run_inline():
+                try:
+                    # Celery task is callable directly — bypasses the broker.
+                    _proc.run(job_id_str)  # type: ignore[attr-defined]
+                except Exception as inner:
+                    print(f"[member_import] inline run failed: {inner}")
+            threading.Thread(target=_run_inline, daemon=True).start()
+        except Exception as e2:
+            print(f"[member_import] inline fallback failed too: {e2}")
 
     return standard_response(True, "Import queued", {
         "job_id": str(job.id),
