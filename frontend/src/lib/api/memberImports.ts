@@ -25,7 +25,7 @@ export interface MemberImportJob {
     invalid_phone: number;
     failed: number;
   };
-  errors?: Array<{ row?: number; reason?: string; phone?: string; name?: string }>;
+  errors?: Array<{ row?: number; reason?: string; message?: string; phone?: string; name?: string }>;
   started_at?: string | null;
   finished_at?: string | null;
 }

@@ -163,7 +163,7 @@ export default function MemberImportDialog({ eventId, mode, open, onClose, onCom
   }, [file]);
 
   const tpl = TEMPLATES[mode];
-  const isDone = job?.status === "completed" || job?.status === "failed";
+  const isDone = job?.status === "completed" || job?.status === "failed" || job?.status === "partially_completed";
   const dataRowCount = Math.max(0, previewRows.length - 1);
 
   const startPolling = (jobId: string) => {
@@ -171,9 +171,9 @@ export default function MemberImportDialog({ eventId, mode, open, onClose, onCom
     pollRef.current = window.setInterval(async () => {
       try {
         const r = await memberImportsApi.getJob(eventId, jobId);
-        if (r.success && r.data) {
+          if (r.success && r.data) {
           setJob(r.data);
-          if (r.data.status === "completed" || r.data.status === "failed") {
+          if (r.data.status === "completed" || r.data.status === "failed" || r.data.status === "partially_completed") {
             if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = null; }
             onCompleted?.();
           }
@@ -509,7 +509,7 @@ export default function MemberImportDialog({ eventId, mode, open, onClose, onCom
                 <p className="font-medium">Issues</p>
                 {job.errors.slice(0, 50).map((e, i) => (
                   <div key={i} className="text-muted-foreground">
-                    Row {e.row ?? "?"}{e.name ? ` · ${e.name}` : ""}{e.phone ? ` · ${e.phone}` : ""} — {e.reason || "unknown"}
+                    Row {e.row ?? "?"}{e.name ? ` · ${e.name}` : ""}{e.phone ? ` · ${e.phone}` : ""} — {e.reason || e.message || "unknown"}
                   </div>
                 ))}
                 {job.errors.length > 50 && (
