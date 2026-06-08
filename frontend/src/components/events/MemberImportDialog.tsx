@@ -17,7 +17,50 @@ import { toast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
 import { showApiErrors } from "@/lib/api/showApiErrors";
 import { memberImportsApi, type MemberImportJob, type MemberImportMode } from "@/lib/api/memberImports";
+import readXlsxFile from "read-excel-file";
 import { Upload, Loader2, FileSpreadsheet, CheckCircle2, XCircle, Eye, EyeOff, Download, Info } from "lucide-react";
+
+// Read a CSV or XLSX file in the browser into a 2D array of strings.
+// We always normalise to text rows so the same preview + CSV upload code
+// works for both formats. The backend only ever sees CSV.
+async function readSpreadsheet(file: File): Promise<string[][]> {
+  const isExcel = /\.(xlsx|xlsm|xls)$/i.test(file.name);
+  if (isExcel) {
+    const rows = await readXlsxFile(file);
+    return rows.map((r) => r.map((c) => (c === null || c === undefined ? "" : String(c))));
+  }
+  const text = await file.text();
+  // Minimal CSV parser that handles quoted fields with commas/newlines.
+  const out: string[][] = [];
+  let cur: string[] = [];
+  let field = "";
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; } else { inQuotes = false; }
+      } else { field += ch; }
+    } else if (ch === '"') { inQuotes = true; }
+    else if (ch === ",") { cur.push(field); field = ""; }
+    else if (ch === "\n" || ch === "\r") {
+      if (ch === "\r" && text[i + 1] === "\n") i++;
+      cur.push(field); field = "";
+      out.push(cur); cur = [];
+    } else { field += ch; }
+  }
+  if (field.length || cur.length) { cur.push(field); out.push(cur); }
+  return out.filter((r) => r.some((c) => (c || "").trim().length > 0));
+}
+
+function rowsToCsvFile(rows: string[][], baseName: string): File {
+  const escape = (v: unknown) => {
+    const s = v === null || v === undefined ? "" : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const csv = rows.map((r) => r.map(escape).join(",")).join("\n");
+  return new File([csv], `${baseName.replace(/\.(csv|xlsx|xlsm|xls)$/i, "")}.csv`, { type: "text/csv" });
+}
 
 interface Props {
   eventId: string;
@@ -62,15 +105,23 @@ const TEMPLATES: Record<MemberImportMode, TemplateSpec> = {
 
 export default function MemberImportDialog({ eventId, mode, open, onClose, onCompleted }: Props) {
   const [file, setFile] = useState<File | null>(null);
+  const [previewRows, setPreviewRows] = useState<string[][]>([]);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [parsing, setParsing] = useState(false);
   const [notifySms, setNotifySms] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [job, setJob] = useState<MemberImportJob | null>(null);
   const [showGuide, setShowGuide] = useState(false);
+  const [previewPage, setPreviewPage] = useState(1);
+  const PREVIEW_PAGE_SIZE = 20;
   const pollRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!open) {
       setFile(null);
+      setPreviewRows([]);
+      setPreviewError(null);
+      setParsing(false);
       setNotifySms(false);
       setUploading(false);
       setJob(null);
@@ -81,8 +132,39 @@ export default function MemberImportDialog({ eventId, mode, open, onClose, onCom
 
   useEffect(() => () => { if (pollRef.current) window.clearInterval(pollRef.current); }, []);
 
+  // Parse the chosen file in the browser so the organiser can preview it
+  // before sending. Works for both CSV and XLSX.
+  useEffect(() => {
+    setPreviewPage(1);
+    if (!file) { setPreviewRows([]); setPreviewError(null); return; }
+    let cancelled = false;
+    (async () => {
+      setParsing(true);
+      setPreviewError(null);
+      try {
+        const rows = await readSpreadsheet(file);
+        if (cancelled) return;
+        if (!rows.length) {
+          setPreviewRows([]);
+          setPreviewError("That file looks empty.");
+        } else {
+          setPreviewRows(rows);
+        }
+      } catch {
+        if (!cancelled) {
+          setPreviewRows([]);
+          setPreviewError("Could not read that file. Make sure it's a valid CSV or XLSX.");
+        }
+      } finally {
+        if (!cancelled) setParsing(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [file]);
+
   const tpl = TEMPLATES[mode];
   const isDone = job?.status === "completed" || job?.status === "failed";
+  const dataRowCount = Math.max(0, previewRows.length - 1);
 
   const startPolling = (jobId: string) => {
     if (pollRef.current) window.clearInterval(pollRef.current);
@@ -105,11 +187,18 @@ export default function MemberImportDialog({ eventId, mode, open, onClose, onCom
       toast({ title: "Pick a file", description: "Choose a CSV or XLSX file to import." });
       return;
     }
+    if (previewError || !previewRows.length) {
+      sonnerToast.error(previewError || "Nothing to import — the file looks empty.");
+      return;
+    }
     setUploading(true);
     try {
+      // Always send the parsed rows back up as CSV — the backend's CSV path
+      // doesn't need openpyxl, so XLSX works without any server change.
+      const toUpload = rowsToCsvFile(previewRows, file.name);
       const res = mode === "committee"
-        ? await memberImportsApi.importCommittee(eventId, file, notifySms)
-        : await memberImportsApi.importGuests(eventId, file, notifySms);
+        ? await memberImportsApi.importCommittee(eventId, toUpload, notifySms)
+        : await memberImportsApi.importGuests(eventId, toUpload, notifySms);
       const jobId: string | undefined = (res as any)?.job_id;
       if (!jobId) {
         sonnerToast.error("Server did not return a job id.");
@@ -254,6 +343,127 @@ export default function MemberImportDialog({ eventId, mode, open, onClose, onCom
 
             <FileDropzone file={file} onFile={setFile} />
 
+            {file && (
+              <div className="rounded-md border">
+                <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-muted/30">
+                  <div className="text-sm font-medium flex items-center gap-2">
+                    <FileSpreadsheet className="w-4 h-4 text-primary" />
+                    Preview
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {parsing
+                      ? "Reading…"
+                      : previewError
+                        ? "Could not read file"
+                        : `${dataRowCount} row${dataRowCount === 1 ? "" : "s"} detected`}
+                  </div>
+                </div>
+
+                {parsing && (
+                  <div className="p-4 flex items-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="w-4 h-4 animate-spin" /> Parsing file…
+                  </div>
+                )}
+
+                {!parsing && previewError && (
+                  <div className="p-3 text-xs text-destructive">{previewError}</div>
+                )}
+
+                {!parsing && !previewError && previewRows.length > 0 && (() => {
+                  const totalPages = Math.max(1, Math.ceil(dataRowCount / PREVIEW_PAGE_SIZE));
+                  const page = Math.min(previewPage, totalPages);
+                  const startIdx = (page - 1) * PREVIEW_PAGE_SIZE;
+                  const endIdx = startIdx + PREVIEW_PAGE_SIZE;
+                  const pageRows = previewRows.slice(1 + startIdx, 1 + endIdx);
+                  const fromRow = dataRowCount === 0 ? 0 : startIdx + 1;
+                  const toRow = Math.min(endIdx, dataRowCount);
+                  return (
+                    <>
+                      <div className="overflow-x-auto max-h-64">
+                        <table className="w-full text-xs">
+                          <thead className="sticky top-0 bg-background">
+                            <tr className="border-b">
+                              <th className="text-left font-medium px-2 py-1.5 whitespace-nowrap w-10 text-muted-foreground">#</th>
+                              {previewRows[0].map((h, i) => (
+                                <th key={i} className="text-left font-medium px-2 py-1.5 whitespace-nowrap">
+                                  {h || <span className="italic text-muted-foreground">col {i + 1}</span>}
+                                </th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {pageRows.map((row, i) => (
+                              <tr key={startIdx + i} className="border-t">
+                                <td className="px-2 py-1.5 whitespace-nowrap text-muted-foreground tabular-nums">
+                                  {startIdx + i + 1}
+                                </td>
+                                {row.map((cell, j) => (
+                                  <td key={j} className="px-2 py-1.5 whitespace-nowrap text-muted-foreground">
+                                    {cell || <span className="italic opacity-50">—</span>}
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      {totalPages > 1 && (
+                        <div className="flex items-center justify-between gap-2 px-3 py-2 text-[11px] border-t bg-muted/20">
+                          <span className="text-muted-foreground">
+                            Rows {fromRow}–{toRow} of {dataRowCount} · page {page} of {totalPages}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => setPreviewPage(1)}
+                              disabled={page === 1}
+                            >
+                              First
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => setPreviewPage((p) => Math.max(1, p - 1))}
+                              disabled={page === 1}
+                            >
+                              Prev
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => setPreviewPage((p) => Math.min(totalPages, p + 1))}
+                              disabled={page === totalPages}
+                            >
+                              Next
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2 text-xs"
+                              onClick={() => setPreviewPage(totalPages)}
+                              disabled={page === totalPages}
+                            >
+                              Last
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+
+
+
 
             <div className="flex items-start sm:items-center justify-between gap-3 rounded-md border p-3">
               <div className="min-w-0">
@@ -314,7 +524,7 @@ export default function MemberImportDialog({ eventId, mode, open, onClose, onCom
           {!job ? (
             <>
               <Button variant="outline" onClick={onClose} disabled={uploading}>Cancel</Button>
-              <Button onClick={handleUpload} disabled={!file || uploading}>
+              <Button onClick={handleUpload} disabled={!file || uploading || parsing || !!previewError || previewRows.length === 0}>
                 {uploading ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading</> : <><Upload className="w-4 h-4 mr-2" /> Start import</>}
               </Button>
             </>
