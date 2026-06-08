@@ -2148,6 +2148,7 @@ def _attendee_dict(db: Session, att: EventAttendee) -> dict:
         "id": str(att.id), "event_id": str(att.event_id),
         "guest_type": guest_type,
         "name": name, "avatar": avatar,
+        "common_name": getattr(att, "common_name", None),
         "email": email, "phone": phone,
         "rsvp_status": att.rsvp_status.value if hasattr(att.rsvp_status, "value") else att.rsvp_status,
         "dietary_requirements": att.dietary_restrictions, "meal_preference": att.meal_preference,
@@ -2273,6 +2274,7 @@ def add_guest(event_id: str, body: dict = Body(...), db: Session = Depends(get_d
             guest_name=contributor.name,
             guest_phone=contributor.phone,
             guest_email=contributor.email,
+            common_name=(body.get("common_name") or None),
             invitation_id=invitation.id,
             rsvp_status=RSVPStatusEnum.pending,
             dietary_restrictions=body.get("dietary_requirements"),
@@ -2356,6 +2358,7 @@ def add_guest(event_id: str, body: dict = Body(...), db: Session = Depends(get_d
             guest_type=GuestTypeEnum.user,
             attendee_id=attendee_user.id if attendee_user else None,
             guest_name=name if not attendee_user else None,
+            common_name=(body.get("common_name") or None),
             invitation_id=invitation.id,
             rsvp_status=RSVPStatusEnum.pending,
             dietary_restrictions=body.get("dietary_requirements"),
@@ -2574,6 +2577,9 @@ def update_guest(event_id: str, guest_id: str, body: dict = Body(...), db: Sessi
     if "meal_preference" in body: att.meal_preference = body["meal_preference"]
     if "special_requests" in body: att.special_requests = body["special_requests"]
     if "rsvp_status" in body: att.rsvp_status = body["rsvp_status"]
+    if "common_name" in body:
+        cn = (body.get("common_name") or "").strip()
+        att.common_name = cn or None
     att.updated_at = now
 
     if "plus_one_names" in body:
@@ -4373,4 +4379,227 @@ def respond_to_invitation(
         "rsvp_status": rsvp_status,
         "rsvp_at": invitation.rsvp_at.isoformat(),
         "attendee_id": str(attendee.id),
+    })
+
+# ──────────────────────────────────────────────
+# Bulk member import (committee + guests) — CSV / XLSX
+# Triggered from EventCommittee + EventGuestList "Import from file"
+# action. Parses the upload synchronously into a row payload, persists a
+# MemberImportJob, and queues the Celery worker for the heavy lifting so
+# the request returns immediately.
+# ──────────────────────────────────────────────
+
+def _parse_member_upload(
+    file_bytes: bytes,
+    filename: str,
+    mode: str,
+) -> tuple[list[dict], list[dict]]:
+    """Returns (rows, parse_errors). Accepts CSV and XLSX.
+
+    Expected columns (case-insensitive, in order or by header):
+      committee → s/n, full name, phone
+      guests    → s/n, full name, phone, common name
+    """
+    name_lc = (filename or "").lower()
+    is_xlsx = name_lc.endswith(".xlsx") or name_lc.endswith(".xlsm")
+
+    def _norm_header(h: str) -> str:
+        return (h or "").strip().lower().replace("/", "").replace("_", " ").replace("-", " ").strip()
+
+    raw_rows: list[list[str]] = []
+    if is_xlsx:
+        try:
+            from openpyxl import load_workbook
+            from io import BytesIO
+            wb = load_workbook(BytesIO(file_bytes), data_only=True, read_only=True)
+            ws = wb.active
+            for row in ws.iter_rows(values_only=True):
+                raw_rows.append(["" if c is None else str(c) for c in row])
+        except Exception as e:
+            return ([], [{"row": 0, "message": f"Could not read XLSX file: {e}"}])
+    else:
+        try:
+            import csv
+            from io import StringIO
+            text = file_bytes.decode("utf-8-sig", errors="replace")
+            reader = csv.reader(StringIO(text))
+            for row in reader:
+                raw_rows.append([("" if c is None else str(c)) for c in row])
+        except Exception as e:
+            return ([], [{"row": 0, "message": f"Could not read CSV file: {e}"}])
+
+    if not raw_rows:
+        return ([], [{"row": 0, "message": "File is empty"}])
+
+    header = [_norm_header(c) for c in raw_rows[0]]
+    has_header = any(h in header for h in ("full name", "phone", "name", "common name"))
+    start_idx = 1 if has_header else 0
+
+    # Column resolution — by header name if available, else by position.
+    def _col(row: list[str], names: list[str], pos: int) -> str:
+        if has_header:
+            for n in names:
+                if n in header:
+                    i = header.index(n)
+                    return row[i] if i < len(row) else ""
+        return row[pos] if pos < len(row) else ""
+
+    rows: list[dict] = []
+    parse_errors: list[dict] = []
+    for i in range(start_idx, len(raw_rows)):
+        cells = raw_rows[i]
+        if not any((c or "").strip() for c in cells):
+            continue
+        row_num = i + 1
+        full_name = _col(cells, ["full name", "name"], 1).strip()
+        phone = _col(cells, ["phone", "phone number", "mobile"], 2).strip()
+        item = {"_row": row_num, "full_name": full_name, "phone": phone}
+        if mode == "guests":
+            item["common_name"] = _col(cells, ["common name", "card name", "display name"], 3).strip()
+        rows.append(item)
+
+    return (rows, parse_errors)
+
+
+def _enqueue_member_import(
+    db: Session,
+    event_id: uuid.UUID,
+    current_user: User,
+    mode: str,
+    file: UploadFile,
+    notify_sms: bool,
+):
+    from models import MemberImportJob
+
+    try:
+        contents = file.file.read()
+    finally:
+        try:
+            file.file.close()
+        except Exception:
+            pass
+    if not contents:
+        return standard_response(False, "Uploaded file is empty")
+    if len(contents) > 5 * 1024 * 1024:
+        return standard_response(False, "File is too large (max 5 MB)")
+
+    rows, parse_errors = _parse_member_upload(contents, file.filename or "", mode)
+    if not rows:
+        msg = parse_errors[0]["message"] if parse_errors else "No data rows found in file"
+        return standard_response(False, msg)
+
+    job = MemberImportJob(
+        id=uuid.uuid4(),
+        event_id=event_id,
+        created_by=current_user.id,
+        mode=mode,
+        status="queued",
+        notify_sms=bool(notify_sms),
+        total_rows=len(rows),
+        payload={"rows": rows, "filename": file.filename, "parse_errors": parse_errors},
+        errors=list(parse_errors),
+    )
+    db.add(job)
+    db.commit()
+    db.refresh(job)
+
+    try:
+        from tasks.member_imports import process_member_import_job
+        process_member_import_job.delay(str(job.id))
+    except Exception as e:
+        # Don't lose the job — leave it queued so a worker restart picks it up.
+        print(f"[member_import] failed to enqueue celery task: {e}")
+
+    return standard_response(True, "Import queued", {
+        "job_id": str(job.id),
+        "status": job.status,
+        "total_rows": job.total_rows,
+    })
+
+
+@router.post("/{event_id}/committee/import")
+def import_committee_members(
+    event_id: str,
+    file: UploadFile = File(...),
+    notify_sms: bool = Form(False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID format.")
+
+    event = db.query(Event).filter(Event.id == eid).first()
+    if not event:
+        return standard_response(False, "Event not found")
+    if str(event.organizer_id) != str(current_user.id):
+        return standard_response(False, "Only the event organizer can import committee members")
+
+    return _enqueue_member_import(db, eid, current_user, "committee", file, notify_sms)
+
+
+@router.post("/{event_id}/guests/import")
+def import_guest_members(
+    event_id: str,
+    file: UploadFile = File(...),
+    notify_sms: bool = Form(False),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    try:
+        eid = uuid.UUID(event_id)
+    except ValueError:
+        return standard_response(False, "Invalid event ID format.")
+
+    event, err = _verify_event_access(db, eid, current_user, "can_manage_guests")
+    if err:
+        return err
+
+    return _enqueue_member_import(db, eid, current_user, "guests", file, notify_sms)
+
+
+@router.get("/{event_id}/imports/{job_id}")
+def get_member_import_job(
+    event_id: str,
+    job_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from models import MemberImportJob
+    try:
+        eid = uuid.UUID(event_id)
+        jid = uuid.UUID(job_id)
+    except ValueError:
+        return standard_response(False, "Invalid ID format")
+
+    event = db.query(Event).filter(Event.id == eid).first()
+    if not event:
+        return standard_response(False, "Event not found")
+    if str(event.organizer_id) != str(current_user.id):
+        # Committee with view access can still poll their own queued imports.
+        pass
+
+    job = db.query(MemberImportJob).filter(MemberImportJob.id == jid, MemberImportJob.event_id == eid).first()
+    if not job:
+        return standard_response(False, "Import job not found")
+
+    return standard_response(True, "OK", {
+        "job_id": str(job.id),
+        "mode": job.mode,
+        "status": job.status,
+        "notify_sms": job.notify_sms,
+        "total_rows": job.total_rows,
+        "processed_rows": job.processed_rows,
+        "summary": {
+            "total": job.total_rows,
+            "successful": job.successful_rows,
+            "reused": job.reused_rows,
+            "duplicates": job.duplicate_rows,
+            "invalid_phone": job.invalid_phone_rows,
+            "failed": job.failed_rows,
+        },
+        "errors": (job.errors or [])[:200],
+        "started_at": job.started_at.isoformat() if job.started_at else None,
+        "finished_at": job.finished_at.isoformat() if job.finished_at else None,
     })

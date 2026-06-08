@@ -48,6 +48,7 @@ celery_app = Celery(
         "tasks.push_dispatch",
         "tasks.reminder_dispatch",
         "tasks.contributor_imports",
+        "tasks.member_imports",
         "tasks.whatsapp_availability",
     ],
 )

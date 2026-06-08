@@ -52,6 +52,9 @@ import CommitteePermissionsBadge from './CommitteePermissionsBadge';
 import ReportPreviewDialog from '@/components/ReportPreviewDialog';
 import type { SearchedUser } from '@/hooks/useUserSearch';
 import type { EventPermissions } from '@/hooks/useEventPermissions';
+import MemberImportDialog from './MemberImportDialog';
+import { Upload } from 'lucide-react';
+
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 
 interface EventCommitteeProps {
@@ -112,9 +115,11 @@ const EventCommittee = ({ eventId, permissions, eventTitle }: EventCommitteeProp
   const [editCustomRole, setEditCustomRole] = useState('');
   const [editPermissions, setEditPermissions] = useState<string[]>([]);
   const [reportOpen, setReportOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   // Pause polling when any dialog is open to prevent form disruption
-  const anyDialogOpen = addDialogOpen || editDialogOpen || reportOpen;
+  const anyDialogOpen = addDialogOpen || editDialogOpen || reportOpen || importOpen;
+
   usePolling(refetch, 15000, !anyDialogOpen);
 
   const formatPhoneDisplay = (phone?: string | null): string => {
@@ -357,6 +362,12 @@ const EventCommittee = ({ eventId, permissions, eventTitle }: EventCommitteeProp
             </Button>
           )}
           {canManageCommittee && (
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Upload className="w-4 h-4 mr-2" />
+              Import
+            </Button>
+          )}
+          {canManageCommittee && (
             <Button onClick={() => setAddDialogOpen(true)}>
               <Plus className="w-4 h-4 mr-2" />
               Add Member
@@ -364,6 +375,7 @@ const EventCommittee = ({ eventId, permissions, eventTitle }: EventCommitteeProp
           )}
         </div>
       </div>
+
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {members.length === 0 ? (
@@ -592,7 +604,16 @@ const EventCommittee = ({ eventId, permissions, eventTitle }: EventCommitteeProp
         title="Committee Report"
         html={generateCommitteeReportHtml()}
       />
+
+      <MemberImportDialog
+        eventId={eventId}
+        mode="committee"
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onCompleted={() => refetch()}
+      />
     </div>
+
   );
 };
 

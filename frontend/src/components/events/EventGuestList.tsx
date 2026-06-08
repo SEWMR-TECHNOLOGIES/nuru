@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { 
   UserPlus, Send, Search, Filter, CheckCircle, Clock, X,
-  QrCode, Mail, Phone, MoreVertical, Trash, Loader2, BookUser, Download, Image as ImageIcon
+  QrCode, Mail, Phone, MoreVertical, Trash, Loader2, BookUser, Download, Image as ImageIcon, Upload
 } from 'lucide-react';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -26,6 +27,8 @@ import { useConfirmDialog } from '@/hooks/useConfirmDialog';
 import { toast } from 'sonner';
 import { showCaughtError } from '@/lib/api';
 import UserSearchInput from './UserSearchInput';
+import MemberImportDialog from './MemberImportDialog';
+
 import ContributorSearchInput from './ContributorSearchInput';
 import GuestListSkeletonLoader from './GuestListSkeletonLoader';
 import type { EventGuest } from '@/lib/api/types';
@@ -52,6 +55,8 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+
   const [selectedGuest, setSelectedGuest] = useState<EventGuest | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   // Tracks which invitation send button is in flight so only that one spins.
@@ -64,17 +69,18 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
   const [newGuest, setNewGuest] = useState({
     plus_ones: 0,
     dietary_requirements: '',
-    notes: ''
+    notes: '',
+    common_name: '',
   });
 
   // Pause polling when any dialog is open to prevent form disruption
-  const anyDialogOpen = addDialogOpen || inviteDialogOpen;
+  const anyDialogOpen = addDialogOpen || inviteDialogOpen || importOpen;
   usePolling(refetch, 15000, !anyDialogOpen);
 
   const resetDialog = () => {
     setSelectedUser(null);
     setSelectedContributor(null);
-    setNewGuest({ plus_ones: 0, dietary_requirements: '', notes: '' });
+    setNewGuest({ plus_ones: 0, dietary_requirements: '', notes: '', common_name: '' });
   };
 
   const handleAddGuest = async () => {
@@ -92,6 +98,7 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
           name: selectedContributor.name,
           phone: selectedContributor.phone || undefined,
           email: selectedContributor.email || undefined,
+          common_name: newGuest.common_name.trim() || undefined,
           dietary_requirements: newGuest.dietary_requirements || undefined,
           notes: newGuest.notes || undefined,
           rsvp_status: 'pending'
@@ -120,6 +127,7 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
         name: `${selectedUser.first_name} ${selectedUser.last_name}`,
         email: selectedUser.email,
         phone: selectedUser.phone || undefined,
+        common_name: newGuest.common_name.trim() || undefined,
         plus_ones: newGuest.plus_ones,
         dietary_requirements: newGuest.dietary_requirements || undefined,
         notes: newGuest.notes || undefined,
@@ -259,10 +267,16 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
           </Select>
         </div>
         {canManage && (
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload className="w-4 h-4 mr-2" />Import
+          </Button>
+        )}
+        {canManage && (
           <Button onClick={() => setAddDialogOpen(true)}>
             <UserPlus className="w-4 h-4 mr-2" />Add Guest
           </Button>
         )}
+
       </div>
 
       <Card>
@@ -284,6 +298,11 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
                         {guest.guest_type === 'contributor' && <Badge variant="outline" className="text-xs"><BookUser className="w-3 h-3 mr-1" />Contributor</Badge>}
                         {guest.plus_ones > 0 && <Badge variant="outline" className="text-xs">+{guest.plus_ones}</Badge>}
                       </div>
+                      {guest.common_name && (
+                        <p className="text-xs text-muted-foreground italic truncate">
+                          Card name: {guest.common_name}
+                        </p>
+                      )}
                       <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                         {guest.email && <span className="flex items-center gap-1 truncate"><Mail className="w-3 h-3 flex-shrink-0" /><span className="truncate max-w-[150px]">{guest.email}</span></span>}
                         {guest.phone && <span className="flex items-center gap-1"><Phone className="w-3 h-3 flex-shrink-0" />{guest.phone}</span>}
@@ -371,6 +390,18 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
             )}
 
             <div className="space-y-2">
+              <Label>Card display name (optional)</Label>
+              <Input
+                value={newGuest.common_name}
+                onChange={(e) => setNewGuest(prev => ({ ...prev, common_name: e.target.value }))}
+                placeholder='e.g. "Mr & Mrs Doe"'
+                maxLength={255}
+              />
+              <p className="text-xs text-muted-foreground">
+                Used on invitation cards instead of the legal name. Leave blank to use the full name.
+              </p>
+            </div>
+            <div className="space-y-2">
               <Label>Dietary Requirements</Label>
               <Input value={newGuest.dietary_requirements} onChange={(e) => setNewGuest(prev => ({ ...prev, dietary_requirements: e.target.value }))} placeholder="Vegetarian, halal, allergies..." />
             </div>
@@ -420,7 +451,16 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
         </DialogContent>
       </Dialog>
 
+      <MemberImportDialog
+        eventId={eventId}
+        mode="guests"
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onCompleted={() => refetch()}
+      />
+
     </div>
+
   );
 };
 

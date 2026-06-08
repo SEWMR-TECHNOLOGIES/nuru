@@ -119,5 +119,6 @@ from models.reminder_automations import (
     EventReminderRun, EventReminderRecipient,
 )
 from models.contributor_import_jobs import ContributorImportJob
+from models.member_import_jobs import MemberImportJob
 from models.event_cards import CardTemplate, EventCard, SentEventCard
 from models.card_url_mapping import CardUrlMapping
