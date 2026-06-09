@@ -1159,16 +1159,17 @@ def send_pledge_thank_you_cards(
                             from utils.event_owner import get_event_owner_display_name
                             from utils.datetime_format import format_event_datetime
                             organizer_name = get_event_owner_display_name(ev, db=s)
+                            # Organizer phone MUST be the phone of the
+                            # user who CREATED the event (organizer_id),
+                            # never the on-behalf-of event owner. This
+                            # keeps replies routed to the actual operator.
                             organizer_phone = ""
                             try:
-                                owner_uid = (
-                                    getattr(ev, "event_owner_user_id", None)
-                                    or getattr(ev, "organizer_id", None)
-                                )
-                                if owner_uid:
-                                    owner_user = s.query(User).filter(User.id == owner_uid).first()
-                                    if owner_user:
-                                        organizer_phone = (getattr(owner_user, "phone", None) or "").strip()
+                                creator_uid = getattr(ev, "organizer_id", None)
+                                if creator_uid:
+                                    creator_user = s.query(User).filter(User.id == creator_uid).first()
+                                    if creator_user:
+                                        organizer_phone = (getattr(creator_user, "phone", None) or "").strip()
                             except Exception:
                                 pass
                             wa_lang = "en" if lang == "en" else "sw"

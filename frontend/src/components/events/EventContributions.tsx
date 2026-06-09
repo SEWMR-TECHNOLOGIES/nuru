@@ -44,6 +44,7 @@ import SvgIcon from '@/components/ui/svg-icon';
 import ChatIcon from '@/assets/icons/chat-icon.svg';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
 import ReceivedPaymentsPanel from '@/components/payments/ReceivedPaymentsPanel';
+import ContributorInvitationsPanel from './ContributorInvitationsPanel';
 
 interface EventContributionsProps {
   eventId: string;
@@ -155,6 +156,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
   const [guestBatchDialogOpen, setGuestBatchDialogOpen] = useState(false);
   const [messagingOpen, setMessagingOpen] = useState(false);
   const [paymentsOpen, setPaymentsOpen] = useState(false);
+  const [invitationsOpen, setInvitationsOpen] = useState(false);
 
   // Pause polling when any dialog is open to prevent form disruption
   const anyDialogOpen = addContributorDialogOpen || paymentDialogOpen || editPledgeDialogOpen || thankYouDialogOpen || reportDateDialogOpen || reportPreviewOpen || historyDialogOpen || bulkDialogOpen || guestBatchDialogOpen;
@@ -744,6 +746,11 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
               <SvgIcon src={ChatIcon} alt={t("messages")} className="w-4 h-4 mr-2" />{messagingOpen ? 'Hide' : ''} Messaging
             </Button>
           )}
+          {canManage && eventContributors.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => setInvitationsOpen(v => !v)}>
+              <Send className="w-4 h-4 mr-2" />{invitationsOpen ? 'Hide ' : ''}Invitations
+            </Button>
+          )}
           {isCreator && (
             <Button variant="outline" size="sm" onClick={() => setPaymentsOpen(!paymentsOpen)}>
               <DollarSign className="w-4 h-4 mr-2" />{paymentsOpen ? 'Hide ' : ''}Payments
@@ -768,6 +775,15 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
           eventTitle={eventTitle}
           eventContributors={eventContributors}
           defaultContactPhone={reminderContactPhone}
+        />
+      )}
+
+      {/* Contributor Invitations */}
+      {canManage && invitationsOpen && (
+        <ContributorInvitationsPanel
+          eventId={eventId}
+          eventContributors={eventContributors}
+          onChanged={refetchEC}
         />
       )}
 
