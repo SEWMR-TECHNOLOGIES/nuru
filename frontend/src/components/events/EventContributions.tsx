@@ -742,12 +742,16 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
             </Button>
           )}
           {isCreator && eventContributors.length > 0 && (
-            <Button variant="outline" size="sm" onClick={() => setMessagingOpen(!messagingOpen)}>
+            <Button variant="outline" size="sm" onClick={() => {
+              setMessagingOpen(v => { const next = !v; if (next) setInvitationsOpen(false); return next; });
+            }}>
               <SvgIcon src={ChatIcon} alt={t("messages")} className="w-4 h-4 mr-2" />{messagingOpen ? 'Hide' : ''} Messaging
             </Button>
           )}
           {canManage && eventContributors.length > 0 && (
-            <Button variant="outline" size="sm" onClick={() => setInvitationsOpen(v => !v)}>
+            <Button variant="outline" size="sm" onClick={() => {
+              setInvitationsOpen(v => { const next = !v; if (next) setMessagingOpen(false); return next; });
+            }}>
               <Send className="w-4 h-4 mr-2" />{invitationsOpen ? 'Hide ' : ''}Invitations
             </Button>
           )}

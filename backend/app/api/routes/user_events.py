@@ -2478,10 +2478,12 @@ def add_contributors_as_guests(event_id: str, body: dict = Body(...), db: Sessio
             errors_list.append({"contributor_id": raw_id, "error": "Invalid ID format"})
             continue
 
-        # Find the event-contributor link to get the underlying contributor
+        # Accept either an EventContributor link id OR an underlying
+        # UserContributor id. The address-book invitation panel passes
+        # the UserContributor id, while older callers pass the link id.
         ec = db.query(EventContributor).filter(
-            EventContributor.id == cid,
             EventContributor.event_id == eid,
+            ((EventContributor.id == cid) | (EventContributor.contributor_id == cid)),
         ).first()
         if not ec:
             errors_list.append({"contributor_id": raw_id, "error": "Event contributor not found"})
@@ -2770,8 +2772,8 @@ def send_bulk_invitations(event_id: str, body: dict = Body(default={}), db: Sess
 
 
 @router.post("/{event_id}/guests/{guest_id}/resend-invite")
-def resend_invitation(event_id: str, guest_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return send_invitation(event_id, guest_id, Body(default={}), db, current_user)
+def resend_invitation(event_id: str, guest_id: str, body: dict = Body(default={}), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return send_invitation(event_id, guest_id, body or {}, db, current_user)
 
 
 @router.post("/{event_id}/guests/{guest_id}/checkin")
