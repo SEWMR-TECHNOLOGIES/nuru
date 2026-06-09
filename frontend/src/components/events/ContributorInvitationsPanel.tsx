@@ -31,9 +31,15 @@ interface Props {
 const normalizePhone = (p?: string | null) =>
   (p || '').replace(/\D+/g, '').replace(/^0+/, '').slice(-9);
 
+// Module-level cache so toggling the panel doesn't refetch from scratch
+// and so initial mount can paint correct counts immediately.
+const _guestsCache: Record<string, { guests: EventGuest[]; loadedAt: number }> = {};
+
 const ContributorInvitationsPanel = ({ eventId, eventContributors, onChanged }: Props) => {
-  const [loading, setLoading] = useState(false);
-  const [guests, setGuests] = useState<EventGuest[]>([]);
+  const cached = _guestsCache[eventId];
+  const [guests, setGuests] = useState<EventGuest[]>(cached?.guests || []);
+  const [loading, setLoading] = useState(!cached);
+  const [hasLoaded, setHasLoaded] = useState(!!cached);
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState<'not_invited' | 'invited'>('not_invited');
   const [selected, setSelected] = useState<string[]>([]);
@@ -43,19 +49,28 @@ const ContributorInvitationsPanel = ({ eventId, eventContributors, onChanged }: 
   const [working, setWorking] = useState(false);
   const [resendingId, setResendingId] = useState<string | null>(null);
 
-  const fetchGuests = async () => {
-    setLoading(true);
+  const fetchGuests = async (silent = false) => {
+    if (!silent && !_guestsCache[eventId]) setLoading(true);
     try {
       const res = await eventsApi.getGuests(eventId, { limit: 500 });
-      if (res.success) setGuests(res.data.guests || []);
+      if (res.success) {
+        const next = res.data.guests || [];
+        _guestsCache[eventId] = { guests: next, loadedAt: Date.now() };
+        setGuests(next);
+        setHasLoaded(true);
+      }
     } catch (err: any) {
-      showCaughtError(err, 'Unable to load guest list');
+      if (!silent) showCaughtError(err, 'Unable to load guest list');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { fetchGuests(); }, [eventId]);
+  useEffect(() => {
+    // Paint cached counts instantly; refresh quietly in the background.
+    fetchGuests(!!_guestsCache[eventId]);
+  }, [eventId]);
+
 
   /** Build a quick lookup of invited contributors by contributor_id + phone. */
   const guestIndex = useMemo(() => {
@@ -190,20 +205,27 @@ const ContributorInvitationsPanel = ({ eventId, eventContributors, onChanged }: 
             </p>
           </div>
           <div className="flex items-center gap-2 text-xs">
-            <Badge variant="secondary" className="gap-1"><CheckCircle2 className="w-3 h-3" />{invitedCount} invited</Badge>
-            <Badge variant="outline" className="gap-1"><Clock className="w-3 h-3" />{notInvitedCount} pending</Badge>
+            {hasLoaded ? (
+              <>
+                <Badge variant="secondary" className="gap-1"><CheckCircle2 className="w-3 h-3" />{invitedCount} invited</Badge>
+                <Badge variant="outline" className="gap-1"><Clock className="w-3 h-3" />{notInvitedCount} pending</Badge>
+              </>
+            ) : (
+              <span className="text-muted-foreground">Loading invitations…</span>
+            )}
           </div>
         </div>
 
         <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
           <TabsList className="w-full">
             <TabsTrigger value="not_invited" className="flex-1">
-              Not invited <span className="ml-1 text-muted-foreground">({notInvitedCount})</span>
+              Not invited{hasLoaded && <span className="ml-1 text-muted-foreground">({notInvitedCount})</span>}
             </TabsTrigger>
             <TabsTrigger value="invited" className="flex-1">
-              Invited <span className="ml-1 text-muted-foreground">({invitedCount})</span>
+              Invited{hasLoaded && <span className="ml-1 text-muted-foreground">({invitedCount})</span>}
             </TabsTrigger>
           </TabsList>
+
 
           <div className="flex flex-col sm:flex-row gap-2 mt-3">
             <div className="relative flex-1">
@@ -217,7 +239,11 @@ const ContributorInvitationsPanel = ({ eventId, eventContributors, onChanged }: 
               />
             </div>
             <Select value={method} onValueChange={(v) => setMethod(v as Method)}>
-              <SelectTrigger className="w-full sm:w-44">
+              <SelectTrigger
+                className="w-full sm:w-48"
+                title="Channel used when sending or resending invitations"
+              >
+                <span className="text-xs text-muted-foreground mr-2">Send via</span>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
