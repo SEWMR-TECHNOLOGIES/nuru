@@ -1,6 +1,7 @@
 import '../../../core/widgets/nuru_refresh_indicator.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/widgets/app_icon.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/events_service.dart';
@@ -33,15 +34,22 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
   @override
   void dispose() { _searchCtrl.dispose(); super.dispose(); }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
-    final res = await EventsService.getGuests(widget.eventId, rsvpStatus: _filter == 'all' ? null : _filter, search: _searchCtrl.text.trim().isEmpty ? null : _searchCtrl.text.trim());
-    if (mounted) setState(() {
+  Future<void> _load({bool background = false}) async {
+    if (!background) setState(() => _loading = true);
+    final res = await EventsService.getGuests(
+      widget.eventId,
+      rsvpStatus: _filter == 'all' ? null : _filter,
+      search: _searchCtrl.text.trim().isEmpty ? null : _searchCtrl.text.trim(),
+    );
+    if (!mounted) return;
+    setState(() {
       _loading = false;
       if (res['success'] == true) {
         final data = res['data'];
-        _guests = data?['guests'] ?? [];
-        _summary = data?['summary'] ?? {};
+        _guests = (data?['guests'] as List?) ?? [];
+        _summary = (data?['summary'] as Map?)?.cast<String, dynamic>() ?? {};
+      } else if (!background) {
+        AppSnackbar.error(context, res['message']?.toString() ?? 'Unable to load guests');
       }
     });
   }
@@ -51,7 +59,7 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
     super.build(context);
     final canManage = widget.permissions?['can_manage_guests'] == true || widget.permissions?['is_creator'] == true;
 
-    if (_loading) return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+    if (_loading && _guests.isEmpty) return _buildSkeleton();
 
     return NuruRefreshIndicator(
       onRefresh: _load,
@@ -103,7 +111,7 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
               child: TextField(
                 controller: _searchCtrl,
-                onChanged: (_) => _load(),
+                onChanged: (_) => _load(background: true),
                 autocorrect: false,
                 style: appText(size: 14),
                 decoration: InputDecoration(
@@ -220,7 +228,7 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: GestureDetector(
-        onTap: () { setState(() => _filter = value); _load(); },
+        onTap: () { setState(() => _filter = value); _load(background: true); },
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
@@ -237,6 +245,72 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
           ]),
         ),
       ),
+    );
+  }
+
+  Widget _avatarCircle({required String name, required String url, required Color bg, required Color fg}) {
+    final initial = name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : '?';
+    final fallback = Container(
+      width: 48, height: 48,
+      decoration: BoxDecoration(color: bg, shape: BoxShape.circle),
+      alignment: Alignment.center,
+      child: Text(initial, style: appText(size: 18, weight: FontWeight.w800, color: fg)),
+    );
+    if (url.isEmpty) return fallback;
+    return ClipOval(
+      child: SizedBox(
+        width: 48, height: 48,
+        child: CachedNetworkImage(
+          imageUrl: url,
+          fit: BoxFit.cover,
+          placeholder: (_, __) => Container(color: bg),
+          errorWidget: (_, __, ___) => fallback,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSkeleton() {
+    Widget bar(double w, double h, {double r = 8}) => Container(
+      width: w, height: h,
+      decoration: BoxDecoration(color: const Color(0xFFF1F1F4), borderRadius: BorderRadius.circular(r)),
+    );
+    Widget tile() => Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(18)),
+      child: Row(children: [
+        Container(width: 48, height: 48, decoration: const BoxDecoration(color: Color(0xFFF1F1F4), shape: BoxShape.circle)),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          bar(140, 14),
+          const SizedBox(height: 8),
+          bar(80, 12),
+          const SizedBox(height: 6),
+          bar(110, 10),
+        ])),
+        const SizedBox(width: 8),
+        Container(width: 36, height: 36, decoration: const BoxDecoration(color: Color(0xFFF1F1F4), shape: BoxShape.circle)),
+      ]),
+    );
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20)),
+          child: Row(children: List.generate(4, (_) => Expanded(child: Column(children: [
+            Container(width: 38, height: 38, decoration: const BoxDecoration(color: Color(0xFFF1F1F4), shape: BoxShape.circle)),
+            const SizedBox(height: 8), bar(30, 16), const SizedBox(height: 6), bar(46, 10),
+          ])))),
+        ),
+        const SizedBox(height: 16),
+        Row(children: [Expanded(child: bar(double.infinity, 48, r: 16)), const SizedBox(width: 10), bar(120, 48, r: 16)]),
+        const SizedBox(height: 12),
+        SizedBox(height: 36, child: Row(children: List.generate(4, (_) => Padding(padding: const EdgeInsets.only(right: 8), child: bar(78, 32, r: 999))))),
+        const SizedBox(height: 14),
+        ...List.generate(5, (_) => tile()),
+      ],
     );
   }
 
@@ -268,11 +342,11 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: Row(children: [
-        Container(
-          width: 48, height: 48,
-          decoration: BoxDecoration(color: statusBg, shape: BoxShape.circle),
-          child: Center(child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
-            style: appText(size: 18, weight: FontWeight.w800, color: statusColor))),
+        _avatarCircle(
+          name: name,
+          url: (g['avatar'] ?? g['avatar_url'] ?? g['profile_picture_url'] ?? '').toString(),
+          bg: statusBg,
+          fg: statusColor,
         ),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -355,6 +429,7 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
     List<dynamic> searchResults = [];
     bool searching = false;
     Map<String, dynamic>? selectedUser;
+    bool submitting = false;
     Timer? debounce;
 
     showModalBottomSheet(
@@ -430,15 +505,23 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(14)),
                     child: Row(children: [
-                      CircleAvatar(
-                        radius: 18, backgroundColor: AppColors.primary.withOpacity(0.15),
-                        child: Text(
-                          '${selectedUser!['first_name']?.toString() ?? ''}'.isNotEmpty
-                              ? selectedUser!['first_name'].toString()[0].toUpperCase()
-                              : '?',
-                          style: appText(size: 14, weight: FontWeight.w700, color: AppColors.primary),
-                        ),
-                      ),
+                      Builder(builder: (_) {
+                        final avatar = selectedUser!['avatar']?.toString();
+                        final hasAvatar = avatar != null && avatar.isNotEmpty;
+                        return CircleAvatar(
+                          radius: 18,
+                          backgroundColor: AppColors.primary.withOpacity(0.15),
+                          backgroundImage: hasAvatar ? NetworkImage(avatar) : null,
+                          child: hasAvatar
+                              ? null
+                              : Text(
+                                  '${selectedUser!['first_name']?.toString() ?? ''}'.isNotEmpty
+                                      ? selectedUser!['first_name'].toString()[0].toUpperCase()
+                                      : '?',
+                                  style: appText(size: 14, weight: FontWeight.w700, color: AppColors.primary),
+                                ),
+                        );
+                      }),
                       const SizedBox(width: 10),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text('${selectedUser!['first_name'] ?? ''} ${selectedUser!['last_name'] ?? ''}'.trim(), style: appText(size: 14, weight: FontWeight.w600)),
@@ -454,8 +537,8 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
                   SizedBox(
                     width: double.infinity, height: 50,
                     child: ElevatedButton(
-                      onPressed: () async {
-                        Navigator.pop(ctx);
+                      onPressed: submitting ? null : () async {
+                        setModalState(() => submitting = true);
                         final data = <String, dynamic>{
                           'guest_type': 'user',
                           'user_id': selectedUser!['id'].toString(),
@@ -465,13 +548,20 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
                         if (selectedUser!['email'] != null) data['email'] = selectedUser!['email'].toString();
                         if (selectedUser!['phone'] != null) data['phone'] = selectedUser!['phone'].toString();
                         final res = await EventsService.addGuest(widget.eventId, data);
-                        if (mounted) {
-                          if (res['success'] == true) { AppSnackbar.success(context, 'Guest added'); _load(); }
-                          else AppSnackbar.error(context, res['message'] ?? 'Failed');
+                        if (!mounted) return;
+                        if (res['success'] == true) {
+                          Navigator.pop(ctx);
+                          AppSnackbar.success(context, 'Guest added');
+                          _load();
+                        } else {
+                          setModalState(() => submitting = false);
+                          AppSnackbar.error(context, res['message'] ?? 'Failed');
                         }
                       },
                       style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary, foregroundColor: Colors.white, elevation: 0, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999))),
-                      child: Text('Add as Guest', style: appText(size: 15, weight: FontWeight.w700, color: Colors.white)),
+                      child: submitting
+                          ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4, valueColor: AlwaysStoppedAnimation<Color>(Colors.white)))
+                          : Text('Add as Guest', style: appText(size: 15, weight: FontWeight.w700, color: Colors.white)),
                     ),
                   ),
                 ],

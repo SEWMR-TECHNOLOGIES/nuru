@@ -58,6 +58,11 @@ const CreateEvent: React.FC = () => {
     contributionPaymentInstructions: "",
   });
 
+  type WteItem = { icon: string; label: string; description: string };
+  const WTE_ICON_CHOICES = ["sparkle","calendar","clock","heart","camera","star","users","microphone","user"];
+  const [whatToExpectItems, setWhatToExpectItems] = useState<WteItem[]>([]);
+  const [whatToExpectNotes, setWhatToExpectNotes] = useState("");
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [images, setImages] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
@@ -140,6 +145,21 @@ const CreateEvent: React.FC = () => {
             // Restore ticketing state
             setTicketingEnabled(!!(event as any).sells_tickets);
             setIsPublicEvent(!!(event as any).is_public);
+
+            // Restore What to Expect
+            const rawWte = (event as any).what_to_expect;
+            if (Array.isArray(rawWte)) {
+              setWhatToExpectItems(
+                rawWte
+                  .map((it: any) => ({
+                    icon: String(it?.icon || "sparkle"),
+                    label: String(it?.label || it?.title || "").trim(),
+                    description: String(it?.description || ""),
+                  }))
+                  .filter((it: WteItem) => it.label),
+              );
+            }
+            setWhatToExpectNotes(String((event as any).what_to_expect_notes || ""));
 
             // Restore event-owner state
             const evAny = event as any;
@@ -279,6 +299,17 @@ const CreateEvent: React.FC = () => {
       form.append("reminder_contact_phone", formData.reminderContactPhone.trim());
       // Always send contribution_payment_instructions (empty string clears it on update)
       form.append("contribution_payment_instructions", formData.contributionPaymentInstructions.trim());
+
+      // What to Expect (always send so it can be cleared)
+      const wte = whatToExpectItems
+        .map((it) => ({
+          icon: (it.icon || "sparkle").trim(),
+          label: it.label.trim(),
+          description: it.description.trim(),
+        }))
+        .filter((it) => it.label);
+      form.append("what_to_expect", wte.length ? JSON.stringify(wte) : "");
+      form.append("what_to_expect_notes", whatToExpectNotes.trim());
 
       // Ticketing flags
       form.append("sells_tickets", ticketingEnabled ? "true" : "false");
@@ -674,6 +705,93 @@ const CreateEvent: React.FC = () => {
                 Explain how contributors should complete their payment. This will be included in contribution target messages.
               </p>
             </div>
+
+            {/* What to Expect */}
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                What to expect <span className="text-muted-foreground font-normal">(optional)</span>
+              </label>
+              <p className="text-[11px] text-muted-foreground mb-3">
+                Short list so guests know what to look forward to. Leave blank to hide this section on the public page.
+              </p>
+              <div className="space-y-2.5">
+                {whatToExpectItems.map((it, idx) => (
+                  <div key={idx} className="rounded-lg border border-border p-3 bg-background">
+                    <div className="flex items-start gap-2.5">
+                      <select
+                        value={it.icon}
+                        onChange={(e) => {
+                          const next = [...whatToExpectItems];
+                          next[idx] = { ...next[idx], icon: e.target.value };
+                          setWhatToExpectItems(next);
+                        }}
+                        className="h-9 rounded-md border border-input bg-background px-2 text-xs"
+                        aria-label="Icon"
+                      >
+                        {WTE_ICON_CHOICES.map((n) => (
+                          <option key={n} value={n}>{n}</option>
+                        ))}
+                      </select>
+                      <Input
+                        placeholder="e.g. Live music"
+                        value={it.label}
+                        onChange={(e) => {
+                          const next = [...whatToExpectItems];
+                          next[idx] = { ...next[idx], label: e.target.value };
+                          setWhatToExpectItems(next);
+                        }}
+                        maxLength={60}
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-9 w-9 flex-shrink-0"
+                        onClick={() => setWhatToExpectItems(whatToExpectItems.filter((_, i) => i !== idx))}
+                        aria-label="Remove"
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </div>
+                    <Input
+                      placeholder="Short description (optional)"
+                      value={it.description}
+                      onChange={(e) => {
+                        const next = [...whatToExpectItems];
+                        next[idx] = { ...next[idx], description: e.target.value };
+                        setWhatToExpectItems(next);
+                      }}
+                      maxLength={120}
+                      className="mt-2"
+                    />
+                  </div>
+                ))}
+                {whatToExpectItems.length < 12 && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setWhatToExpectItems([...whatToExpectItems, { icon: "sparkle", label: "", description: "" }])}
+                  >
+                    + Add item
+                  </Button>
+                )}
+              </div>
+              <div className="mt-4">
+                <label className="block text-sm font-medium mb-2">
+                  Additional notes <span className="text-muted-foreground font-normal">(optional)</span>
+                </label>
+                <Textarea
+                  placeholder="Anything else guests should know — schedule notes, parking, dress code reminders, etc."
+                  value={whatToExpectNotes}
+                  onChange={(e) => setWhatToExpectNotes(e.target.value)}
+                  rows={3}
+                  maxLength={1000}
+                />
+              </div>
+            </div>
+
 
             {/* Date, Time, Guests */}
             <div className="grid md:grid-cols-3 gap-4">

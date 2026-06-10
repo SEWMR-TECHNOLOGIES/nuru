@@ -52,6 +52,7 @@ from utils.phone_numbers import normalize_phone, phone_tail
 FRESH_AVAILABLE_DAYS = 60        # confirmed on WhatsApp — trust for ~2 months
 FRESH_UNAVAILABLE_DAYS = 30      # confirmed not on WhatsApp — re-evaluate after ~1 month
 FRESH_ERROR_DAYS = 3             # provider/system error — wait, don't penalise phone
+FRESH_PENDING_DAYS = 1           # API accepted message — waiting for delivery webhook
 FRESH_UNKNOWN_DAYS = 7           # untouched cache row — long backoff, no probing
 
 # Status vocabulary written to the DB
@@ -59,6 +60,10 @@ ST_AVAILABLE = "available"
 ST_UNAVAILABLE = "unavailable"
 ST_UNKNOWN = "unknown"
 ST_ERROR = "error"
+# API accepted the message (got wamid) but Meta has NOT yet confirmed
+# delivery via webhook. Meta returns a wamid for almost any well-formed
+# number; presence of wamid alone does NOT prove WhatsApp availability.
+ST_PENDING = "pending"
 
 # Meta error codes that DEFINITIVELY mean "recipient is not on WhatsApp"
 NOT_ON_WHATSAPP_CODES = {"131026", "131047"}
@@ -72,7 +77,10 @@ def _next_check_after(status: str) -> datetime:
         return now + timedelta(days=FRESH_UNAVAILABLE_DAYS)
     if status == ST_ERROR:
         return now + timedelta(days=FRESH_ERROR_DAYS)
+    if status == ST_PENDING:
+        return now + timedelta(days=FRESH_PENDING_DAYS)
     return now + timedelta(days=FRESH_UNKNOWN_DAYS)
+
 
 
 # ──────────────────────────────────────────────
@@ -250,12 +258,18 @@ def record_send_outcome(
         updated = False
 
         if message_id:
-            row.is_whatsapp = True
-            row.status = ST_AVAILABLE
-            row.provider_response_code = "200"
-            row.provider_error_code = None
-            row.provider_error_message = None
-            updated = True
+            # IMPORTANT: presence of wamid only means Meta accepted the API
+            # call. Meta returns a wamid for almost any well-formed phone;
+            # it does NOT confirm the recipient is on WhatsApp. We mark
+            # the row as PENDING and wait for the delivery webhook
+            # (see record_delivery_outcome). Never overwrite a previously
+            # confirmed availability/unavailability with a weaker signal.
+            if row.is_whatsapp is None:
+                row.status = ST_PENDING
+                row.provider_response_code = "200"
+                row.provider_error_code = None
+                row.provider_error_message = None
+                updated = True
         elif not_on_whatsapp or (ec in NOT_ON_WHATSAPP_CODES):
             row.is_whatsapp = False
             row.status = ST_UNAVAILABLE
@@ -278,8 +292,78 @@ def record_send_outcome(
         db.commit()
         print(
             f"[wa_availability] learned phone_tail={tail} status={row.status} "
-            f"source=real_send action={action or '-'} "
+            f"is_whatsapp={row.is_whatsapp} source=real_send action={action or '-'} "
             f"message_id={message_id or '-'} error_code={ec or '-'} updated={updated}"
         )
     except Exception as e:  # noqa: BLE001
         print(f"[wa_availability] record_send_outcome failed: {e}")
+
+
+def record_delivery_outcome(
+    db: Session,
+    raw_phone: str,
+    *,
+    delivery_status: str,
+    error_code: Optional[str] = None,
+    error_message: Optional[str] = None,
+    country: Optional[str] = None,
+) -> None:
+    """
+    Update phone_whatsapp_statuses from a REAL Meta delivery webhook callback.
+
+    Meta's webhook is the ONLY authoritative signal for whether the recipient
+    is actually on WhatsApp:
+
+    * delivery_status in {"sent", "delivered", "read"}  → on WhatsApp
+    * delivery_status == "failed" with error_code 131026/131047 → not on WhatsApp
+    * delivery_status == "failed" with any other code → system error,
+      leave is_whatsapp untouched
+
+    Synchronous wamid responses (see record_send_outcome) are NOT enough,
+    because Meta hands out wamids for nearly any well-formed number and
+    only fails the send asynchronously.
+    """
+    try:
+        row = ensure_phone_status(db, raw_phone, country=country)
+        if row is None:
+            return
+
+        now = datetime.now(timezone.utc)
+        tail = phone_tail(row.normalized_phone)
+        ec = str(error_code) if error_code is not None else None
+        ds = (delivery_status or "").lower()
+        updated = False
+
+        if ds in ("sent", "delivered", "read"):
+            # Meta confirmed delivery to a WhatsApp account — definitive.
+            row.is_whatsapp = True
+            row.status = ST_AVAILABLE
+            row.provider_response_code = ds
+            row.provider_error_code = None
+            row.provider_error_message = None
+            updated = True
+        elif ds == "failed" and ec in NOT_ON_WHATSAPP_CODES:
+            row.is_whatsapp = False
+            row.status = ST_UNAVAILABLE
+            row.provider_error_code = ec
+            row.provider_error_message = error_message
+            updated = True
+        elif ds == "failed":
+            row.status = ST_ERROR
+            row.provider_error_code = ec
+            row.provider_error_message = error_message
+            updated = True
+        else:
+            return
+
+        row.last_checked_at = now
+        row.next_check_after = _next_check_after(row.status)
+        db.commit()
+        print(
+            f"[wa_availability] delivery callback phone_tail={tail} "
+            f"delivery={ds} status={row.status} is_whatsapp={row.is_whatsapp} "
+            f"error_code={ec or '-'} updated={updated}"
+        )
+    except Exception as e:  # noqa: BLE001
+        print(f"[wa_availability] record_delivery_outcome failed: {e}")
+

@@ -15,8 +15,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/utils/share_helpers.dart';
 import '../../core/services/api_base.dart';
+import '../../core/services/secure_token_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/date_formatters.dart';
+import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/nuru_logo.dart';
 import '../events/event_public_view_screen.dart';
 import '../auth/login_screen.dart';
@@ -37,11 +39,19 @@ class _InvitationViewScreenState extends State<InvitationViewScreen> {
   String? _errorCode;
   Map<String, dynamic>? _data;
   bool _submitting = false;
+  bool _isSignedIn = false;
 
   @override
   void initState() {
     super.initState();
+    _checkSession();
     _load();
+  }
+
+  Future<void> _checkSession() async {
+    final t = await SecureTokenStorage.getToken();
+    if (!mounted) return;
+    setState(() => _isSignedIn = (t != null && t.isNotEmpty));
   }
 
   Future<void> _load() async {
@@ -159,7 +169,7 @@ class _InvitationViewScreenState extends State<InvitationViewScreen> {
                     border: Border.all(color: AppColors.primary.withOpacity(0.35)),
                   ),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const Icon(Icons.person_outline, size: 16, color: AppColors.primaryDark),
+                    const AppIcon('user', size: 14, color: AppColors.primaryDark),
                     const SizedBox(width: 6),
                     Flexible(
                       child: Text(
@@ -176,13 +186,13 @@ class _InvitationViewScreenState extends State<InvitationViewScreen> {
                 const SizedBox(height: 18),
               ],
               _InfoCard(children: [
-                _DetailRow(icon: Icons.event, label: 'When', value: eventDate),
-                _DetailRow(icon: Icons.place_outlined, label: 'Where', value: venue.isEmpty ? 'Venue to be confirmed' : venue),
+                _DetailRow(iconName: 'calendar', label: 'When', value: eventDate),
+                _DetailRow(iconName: 'location', label: 'Where', value: venue.isEmpty ? 'Venue to be confirmed' : venue),
                 if (organiser.isNotEmpty)
-                  _DetailRow(icon: Icons.workspace_premium_outlined, label: 'Hosted by', value: organiser),
+                  _DetailRow(iconName: 'crown', label: 'Hosted by', value: organiser),
                 if (currentStatus.isNotEmpty)
                   _DetailRow(
-                    icon: Icons.check_circle_outline,
+                    iconName: 'verified',
                     label: 'Your status',
                     value: _statusLabel(currentStatus),
                     valueColor: _statusColor(currentStatus),
@@ -191,14 +201,14 @@ class _InvitationViewScreenState extends State<InvitationViewScreen> {
               const SizedBox(height: 22),
               if (alreadyUsed)
                 const _SoftNotice(
-                  icon: Icons.verified_outlined,
+                  iconName: 'verified',
                   color: AppColors.success,
                   title: 'Checked in',
                   message: 'This invitation has been used at check-in and can no longer be changed.',
                 )
               else if (hasResponded)
                 _SoftNotice(
-                  icon: currentStatus == 'confirmed' ? Icons.celebration_outlined : Icons.info_outline,
+                  iconName: currentStatus == 'confirmed' ? 'sparkle' : 'info',
                   color: _statusColor(currentStatus),
                   title: currentStatus == 'confirmed' ? 'You are going' : 'You declined',
                   message: 'You can change your response any time before the event.',
@@ -220,7 +230,7 @@ class _InvitationViewScreenState extends State<InvitationViewScreen> {
               if (eventId.isNotEmpty)
                 OutlinedButton.icon(
                   onPressed: () => _openEvent(eventId),
-                  icon: const Icon(Icons.open_in_new, size: 18),
+                  icon: const AppIcon('link', size: 16, color: AppColors.textPrimary),
                   label: const Text('Open event page'),
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
@@ -228,15 +238,17 @@ class _InvitationViewScreenState extends State<InvitationViewScreen> {
                     foregroundColor: AppColors.textPrimary,
                   ),
                 ),
-              const SizedBox(height: 12),
-              TextButton.icon(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+              if (!_isSignedIn) ...[
+                const SizedBox(height: 12),
+                TextButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  ),
+                  icon: const AppIcon('lock', size: 14, color: AppColors.textSecondary),
+                  label: const Text('Sign in for more options'),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
                 ),
-                icon: const Icon(Icons.lock_outline, size: 16),
-                label: const Text('Sign in to manage invitations'),
-                style: TextButton.styleFrom(foregroundColor: AppColors.textSecondary),
-              ),
+              ],
               const SizedBox(height: 16),
               const _NuruFootBadge(),
             ]),
@@ -368,12 +380,12 @@ class _InvitationHero extends StatelessWidget {
         child: Row(children: [
           IconButton(
             onPressed: onBack,
-            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
+            icon: const AppIcon('arrow-left', size: 20, color: Colors.white),
           ),
           const Spacer(),
           IconButton(
             onPressed: onShare,
-            icon: const Icon(Icons.ios_share, color: Colors.white),
+            icon: const AppIcon('share-upload', size: 20, color: Colors.white),
           ),
         ]),
       ),
@@ -407,11 +419,11 @@ class _InfoCard extends StatelessWidget {
 }
 
 class _DetailRow extends StatelessWidget {
-  final IconData icon;
+  final String iconName;
   final String label;
   final String value;
   final Color? valueColor;
-  const _DetailRow({required this.icon, required this.label, required this.value, this.valueColor});
+  const _DetailRow({required this.iconName, required this.label, required this.value, this.valueColor});
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -420,11 +432,12 @@ class _DetailRow extends StatelessWidget {
         Container(
           width: 36,
           height: 36,
+          alignment: Alignment.center,
           decoration: BoxDecoration(
             color: AppColors.primarySoft,
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, size: 18, color: AppColors.primaryDark),
+          child: AppIcon(iconName, size: 16, color: AppColors.primaryDark),
         ),
         const SizedBox(width: 14),
         Expanded(
@@ -469,7 +482,7 @@ class _RespondBlock extends StatelessWidget {
             onPressed: submitting ? null : onAccept,
             icon: submitting
                 ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Icon(Icons.check, size: 18),
+                : const AppIcon('double-check', size: 16, color: Colors.white),
             label: const Text('Accept'),
             style: FilledButton.styleFrom(
               backgroundColor: AppColors.primary,
@@ -483,7 +496,7 @@ class _RespondBlock extends StatelessWidget {
         Expanded(
           child: OutlinedButton.icon(
             onPressed: submitting ? null : onDecline,
-            icon: const Icon(Icons.close, size: 18),
+            icon: const AppIcon('close', size: 16, color: AppColors.textPrimary),
             label: const Text('Decline'),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.textPrimary,
@@ -499,12 +512,12 @@ class _RespondBlock extends StatelessWidget {
 }
 
 class _SoftNotice extends StatelessWidget {
-  final IconData icon;
+  final String iconName;
   final Color color;
   final String title;
   final String message;
   final Widget? trailing;
-  const _SoftNotice({required this.icon, required this.color, required this.title, required this.message, this.trailing});
+  const _SoftNotice({required this.iconName, required this.color, required this.title, required this.message, this.trailing});
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -515,7 +528,7 @@ class _SoftNotice extends StatelessWidget {
         border: Border.all(color: color.withOpacity(0.25)),
       ),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, color: color, size: 22),
+        AppIcon(iconName, size: 20, color: color),
         const SizedBox(width: 12),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -566,8 +579,9 @@ class _PremiumErrorState extends StatelessWidget {
         Container(
           width: 72,
           height: 72,
+          alignment: Alignment.center,
           decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(24)),
-          child: const Icon(Icons.mail_outline, size: 32, color: AppColors.primaryDark),
+          child: const AppIcon('email', size: 28, color: AppColors.primaryDark),
         ),
         const SizedBox(height: 18),
         Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),

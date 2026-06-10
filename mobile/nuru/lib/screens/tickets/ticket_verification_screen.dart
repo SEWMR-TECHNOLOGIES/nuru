@@ -11,6 +11,7 @@ import '../../core/utils/share_helpers.dart';
 import '../../core/services/api_base.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/date_formatters.dart';
+import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/nuru_logo.dart';
 import '../events/event_public_view_screen.dart';
 
@@ -66,13 +67,13 @@ class _TicketVerificationScreenState extends State<TicketVerificationScreen> {
         elevation: 0,
         scrolledUnderElevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: AppColors.textPrimary, size: 20),
+          icon: const AppIcon('arrow-left', size: 20, color: AppColors.textPrimary),
           onPressed: () => Navigator.of(context).maybePop(),
         ),
         title: const Text('Ticket', style: TextStyle(color: AppColors.textPrimary, fontWeight: FontWeight.w700)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.ios_share, color: AppColors.textPrimary, size: 20),
+            icon: const AppIcon('share-upload', size: 20, color: AppColors.textPrimary),
             onPressed: _share,
           ),
         ],
@@ -96,7 +97,7 @@ class _TicketVerificationScreenState extends State<TicketVerificationScreen> {
     if (_error != null) {
       return _StatusFull(
         accent: AppColors.error,
-        icon: Icons.error_outline,
+        iconName: 'close-circle',
         title: 'Ticket not recognised',
         message: _error!,
         code: widget.code,
@@ -119,11 +120,11 @@ class _TicketVerificationScreenState extends State<TicketVerificationScreen> {
     final valid = !used && !expired;
 
     final accent = used ? AppColors.warning : (expired ? AppColors.error : AppColors.success);
-    final icon = used
-        ? Icons.check_circle
+    final iconName = used
+        ? 'double-check'
         : expired
-            ? Icons.history_toggle_off
-            : Icons.verified;
+            ? 'clock'
+            : 'verified';
     final title = used ? 'Already checked in' : (expired ? 'Ticket expired' : 'Valid ticket');
     final subtitle = used
         ? 'This ticket has already been scanned at the gate.'
@@ -134,18 +135,18 @@ class _TicketVerificationScreenState extends State<TicketVerificationScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
       children: [
-        _StatusBanner(accent: accent, icon: icon, title: title, message: subtitle),
+        _StatusBanner(accent: accent, iconName: iconName, title: title, message: subtitle),
         const SizedBox(height: 20),
         if (valid) _QrCard(payload: qrPayload, code: widget.code),
         if (valid) const SizedBox(height: 18),
         _DetailCard(
           rows: [
-            _Row(label: 'Event', value: eventName, icon: Icons.event),
-            if (eventDateRaw.isNotEmpty) _Row(label: 'Date', value: formatDateFull(eventDateRaw), icon: Icons.calendar_today_outlined),
-            if (venue.isNotEmpty) _Row(label: 'Venue', value: venue, icon: Icons.place_outlined),
-            _Row(label: 'Ticket type', value: ticketType, icon: Icons.confirmation_number_outlined),
-            if (holder.isNotEmpty) _Row(label: 'Holder', value: holder, icon: Icons.person_outline),
-            _Row(label: 'Status', value: status.toUpperCase(), icon: Icons.info_outline, valueColor: accent),
+            _Row(label: 'Event', value: eventName, iconName: 'event-calendar-check'),
+            if (eventDateRaw.isNotEmpty) _Row(label: 'Date', value: formatDateFull(eventDateRaw), iconName: 'calendar'),
+            if (venue.isNotEmpty) _Row(label: 'Venue', value: venue, iconName: 'location'),
+            _Row(label: 'Ticket type', value: ticketType, iconName: 'card'),
+            if (holder.isNotEmpty) _Row(label: 'Holder', value: holder, iconName: 'user'),
+            _Row(label: 'Status', value: status.toUpperCase(), iconName: 'info', valueColor: accent),
           ],
         ),
         const SizedBox(height: 16),
@@ -154,7 +155,7 @@ class _TicketVerificationScreenState extends State<TicketVerificationScreen> {
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => EventPublicViewScreen(eventId: eventId)),
             ),
-            icon: const Icon(Icons.open_in_new, size: 18),
+            icon: const AppIcon('link', size: 16, color: AppColors.textPrimary),
             label: const Text('Open event page'),
             style: OutlinedButton.styleFrom(
               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -174,20 +175,16 @@ class _TicketVerificationScreenState extends State<TicketVerificationScreen> {
 
 class _StatusBanner extends StatelessWidget {
   final Color accent;
-  final IconData icon;
+  final String iconName;
   final String title;
   final String message;
-  const _StatusBanner({required this.accent, required this.icon, required this.title, required this.message});
+  const _StatusBanner({required this.accent, required this.iconName, required this.title, required this.message});
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [accent.withOpacity(0.18), accent.withOpacity(0.06)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+        color: accent.withOpacity(0.10),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: accent.withOpacity(0.35)),
       ),
@@ -195,8 +192,9 @@ class _StatusBanner extends StatelessWidget {
         Container(
           width: 44,
           height: 44,
+          alignment: Alignment.center,
           decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(14)),
-          child: Icon(icon, color: Colors.white, size: 24),
+          child: AppIcon(iconName, size: 22, color: Colors.white),
         ),
         const SizedBox(width: 14),
         Expanded(
@@ -255,9 +253,9 @@ class _QrCard extends StatelessWidget {
 class _Row {
   final String label;
   final String value;
-  final IconData icon;
+  final String iconName;
   final Color? valueColor;
-  const _Row({required this.label, required this.value, required this.icon, this.valueColor});
+  const _Row({required this.label, required this.value, required this.iconName, this.valueColor});
 }
 
 class _DetailCard extends StatelessWidget {
@@ -276,7 +274,7 @@ class _DetailCard extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(rows[i].icon, size: 18, color: AppColors.primaryDark),
+              AppIcon(rows[i].iconName, size: 16, color: AppColors.primaryDark),
               const SizedBox(width: 12),
               SizedBox(
                 width: 88,
@@ -299,14 +297,14 @@ class _DetailCard extends StatelessWidget {
 
 class _StatusFull extends StatelessWidget {
   final Color accent;
-  final IconData icon;
+  final String iconName;
   final String title;
   final String message;
   final String code;
   final VoidCallback onRetry;
   const _StatusFull({
     required this.accent,
-    required this.icon,
+    required this.iconName,
     required this.title,
     required this.message,
     required this.code,
@@ -320,8 +318,9 @@ class _StatusFull extends StatelessWidget {
         Container(
           width: 80,
           height: 80,
+          alignment: Alignment.center,
           decoration: BoxDecoration(color: accent.withOpacity(0.1), borderRadius: BorderRadius.circular(26)),
-          child: Icon(icon, color: accent, size: 38),
+          child: AppIcon(iconName, size: 34, color: accent),
         ),
         const SizedBox(height: 20),
         Text(title, textAlign: TextAlign.center, style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),

@@ -30,6 +30,8 @@ class WAMessage(Base):
     wa_message_id = Column(String(255), nullable=True, unique=True, index=True)
     direction = Column(Enum(WAMessageDirectionEnum, name="wa_message_direction_enum"), nullable=False)
     content = Column(Text, nullable=False)
+    media_url = Column(Text, nullable=True)
+    media_type = Column(String(32), nullable=True)  # image | document | video | audio
     status = Column(Enum(WAMessageStatusEnum, name="wa_message_status_enum"), default=WAMessageStatusEnum.sent)
     created_at = Column(DateTime, server_default=func.now())
 

@@ -2,6 +2,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/events_service.dart';
@@ -187,7 +189,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Future<void> _loadProfileDetails() async {
-    setState(() => _profileLoading = true);
+    // Seed from anything we already have so an offline open never blanks
+    // out the name / avatar that was loaded before the network dropped.
+    final seeded = _profileData ?? widget.profile;
+    if (mounted) {
+      setState(() {
+        _profileData = seeded;
+        _profileLoading = _profileData == null;
+      });
+    }
     final meRes = await AuthApi.me();
     Map<String, dynamic>? userData;
     if (meRes['success'] == true && meRes['data'] is Map<String, dynamic>) {
@@ -199,12 +209,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (profileRes['success'] == true && profileRes['data'] is Map<String, dynamic>) {
       userData = {...(userData ?? {}), ...profileRes['data'] as Map<String, dynamic>};
     }
-    if (mounted) {
-      setState(() {
+    if (!mounted) return;
+    setState(() {
+      _profileLoading = false;
+      // Only replace cached data when we actually got something back. A
+      // network failure (offline) must NEVER blank the user's name into
+      // the "Your name" placeholder.
+      if (userData != null && userData.isNotEmpty) {
         _profileData = userData;
-        _profileLoading = false;
-      });
-    }
+      }
+    });
   }
 
   TextStyle _f({required double size, FontWeight weight = FontWeight.w500,
@@ -230,11 +244,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final p = _profileData ?? widget.profile ?? <String, dynamic>{};
+    // Three-tier fallback so an offline open never shows "Your name":
+    //   1. Freshly-fetched _profileData
+    //   2. The profile blob the parent (home) passed in (cached on launch)
+    //   3. AuthProvider.user — populated from secure storage + cached_user
+    //      prefs the very first frame after the splash, even when offline.
+    final cached = context.watch<AuthProvider>().user;
+    final p = _profileData ?? widget.profile ?? cached ?? <String, dynamic>{};
     final firstName = p['first_name']?.toString() ?? '';
     final lastName = p['last_name']?.toString() ?? '';
     final fullName = '$firstName $lastName'.trim();
-    final avatar = p['avatar'] as String?;
+    final avatar = (p['avatar'] as String?) ?? (cached?['avatar'] as String?);
     final phone = p['phone']?.toString() ?? '';
     final email = p['email']?.toString() ?? '';
 

@@ -22,6 +22,7 @@ import {
   MessageCircle,
   MessageSquareOff,
   HelpCircle,
+  Send,
 } from "lucide-react";
 import {
   eventCardsApi,
@@ -29,6 +30,7 @@ import {
   type SentCardTemplateSummary,
   type WhatsAppStatus,
 } from "@/lib/api/eventCards";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 interface Props {
   eventId: string;
@@ -92,6 +94,8 @@ export default function SentCardsPanel({ eventId }: Props) {
   const [search, setSearch] = useState("");
   const [waFilter, setWaFilter] = useState<"all" | "whatsapp" | "normal">("all");
   const [downloading, setDownloading] = useState<"images" | "pdf" | null>(null);
+  const [resending, setResending] = useState(false);
+  const { confirm, ConfirmDialog } = useConfirmDialog();
 
   const refreshTemplates = useCallback(async () => {
     setLoadingTemplates(true);
@@ -299,6 +303,45 @@ export default function SentCardsPanel({ eventId }: Props) {
     }
   };
 
+  const doResend = async () => {
+    if (selectedIds.size === 0) {
+      toast({
+        title: "Select recipients first",
+        description: "Pick at least one recipient to resend the card.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const ids = Array.from(selectedIds);
+    const ok = await confirm({
+      title: `Resend card to ${ids.length} recipient${ids.length === 1 ? "" : "s"}?`,
+      description: `They'll receive the same card image again on WhatsApp or SMS.`,
+      confirmLabel: "Resend",
+    });
+    if (!ok) return;
+    setResending(true);
+    try {
+      const res: any = await eventCardsApi.resendSentCards(eventId, ids);
+      const queued = res?.data?.queued ?? res?.queued ?? ids.length;
+      toast({
+        title: "Resending cards",
+        description: `Queued ${queued} card${queued === 1 ? "" : "s"} for delivery.`,
+      });
+      clearSelection();
+      // Refresh the row metadata so timestamps / delivery_status update.
+      if (activeTemplate) openTemplate(activeTemplate);
+    } catch (err: any) {
+      toast({
+        title: "Resend failed",
+        description: err?.message || "Could not resend the selected cards.",
+        variant: "destructive",
+      });
+    } finally {
+      setResending(false);
+    }
+  };
+
+
 
   // ── Render: template list ───────────────────────────────────────
   if (!activeTemplate) {
@@ -446,6 +489,18 @@ export default function SentCardsPanel({ eventId }: Props) {
             <><FileText className="w-4 h-4 mr-1" />Download PDF</>
           )}
         </Button>
+        <Button
+          size="sm"
+          variant="default"
+          onClick={doResend}
+          disabled={selectedIds.size === 0 || resending}
+        >
+          {resending ? (
+            <><Loader2 className="w-4 h-4 mr-1 animate-spin" />Resending…</>
+          ) : (
+            <><Send className="w-4 h-4 mr-1" />Resend ({selectedIds.size})</>
+          )}
+        </Button>
       </div>
 
       {loadingRecipients ? (
@@ -523,6 +578,7 @@ export default function SentCardsPanel({ eventId }: Props) {
           })}
         </div>
       )}
+      <ConfirmDialog />
     </div>
   );
 }

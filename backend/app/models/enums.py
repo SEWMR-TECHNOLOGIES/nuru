@@ -26,6 +26,7 @@ class RSVPStatusEnum(enum.Enum):
     pending = "pending"
     confirmed = "confirmed"
     declined = "declined"
+    maybe = "maybe"
     checked_in = "checked_in"
 
 

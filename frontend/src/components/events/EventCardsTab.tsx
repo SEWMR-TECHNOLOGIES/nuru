@@ -20,8 +20,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import SentCardsPanel from "./SentCardsPanel";
 import PreparedCardsPanel from "./PreparedCardsPanel";
+import {
+  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent,
+  DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator,
+} from "@/components/ui/dropdown-menu";
 
-import { Loader2 } from "lucide-react";
+import { Loader2, ChevronDown } from "lucide-react";
 import {
   eventCardsApi,
   absolutizeApiUrl,
@@ -37,6 +41,7 @@ import { eventsApi } from "@/lib/api/events";
 import type { EventGuest } from "@/lib/api/types";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import QRCode from "qrcode";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 interface Props {
   eventId: string;
@@ -354,6 +359,7 @@ function TemplateThumb({ slug, contributorName }: { slug: string; contributorNam
 }
 
 export default function EventCardsTab({ eventId }: Props) {
+  const { confirm, ConfirmDialog } = useConfirmDialog();
   const [categories, setCategories] = useState<CardCategory[]>([]);
   const [activeCategory, setActiveCategory] = useState<string>("");
   const [templates, setTemplates] = useState<CardTemplateSummary[]>([]);
@@ -386,6 +392,10 @@ export default function EventCardsTab({ eventId }: Props) {
   const cancelRef = useRef<boolean>(false);
   const [contributorSearch, setContributorSearch] = useState("");
   const [selectedContributorIds, setSelectedContributorIds] = useState<Set<string>>(new Set());
+  // Recipient ids hidden from the picker because the user chose "only those
+  // not prepared/sent yet". Populated by openSend when mode === "skip_existing".
+  const [excludedRecipientIds, setExcludedRecipientIds] = useState<Set<string>>(new Set());
+  const [excludedReason, setExcludedReason] = useState<"prepared" | "sent" | null>(null);
 
   const { eventContributors, refetch: fetchEventContributors } = useEventContributors(eventId);
   const [eventGuests, setEventGuests] = useState<EventGuest[]>([]);
@@ -560,10 +570,20 @@ export default function EventCardsTab({ eventId }: Props) {
   const prepareModeRef = useRef(false);
   const [prepareModeUi, setPrepareModeUi] = useState(false);
 
-  const openSend = useCallback(async (opts: { prepareOnly?: boolean } = {}) => {
+  // Duplicate handling for the upcoming send/prepare batch:
+  //   "fresh"          → resend / re-prepare for every selected recipient
+  //                      (default — matches the previous behaviour).
+  //   "skip_existing"  → silently drop anyone already sent/prepared. The
+  //                      backend enforces this so a previously prepared
+  //                      card keeps its stable URL untouched.
+  const sendModeRef = useRef<"fresh" | "skip_existing">("fresh");
+
+  const openSend = useCallback(async (opts: { prepareOnly?: boolean; mode?: "fresh" | "skip_existing" } = {}) => {
     const prepareOnly = !!opts.prepareOnly;
+    const mode = opts.mode || "fresh";
     prepareModeRef.current = prepareOnly;
     setPrepareModeUi(prepareOnly);
+    sendModeRef.current = mode;
     let activeSavedCard = savedCard;
 
     if (audience === "guests" && !activeSavedCard) {
@@ -579,6 +599,47 @@ export default function EventCardsTab({ eventId }: Props) {
     } else if (!initialFetched.current) { fetchEventContributors(); initialFetched.current = true; }
     setSelectedContributorIds(new Set());
     setContributorSearch("");
+
+    // ── Pre-filter for "Only those not prepared / not sent yet" ──
+    // The backend already enforces skip_existing at dispatch time, but the
+    // picker should also reflect that choice so the user sees (and confirms)
+    // ONLY the remaining recipients — not the full list. Compute the set of
+    // ids to hide here so eligibleContributors auto-shrinks.
+    setExcludedRecipientIds(new Set());
+    setExcludedReason(null);
+    if (mode === "skip_existing") {
+      try {
+        const tplId = activeTemplate?.id;
+        const isGuest = audience === "guests";
+        const excluded = new Set<string>();
+        if (prepareOnly) {
+          // Drop only people who already have a "prepared" row.
+          const res = await eventCardsApi.listPreparedCards(eventId);
+          const list = res.data?.prepared_cards || [];
+          for (const p of list) {
+            if (tplId && p.template_id && p.template_id !== tplId) continue;
+            if (isGuest && p.recipient_type !== "guest") continue;
+            if (!isGuest && p.recipient_type !== "contributor") continue;
+            if (p.recipient_id) excluded.add(p.recipient_id);
+          }
+          setExcludedReason("prepared");
+        } else if (tplId) {
+          // Drop people who already received a (non-prepared) send.
+          const res = await eventCardsApi.listSentCardRecipients(eventId, tplId);
+          const list = res.data?.recipients || [];
+          for (const r of list) {
+            const id = isGuest ? r.guest_attendee_id : r.contributor_id;
+            if (id) excluded.add(id);
+          }
+          setExcludedReason("sent");
+        }
+        setExcludedRecipientIds(excluded);
+      } catch (err) {
+        // Non-fatal — backend will still enforce skip_existing on submit.
+        console.warn("[cards] skip_existing pre-filter failed", err);
+      }
+    }
+
     // Resume any saved job for this template (so refresh keeps the report)
     const existing = currentJobId ? loadBatchJob(currentJobId) : null;
     if (existing && existing.batches.length > 0) {
@@ -590,7 +651,7 @@ export default function EventCardsTab({ eventId }: Props) {
       setSendStep("pick");
     }
     setSendOpen(true);
-  }, [savedCard, audience, persistActiveCard, fetchEventContributors, fetchEventGuests, currentJobId]);
+  }, [savedCard, audience, persistActiveCard, fetchEventContributors, fetchEventGuests, currentJobId, eventId, activeTemplate?.id]);
 
 
   const toggleContributor = (id: string) => {
@@ -605,11 +666,12 @@ export default function EventCardsTab({ eventId }: Props) {
   // shape so the picker UI doesn't have to branch.
   type Recipient = { id: string; name: string; phone: string; subtitle?: string; qrPayload?: string };
   const eligibleContributors: Recipient[] = useMemo(() => {
+    let list: Recipient[];
     if (audience === "guests") {
       const allowed = new Set(
         (activeTemplate?.metadata?.recipient_filter as string[] | undefined) || ["pending", "confirmed", "maybe"],
       );
-      return eventGuests
+      list = eventGuests
         .filter((g) => allowed.has(String(g.rsvp_status)))
         .map((g) => ({
           id: g.id,
@@ -618,11 +680,28 @@ export default function EventCardsTab({ eventId }: Props) {
           subtitle: g.rsvp_status,
           qrPayload: (g as any).qr_payload || g.id,
         }));
+    } else {
+      list = eventContributors
+        .filter((ec) => Number(ec.pledge_amount || 0) > 0)
+        .map((ec) => ({ id: ec.id, name: ec.contributor?.name || "Unnamed", phone: ec.contributor?.phone || "" }));
     }
-    return eventContributors
-      .filter((ec) => Number(ec.pledge_amount || 0) > 0)
-      .map((ec) => ({ id: ec.id, name: ec.contributor?.name || "Unnamed", phone: ec.contributor?.phone || "" }));
-  }, [audience, eventGuests, eventContributors, activeTemplate?.metadata?.recipient_filter]);
+    // Hide anyone the user told us to skip ("Only those not prepared/sent yet").
+    if (excludedRecipientIds.size > 0) {
+      list = list.filter((r) => !excludedRecipientIds.has(r.id));
+    }
+    return list;
+  }, [audience, eventGuests, eventContributors, activeTemplate?.metadata?.recipient_filter, excludedRecipientIds]);
+
+  // Pre-tick every remaining recipient when the user chose "Only those not
+  // prepared/sent yet" — saves them from re-selecting after we shrink the list.
+  useEffect(() => {
+    if (!sendOpen || sendStep !== "pick" || !excludedReason) return;
+    if (eligibleContributors.length === 0) return;
+    setSelectedContributorIds((prev) => {
+      if (prev.size > 0) return prev; // user already touched the list
+      return new Set(eligibleContributors.map((r) => r.id));
+    });
+  }, [sendOpen, sendStep, excludedReason, eligibleContributors]);
 
   const filteredContributors = useMemo(() => {
     const q = contributorSearch.trim().toLowerCase();
@@ -949,17 +1028,18 @@ export default function EventCardsTab({ eventId }: Props) {
       updateProgress(undefined, "sending");
       try {
         const prepareOnly = prepareModeRef.current;
+        const dispatchMode = sendModeRef.current;
         if (isGuestRun) {
           if (prepareOnly) {
-            await eventCardsApi.prepareForGuests(eventId, activeCategory, preparedIds, preRendered);
+            await eventCardsApi.prepareForGuests(eventId, activeCategory, preparedIds, preRendered, dispatchMode);
           } else {
-            await eventCardsApi.sendToGuests(eventId, activeCategory, preparedIds, preRendered);
+            await eventCardsApi.sendToGuests(eventId, activeCategory, preparedIds, preRendered, dispatchMode);
           }
         } else {
           if (prepareOnly) {
-            await eventCardsApi.prepareForContributors(eventId, activeCategory, preparedIds, preRendered);
+            await eventCardsApi.prepareForContributors(eventId, activeCategory, preparedIds, preRendered, dispatchMode);
           } else {
-            await eventCardsApi.sendToContributors(eventId, activeCategory, preparedIds, preRendered);
+            await eventCardsApi.sendToContributors(eventId, activeCategory, preparedIds, preRendered, dispatchMode);
           }
         }
         return { sentIds: preparedIds, failed: attemptedFailed, rendererStuck, unattempted };
@@ -1098,6 +1178,8 @@ export default function EventCardsTab({ eventId }: Props) {
   const lockedIds = new Set(activeTemplate?.metadata?.locked_ids || []);
 
   return (
+    <>
+    <ConfirmDialog />
     <Tabs defaultValue="templates" className="space-y-4">
       <TabsList>
         <TabsTrigger value="templates">Templates</TabsTrigger>
@@ -1224,27 +1306,74 @@ export default function EventCardsTab({ eventId }: Props) {
                   </div>
                 );
               })}
-              <div className="flex gap-2 pt-2">
+              <div className="flex flex-wrap gap-2 pt-2">
                 <Button onClick={onSave} disabled={saving}>
                   {saving ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving</> : "Save card"}
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => { void openSend({ prepareOnly: true }); }}
-                  disabled={saving || (!savedCard && audience !== "guests")}
-                  title="Render cards now and stage them on the Prepared Cards tab without sending"
-                >
-                  Prepare cards
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => { void openSend(); }}
-                  disabled={saving || (!savedCard && audience !== "guests")}
-                >
-                  Send to {recipientNounPlural}
-                </Button>
+
+                {/* Prepare cards — split menu so the organiser can choose
+                     between re-preparing everyone (fresh) and only the
+                     recipients without a prepared card yet (skip). */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      disabled={saving || (!savedCard && audience !== "guests")}
+                      title="Render cards in your browser and stage them on the Prepared Cards tab without sending"
+                    >
+                      Prepare cards
+                      <ChevronDown className="w-3.5 h-3.5 ml-1.5 opacity-70" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-72">
+                    <DropdownMenuLabel>How should we prepare?</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => { void openSend({ prepareOnly: true, mode: "fresh" }); }}>
+                      <div className="flex flex-col">
+                        <span className="font-medium">Fresh prepare (all selected)</span>
+                        <span className="text-xs text-muted-foreground">Re-renders every selected recipient. Replaces any previously prepared card.</span>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { void openSend({ prepareOnly: true, mode: "skip_existing" }); }}>
+                      <div className="flex flex-col">
+                        <span className="font-medium">Only those not prepared yet</span>
+                        <span className="text-xs text-muted-foreground">Skips recipients that already have a prepared card so their stable URL stays the same.</span>
+                      </div>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Send — same picker, dispatch path. */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      disabled={saving || (!savedCard && audience !== "guests")}
+                    >
+                      Send to {recipientNounPlural}
+                      <ChevronDown className="w-3.5 h-3.5 ml-1.5 opacity-70" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-72">
+                    <DropdownMenuLabel>How should we send?</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={() => { void openSend({ mode: "fresh" }); }}>
+                      <div className="flex flex-col">
+                        <span className="font-medium">Fresh send (all selected)</span>
+                        <span className="text-xs text-muted-foreground">Sends to every selected recipient, even those already sent before.</span>
+                      </div>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => { void openSend({ mode: "skip_existing" }); }}>
+                      <div className="flex flex-col">
+                        <span className="font-medium">Only those not sent yet</span>
+                        <span className="text-xs text-muted-foreground">Skips anyone whose card was already delivered. Useful for catching up new recipients.</span>
+                      </div>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
               </div>
+
             </CardContent>
           </Card>
 
@@ -1296,12 +1425,19 @@ export default function EventCardsTab({ eventId }: Props) {
           {sendStep === "pick" && (
             eligibleContributors.length === 0 ? (
               <p className="text-sm text-muted-foreground py-6 text-center">
-                {audience === "guests"
-                  ? (loadingGuests ? "Loading guests…" : "No eligible guests on this event yet.")
-                  : "No contributors with a pledge yet."}
+                {excludedReason
+                  ? `Every eligible ${recipientNounPlural === "guests" ? "guest" : "contributor"} has already been ${excludedReason}. Nothing left to ${prepareModeUi ? "prepare" : "send"}.`
+                  : audience === "guests"
+                    ? (loadingGuests ? "Loading guests…" : "No eligible guests on this event yet.")
+                    : "No contributors with a pledge yet."}
               </p>
             ) : (
               <>
+                {excludedRecipientIds.size > 0 && excludedReason && (
+                  <div className="mb-3 px-3 py-2 rounded-md bg-muted/60 text-xs text-muted-foreground">
+                    Hiding {excludedRecipientIds.size} {excludedRecipientIds.size === 1 ? "recipient" : "recipients"} already {excludedReason}. Showing only the remaining {eligibleContributors.length}.
+                  </div>
+                )}
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">
                     <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">
@@ -1390,8 +1526,13 @@ export default function EventCardsTab({ eventId }: Props) {
               onRetryFailed={(n) => sendBatch(n, { retryOnly: true })}
               onSafeRetry={(n) => sendBatch(n, { retryOnly: true, mode: "safe" })}
               onResetRenderer={resetRenderer}
-              onResendAll={(n) => {
-                if (!window.confirm("Resend the entire batch? This may deliver the card a second time to recipients already marked as sent.")) return;
+              onResendAll={async (n) => {
+                const ok = await confirm({
+                  title: "Resend the entire batch?",
+                  description: "This may deliver the card a second time to recipients already marked as sent.",
+                  confirmLabel: "Resend batch",
+                });
+                if (!ok) return;
                 persistBatches(batches.map((b) => (b.batch_no === n ? { ...b, sent_ids: [], failed: [], status: "not_sent" } : b)));
               }}
               onClearReport={(n) => {
@@ -1426,6 +1567,7 @@ export default function EventCardsTab({ eventId }: Props) {
       </Dialog>
       </TabsContent>
     </Tabs>
+    </>
   );
 
 }

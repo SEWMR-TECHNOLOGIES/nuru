@@ -167,17 +167,10 @@ class MyContributionsTabState extends State<MyContributionsTab>
           ],
           _filterRow(),
           const SizedBox(height: 14),
-          if (_loading)
-            ...List.generate(3, (_) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Container(
-                height: 142,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppColors.borderLight),
-                ),
-              ),
+          if (_loading && _events.isEmpty)
+            ...List.generate(3, (_) => const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: _MyContributionCardSkeleton(),
             ))
           else if (_error != null)
             _errorState()
@@ -693,4 +686,104 @@ class _StatTileData {
   final String label;
   final String value;
   const _StatTileData({required this.asset, required this.label, required this.value});
+}
+
+/// Shimmer skeleton that mirrors the real `_eventCard` layout:
+/// cover thumbnail + title + status chip + 2 meta rows + 3 amount stats.
+class _MyContributionCardSkeleton extends StatefulWidget {
+  const _MyContributionCardSkeleton();
+  @override
+  State<_MyContributionCardSkeleton> createState() =>
+      _MyContributionCardSkeletonState();
+}
+
+class _MyContributionCardSkeletonState
+    extends State<_MyContributionCardSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))
+        ..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  Widget _bar({double? width, double height = 12, double radius = 6}) {
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (_, __) {
+        final t = 0.55 + _c.value * 0.30;
+        return Container(
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            color: AppColors.borderLight.withOpacity(t),
+            borderRadius: BorderRadius.circular(radius),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _block({required double w, required double h, double radius = 12}) =>
+      _bar(width: w, height: h, radius: radius);
+
+  Widget _amountStat() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _bar(width: 44, height: 9),
+          const SizedBox(height: 6),
+          _bar(width: 70, height: 13),
+        ],
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _block(w: 78, h: 78, radius: 14),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Expanded(child: _bar(width: double.infinity, height: 14)),
+                      const SizedBox(width: 6),
+                      _bar(width: 56, height: 16, radius: 999),
+                    ]),
+                    const SizedBox(height: 12),
+                    _bar(width: 140, height: 11),
+                    const SizedBox(height: 8),
+                    _bar(width: 100, height: 11),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Divider(height: 1, color: AppColors.borderLight),
+          const SizedBox(height: 12),
+          Row(children: [
+            Expanded(child: _amountStat()),
+            Expanded(child: _amountStat()),
+            Expanded(child: _amountStat()),
+          ]),
+        ],
+      ),
+    );
+  }
 }

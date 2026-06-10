@@ -16,10 +16,15 @@ export type WhatsAppAvailabilityStatus =
   | "error"
   | "checking"
   | "invalid"
+  // Newer state: API accepted the message, waiting for Meta's delivery
+  // webhook before we can confirm the number is on WhatsApp. Rendered as
+  // neutral (same as "unknown") — we never claim "WhatsApp" prematurely.
+  | "pending"
   // Legacy values still returned by some endpoints — kept for compatibility.
   | "whatsapp"
   | "not_whatsapp"
   | "failed";
+
 
 export interface WhatsAppAvailability {
   whatsapp_status: WhatsAppAvailabilityStatus;

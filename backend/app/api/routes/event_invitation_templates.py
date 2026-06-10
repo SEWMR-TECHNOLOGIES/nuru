@@ -63,6 +63,11 @@ def _assert_event_owner(db: Session, event_id: str, user: User) -> Event:
 
 
 def _guest_name_for_attendee(db: Session, attendee: EventAttendee) -> str:
+    # Organiser-supplied common_name (e.g. "Mr & Mrs Mpinzile") wins on the
+    # rendered card — it never overwrites the stored legal name.
+    common = (getattr(attendee, "common_name", None) or "").strip()
+    if common:
+        return common
     if getattr(attendee, "guest_name", None):
         return attendee.guest_name
     if getattr(attendee, "attendee_id", None):
@@ -71,8 +76,12 @@ def _guest_name_for_attendee(db: Session, attendee: EventAttendee) -> str:
             return f"{u.first_name or ''} {u.last_name or ''}".strip() or "Guest"
     if getattr(attendee, "contributor_id", None):
         c = db.query(UserContributor).filter(UserContributor.id == attendee.contributor_id).first()
-        if c and c.name:
-            return c.name
+        if c:
+            c_common = (getattr(c, "common_name", None) or "").strip()
+            if c_common:
+                return c_common
+            if c.name:
+                return c.name
     return "Guest"
 
 

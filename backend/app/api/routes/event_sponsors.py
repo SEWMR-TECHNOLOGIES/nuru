@@ -24,9 +24,12 @@ def _vendor_summary(db: Session, vendor: User | None) -> dict | None:
     if not vendor:
         return None
     profile = db.query(UserProfile).filter(UserProfile.user_id == vendor.id).first()
+    full = " ".join(
+        p for p in [getattr(vendor, "first_name", None), getattr(vendor, "last_name", None)] if p
+    ).strip()
     return {
         "id": str(vendor.id),
-        "name": (vendor.full_name or vendor.username or "").strip() or None,
+        "name": full or vendor.username or None,
         "username": vendor.username,
         "avatar_url": getattr(profile, "avatar_url", None) if profile else None,
     }

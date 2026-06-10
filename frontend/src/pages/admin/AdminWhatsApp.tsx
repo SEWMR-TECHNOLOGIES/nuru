@@ -31,6 +31,8 @@ type WAMessage = {
   id: string;
   direction: "inbound" | "outbound";
   content: string;
+  media_url?: string | null;
+  media_type?: string | null;
   status: "sent" | "delivered" | "read" | "failed";
   wa_message_id?: string;
   created_at: string;
@@ -554,9 +556,30 @@ export default function AdminWhatsApp() {
                                 : "bg-card text-foreground border border-border/60 rounded-2xl rounded-tl-sm shadow-sm"
                             )}
                           >
-                            <p className="break-words whitespace-pre-wrap leading-relaxed">
-                              {msg.content}
-                            </p>
+                            {msg.media_url && (msg.media_type === "image" || /\.(png|jpe?g|webp|gif)(\?|$)/i.test(msg.media_url)) ? (
+                              <a href={msg.media_url} target="_blank" rel="noopener noreferrer" className="block mb-1">
+                                <img
+                                  src={msg.media_url}
+                                  alt={msg.content || "Attachment"}
+                                  className="rounded-xl max-h-72 w-auto object-cover border border-border/40"
+                                  loading="lazy"
+                                />
+                              </a>
+                            ) : msg.media_url ? (
+                              <a
+                                href={msg.media_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="block mb-1 text-xs underline text-primary"
+                              >
+                                Open attachment
+                              </a>
+                            ) : null}
+                            {msg.content && (
+                              <p className="break-words whitespace-pre-wrap leading-relaxed">
+                                {msg.content}
+                              </p>
+                            )}
                             <div className="flex items-center justify-end gap-1 mt-1 -mb-0.5">
                               <span className="text-[10px] text-muted-foreground/70">
                                 {formatTime(msg.created_at)}

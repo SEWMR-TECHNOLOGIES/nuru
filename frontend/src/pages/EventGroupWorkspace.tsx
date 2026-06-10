@@ -22,24 +22,53 @@ import MembersDrawer from "@/components/eventGroups/MembersDrawer";
 
 const initials = (n: string) => (n || "?").trim().split(/\s+/).slice(0, 2).map(s => s[0]).join("").toUpperCase();
 
+const groupCacheKey = (id: string) => `nuru:eg:group:${id}`;
+const membersCacheKey = (id: string) => `nuru:eg:members:${id}`;
+
+const readCache = <T,>(key: string): T | null => {
+  try {
+    const raw = sessionStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeCache = (key: string, value: unknown) => {
+  try { sessionStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore quota */ }
+};
+
 const EventGroupWorkspace = () => {
   const { groupId } = useParams<{ groupId: string }>();
   const navigate = useNavigate();
   const [tab, setTab] = useState("chat");
-  const [group, setGroup] = useState<any>(null);
-  const [members, setMembers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [group, setGroup] = useState<any>(() =>
+    groupId ? readCache<any>(groupCacheKey(groupId)) : null);
+  const [members, setMembers] = useState<any[]>(() =>
+    (groupId ? readCache<any[]>(membersCacheKey(groupId)) : null) ?? []);
+  // Header + chat can render as soon as `group` resolves — members load
+  // independently so the page never blocks on the heavier query.
+  const [loadingGroup, setLoadingGroup] = useState(() =>
+    !(groupId && readCache(groupCacheKey(groupId))));
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   useEffect(() => {
     if (!groupId) return;
-    setLoading(true);
-    Promise.all([eventGroupsApi.get(groupId), eventGroupsApi.members(groupId)])
-      .then(([g, m]) => {
-        if (g.success && g.data) setGroup(g.data);
-        if (m.success && m.data) setMembers(m.data.members || []);
-      })
-      .finally(() => setLoading(false));
+    // Group payload — small + the only thing the header depends on.
+    eventGroupsApi.get(groupId).then((g) => {
+      if (g.success && g.data) {
+        setGroup(g.data);
+        writeCache(groupCacheKey(groupId), g.data);
+      }
+    }).finally(() => setLoadingGroup(false));
+    // Members — heavier; rendered progressively (member count + chat author lookup).
+    eventGroupsApi.members(groupId).then((m) => {
+      if (m.success && m.data) {
+        const list = m.data.members || [];
+        setMembers(list);
+        writeCache(membersCacheKey(groupId), list);
+      }
+    });
   }, [groupId]);
 
   // Keep the browser tab title in sync with the current group.
@@ -108,7 +137,7 @@ const EventGroupWorkspace = () => {
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)} aria-label="Back">
           <ChevronLeft className="w-5 h-5" />
         </Button>
-        {loading ? (
+        {loadingGroup && !group ? (
           <div className="flex items-center gap-3 flex-1">
             <Skeleton className="w-12 h-12 rounded-full" />
             <div className="flex-1 space-y-2">
@@ -167,22 +196,27 @@ const EventGroupWorkspace = () => {
         </Button>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs — non-organisers only ever see the chat workspace. The
+          Contributors scoreboard and Analytics panel contain sensitive
+          financial information that's restricted to organisers (the
+          backend enforces the same rule on /scoreboard). */}
       <Tabs value={tab} onValueChange={setTab}>
         <PillTabsNav
           activeTab={tab}
           onTabChange={setTab}
-          tabs={[
+          tabs={isAdmin ? [
             { value: "chat", label: "Chat", icon: <img src={ChatIcon} alt="" className="w-3.5 h-3.5 icon-adaptive" /> },
             { value: "scoreboard", label: "Contributors", icon: <Users className="w-3.5 h-3.5" /> },
             { value: "analytics", label: "Analytics", icon: <BarChart3 className="w-3.5 h-3.5" /> },
+          ] : [
+            { value: "chat", label: "Chat", icon: <img src={ChatIcon} alt="" className="w-3.5 h-3.5 icon-adaptive" /> },
           ]}
         />
 
         <TabsContent value="chat">
           {/* Wait until group + members are loaded so meMemberId is known
               before rendering bubbles — prevents the left→right flicker. */}
-          {loading ? (
+          {loadingGroup && !group ? (
             <div className="bg-card border border-border rounded-2xl h-[480px] animate-pulse" />
           ) : (
             <ChatPanel
@@ -195,14 +229,19 @@ const EventGroupWorkspace = () => {
           )}
         </TabsContent>
 
-        <TabsContent value="scoreboard">
-          <ScoreboardPanel groupId={groupId} />
-        </TabsContent>
+        {isAdmin && (
+          <TabsContent value="scoreboard">
+            <ScoreboardPanel groupId={groupId} />
+          </TabsContent>
+        )}
 
-        <TabsContent value="analytics">
-          <AnalyticsPanel groupId={groupId} />
-        </TabsContent>
+        {isAdmin && (
+          <TabsContent value="analytics">
+            <AnalyticsPanel groupId={groupId} />
+          </TabsContent>
+        )}
       </Tabs>
+
 
       <MembersDrawer
         open={drawerOpen}

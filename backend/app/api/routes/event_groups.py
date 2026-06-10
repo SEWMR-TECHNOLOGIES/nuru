@@ -1304,6 +1304,11 @@ def scoreboard(
     viewer = _resolve_member(db, gid, current_user, x_guest_token)
     if not viewer:
         return standard_response(False, "Not a member")
+    # Critical group information (pledge amounts, paid amounts, daily
+    # contributor analytics) is restricted to group organisers / admins.
+    # Regular members should only see the chat workspace.
+    if not viewer.is_admin and (viewer.role.value if viewer.role else None) != "organizer":
+        return standard_response(False, "Only group organisers can view the scoreboard")
     group = db.query(EventGroup).filter(EventGroup.id == gid).first()
     if not group:
         return standard_response(False, "Group not found")

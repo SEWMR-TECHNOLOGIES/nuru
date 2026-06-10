@@ -30,7 +30,7 @@ import 'widgets/event_committee_tab.dart';
 import 'widgets/event_services_tab.dart';
 import 'widgets/event_sponsors_tab.dart';
 import 'widgets/event_meetings_tab.dart';
-import 'widgets/event_schedule_tab.dart';
+
 import 'widgets/event_automations_tab.dart';
 import 'create_event_screen.dart';
 import 'widgets/share_event_to_feed_sheet.dart';
@@ -220,7 +220,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       'sponsors',
       'guests',
       'rsvp',
-      'schedule',
+      // schedule removed (was unused / dead UI)
       if (sellsTickets) 'tickets',
       if (_isCreator) 'reminders',
       if (_isCreator && !isEnded) 'check_in',
@@ -774,8 +774,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         );
       case 'rsvp':
         return EventRsvpTab(eventId: widget.eventId);
-      case 'schedule':
-        return EventScheduleTab(eventId: widget.eventId);
+      // 'schedule' tab removed
       // 'meetings' moved out of tabs — accessible from Quick Actions sheet
       case 'tickets':
         return EventTicketsTab(
@@ -1653,8 +1652,6 @@ class _EventDetailScreenState extends State<EventDetailScreen>
   void _openQuickActionsSheet() {
     final items = <_QaItem>[
       _QaItem('assets/icons/video-icon.svg', 'Meetings', _openMeetingsScreen),
-      _QaItem('assets/icons/calendar-icon.svg', 'Schedule',
-          () => _jumpToTab('schedule')),
       _QaItem('assets/icons/contributors-icon.svg', 'Committee',
           () => _jumpToTab('committee')),
       _QaItem('assets/icons/heart-icon.svg', 'Sponsors',

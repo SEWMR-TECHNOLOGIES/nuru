@@ -299,7 +299,9 @@ def wa_send_invitation_card(
             "event_date": formatted_date,
             "venue": (venue or "").strip() or "TBA",
             "organizer_phone": (organizer_phone or "").strip() or "—",
-            # legacy keys kept for backward compatibility
+            # Powers the WhatsApp quick-reply RSVP buttons (confirm/maybe/decline).
+            # Same code used by the /rsvp/{code} URL flow so the webhook can
+            # update the existing EventInvitation row.
             "rsvp_code": invite_code or "—",
         })
 

@@ -377,9 +377,10 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
     final price = _priceOf(t);
     final available = _availOf(t);
     final qty = _quantities[id] ?? 0;
-    final isSoldOut = available <= 0;
-    // "Limited" if low stock
-    final isLimited = !isSoldOut && available <= 20;
+    // Prefer backend-computed flags; fall back to local check for older payloads.
+    final isSoldOut = (t['is_sold_out'] == true) || available <= 0;
+    final statusLabel = (t['status_label'] ?? '').toString();
+    final isLimited = !isSoldOut && (statusLabel == 'few_left' || statusLabel == 'almost_sold_out' || available <= 20);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),

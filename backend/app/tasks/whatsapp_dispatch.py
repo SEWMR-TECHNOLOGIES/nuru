@@ -64,6 +64,38 @@ def send_action(self, action: str, phone: str, params: dict):
         except Exception as _e:  # noqa: BLE001
             print(f"[wa_dispatch] record_send_outcome skipped: {_e}")
 
+        # Mirror outbound template/text sends into wa_conversations + wa_messages
+        # so admins can see them (and their delivery status) in /admin/whatsapp.
+        try:
+            if phone and result.get("ok") and result.get("message_id"):
+                from api.routes.whatsapp_admin import _store_incoming
+                db = SessionLocal()
+                try:
+                    summary = (
+                        params.get("message")
+                        or params.get("body")
+                        or params.get("preview")
+                        or f"[template:{action}]"
+                    )
+                    image_url = (
+                        params.get("image_url")
+                        or params.get("media_url")
+                        or params.get("header_image")
+                    )
+                    _store_incoming(
+                        db, phone=phone, content=str(summary)[:1000],
+                        wa_message_id=str(result.get("message_id")),
+                        contact_name=str(params.get("name") or ""),
+                        direction="outbound",
+                        media_url=str(image_url) if image_url else None,
+                        media_type="image" if image_url else None,
+                    )
+                finally:
+                    db.close()
+        except Exception as _e:  # noqa: BLE001
+            print(f"[wa_dispatch] mirror outbound skipped: {_e}")
+
+
         if result.get("ok") and result.get("message_id"):
             print(
                 f"[wa_dispatch] ok action={action} phone_tail={tail} "

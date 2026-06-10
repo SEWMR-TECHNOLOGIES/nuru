@@ -66,25 +66,63 @@ def get_ticket_classes(
 
     from sqlalchemy import func as sa_func
 
+    # Inline cleanup: hard-delete every expired reservation for this event so
+    # stale unpaid holds never make a class look sold out. Safe + idempotent.
+    now = datetime.utcnow()
+    db.query(EventTicket).filter(
+        EventTicket.event_id == eid,
+        EventTicket.status == TicketOrderStatusEnum.reserved,
+        EventTicket.reserved_until.isnot(None),
+        EventTicket.reserved_until < now,
+    ).delete(synchronize_session=False)
+    db.commit()
+
     result = []
     for tc in classes:
-        # Calculate sold from actual ticket orders (SUM of quantity)
-        sold = db.query(sa_func.coalesce(sa_func.sum(EventTicket.quantity), 0)).filter(
+        # Count only tickets that actually hold inventory:
+        #   - confirmed / approved (truly sold)
+        #   - reserved AND still inside the hold window (active reservation)
+        # Excludes: rejected, cancelled, refunded, expired-reserved, and
+        # stale pending orders (those must never block public availability).
+        sold = int(db.query(sa_func.coalesce(sa_func.sum(EventTicket.quantity), 0)).filter(
             EventTicket.ticket_class_id == tc.id,
-            EventTicket.status.notin_([TicketOrderStatusEnum.rejected, TicketOrderStatusEnum.cancelled]),
-        ).scalar()
-        sold = int(sold)
-        available = tc.quantity - sold
+            EventTicket.status.in_([
+                TicketOrderStatusEnum.approved,
+                TicketOrderStatusEnum.confirmed,
+            ]),
+        ).scalar())
+        active_reserved = int(db.query(sa_func.coalesce(sa_func.sum(EventTicket.quantity), 0)).filter(
+            EventTicket.ticket_class_id == tc.id,
+            EventTicket.status == TicketOrderStatusEnum.reserved,
+            EventTicket.reserved_until.isnot(None),
+            EventTicket.reserved_until > now,
+        ).scalar())
+        blocking = sold + active_reserved
+        available = max(0, tc.quantity - blocking)
+        is_sold_out = available <= 0
+        if is_sold_out:
+            status_label = "sold_out"
+        elif available <= max(3, int(tc.quantity * 0.05)):
+            status_label = "almost_sold_out"
+        elif available <= max(10, int(tc.quantity * 0.20)):
+            status_label = "few_left"
+        else:
+            status_label = "available"
         result.append({
             "id": str(tc.id),
             "name": tc.name,
             "description": tc.description,
             "price": float(tc.price),
             "quantity": tc.quantity,
+            "capacity": tc.quantity,
             "sold": sold,
+            "sold_count": sold,
+            "active_reserved_count": active_reserved,
             "available": available,
+            "available_count": available,
             "status": tc.status.value if tc.status else "available",
-            "is_sold_out": available <= 0,
+            "status_label": status_label,
+            "is_sold_out": is_sold_out,
             "sale_start_date": str(tc.sale_start_date) if tc.sale_start_date else None,
             "sale_end_date": str(tc.sale_end_date) if tc.sale_end_date else None,
             "display_order": tc.display_order,
@@ -335,11 +373,26 @@ async def purchase_ticket(
     if not tc:
         return standard_response(False, "Ticket class not found")
 
-    from sqlalchemy import func as sa_func
-    # Calculate sold from actual orders (SUM of quantity), not tc.sold column
+    from sqlalchemy import func as sa_func, and_, or_
+    _now = datetime.utcnow()
+    # Sweep expired reservations for this class before checking availability.
+    db.query(EventTicket).filter(
+        EventTicket.ticket_class_id == tc.id,
+        EventTicket.status == TicketOrderStatusEnum.reserved,
+        EventTicket.reserved_until.isnot(None),
+        EventTicket.reserved_until < _now,
+    ).delete(synchronize_session=False)
+    db.commit()
+    # Calculate sold from actual orders (SUM of quantity), excluding rejected/
+    # cancelled and any reserved row whose hold window has expired.
     current_sold = db.query(sa_func.coalesce(sa_func.sum(EventTicket.quantity), 0)).filter(
         EventTicket.ticket_class_id == tc.id,
         EventTicket.status.notin_([TicketOrderStatusEnum.rejected, TicketOrderStatusEnum.cancelled]),
+        or_(
+            EventTicket.status != TicketOrderStatusEnum.reserved,
+            EventTicket.reserved_until.is_(None),
+            EventTicket.reserved_until > _now,
+        ),
     ).scalar()
     current_sold = int(current_sold)
     available = tc.quantity - current_sold
@@ -432,10 +485,17 @@ async def purchase_tickets_bulk(
             event_id = tc.event_id
         elif tc.event_id != event_id:
             return standard_response(False, "All ticket classes must belong to the same event")
-        # Availability check using actual order rows.
+        # Availability check using actual order rows (exclude expired reserved).
+        from sqlalchemy import or_ as _or
+        _now2 = datetime.utcnow()
         current_sold = db.query(sa_func.coalesce(sa_func.sum(EventTicket.quantity), 0)).filter(
             EventTicket.ticket_class_id == tc.id,
             EventTicket.status.notin_([TicketOrderStatusEnum.rejected, TicketOrderStatusEnum.cancelled]),
+            _or(
+                EventTicket.status != TicketOrderStatusEnum.reserved,
+                EventTicket.reserved_until.is_(None),
+                EventTicket.reserved_until > _now2,
+            ),
         ).scalar()
         available = tc.quantity - int(current_sold)
         if available < qty:

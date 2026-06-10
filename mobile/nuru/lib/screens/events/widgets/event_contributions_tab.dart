@@ -225,10 +225,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    if (_loading)
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.primary),
-      );
+    if (_loading) return _skeleton();
 
     final totalPledged = _toNum(
       _summary['total_pledged'] ?? _summary['total_amount'],
@@ -3813,6 +3810,40 @@ class _EventContributionsTabState extends State<EventContributionsTab>
           vertical: 14,
         ),
       ),
+    );
+  }
+
+  Widget _skeleton() {
+    Widget box({double? w, required double h, double r = 12}) => Container(
+          width: w,
+          height: h,
+          decoration: BoxDecoration(
+            color: AppColors.borderLight,
+            borderRadius: BorderRadius.circular(r),
+          ),
+        );
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+      children: [
+        box(h: 132, r: 20),
+        const SizedBox(height: 12),
+        box(h: 78, r: 16),
+        const SizedBox(height: 14),
+        Row(children: [
+          Expanded(child: box(h: 44, r: 999)),
+          const SizedBox(width: 8),
+          Expanded(child: box(h: 44, r: 999)),
+          const SizedBox(width: 8),
+          Expanded(child: box(h: 44, r: 999)),
+        ]),
+        const SizedBox(height: 14),
+        box(h: 48, r: 14),
+        const SizedBox(height: 18),
+        for (int i = 0; i < 5; i++) ...[
+          box(h: 76, r: 16),
+          const SizedBox(height: 10),
+        ],
+      ],
     );
   }
 }
