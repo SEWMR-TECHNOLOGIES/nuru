@@ -623,16 +623,19 @@ def whatsapp_webhook_receive(body: dict = Body(...), db: Session = Depends(get_d
             def _do_rsvp(code, status):
                 if not code:
                     return f"Sorry {first_name}, I couldn't find an invitation linked to your number."
+                applied = False
                 try:
                     if hasattr(rsvp_module, "_respond_internal"):
-                        rsvp_module._respond_internal(db, code, status)  # type: ignore
+                        applied = bool(rsvp_module._respond_internal(db, code, status))  # type: ignore
                 except Exception as e:  # noqa: BLE001
                     print(f"[wa-webhook] rsvp respond failed: {e}")
+                if not applied:
+                    return f"Sorry {first_name}, I couldn't update your RSVP. Please open the invitation link and try again."
                 if status == "confirmed":
-                    return f"🎉 Great news {first_name}! Your attendance has been confirmed."
+                    return f"Great news {first_name}! Your attendance has been confirmed."
                 if status == "maybe":
                     return (
-                        f"Thanks {first_name} — we've noted that you might attend. "
+                        f"Thanks {first_name}, we've noted that you might attend. "
                         "Tap Confirm or Decline anytime to update your response."
                     )
                 return f"Thank you {first_name}. Your response has been recorded."
@@ -657,10 +660,11 @@ def whatsapp_webhook_receive(body: dict = Body(...), db: Session = Depends(get_d
                     reply_text = _do_rsvp(invitation_code, "maybe")
                 elif up == "HELP":
                     reply_text = (
-                        f"👋 Hi {first_name}! Here's how to use Nuru:\n\n"
-                        "✅ YES or CONFIRM — Accept an invitation\n"
-                        "❌ NO or DECLINE — Decline an invitation\n"
-                        "❓ HELP — Show this menu"
+                        f"Hi {first_name}! Here's how to use Nuru:\n\n"
+                        "YES or CONFIRM: Accept an invitation\n"
+                        "MAYBE: Mark that you might attend\n"
+                        "NO or DECLINE: Decline an invitation\n"
+                        "HELP: Show this menu"
                     )
         except Exception as e:  # noqa: BLE001
             print(f"[wa-webhook] bot reply skipped: {e}")

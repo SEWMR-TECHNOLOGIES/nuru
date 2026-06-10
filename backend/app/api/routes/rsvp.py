@@ -88,9 +88,19 @@ def _respond_internal(db, code: str, status: str) -> bool:
     except ValueError:
         return False
 
+    lookup_code = (code or "").strip()
     inv = db.query(EventInvitation).filter(
-        EventInvitation.invitation_code == code
+        EventInvitation.invitation_code == lookup_code
     ).first()
+    if not inv:
+        try:
+            inv = db.query(EventInvitation).join(
+                EventAttendee, EventAttendee.invitation_id == EventInvitation.id
+            ).filter(EventAttendee.id == lookup_code).order_by(
+                EventInvitation.created_at.desc()
+            ).first()
+        except Exception:
+            inv = None
     if not inv:
         return False
 

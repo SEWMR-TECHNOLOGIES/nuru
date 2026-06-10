@@ -1,0 +1,1 @@
+DROP TABLE IF EXISTS public.phone_whatsapp_statuses CASCADE;

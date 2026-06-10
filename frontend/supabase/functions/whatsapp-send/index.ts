@@ -211,6 +211,7 @@ const BUILDERS: Record<string, (lang: Lang, p: any) => Built> = {
     // webhook can map tapped quick-reply buttons back to the same
     // EventInvitation row used by the URL flow.
     const rsvpCode = String(p.rsvp_code || "").trim();
+    const hasUsableRsvpCode = Boolean(rsvpCode && rsvpCode !== "—" && rsvpCode.toLowerCase() !== "tba");
     const components: Array<Record<string, unknown>> = [
       { type: "header", parameters: [{ type: "image", image: { link: toWaImageLink(p.image_url || "") } }] },
       ...bodyParams([
@@ -222,7 +223,7 @@ const BUILDERS: Record<string, (lang: Lang, p: any) => Built> = {
         p.organizer_phone || p.organiser_phone || "—",
       ]),
     ];
-    if (rsvpCode) {
+    if (hasUsableRsvpCode) {
       // Order MUST match Meta template button order:
       //   index 0 = confirm  (Nitahudhuria / I will attend)
       //   index 1 = maybe    (Sina uhakika / Maybe)
