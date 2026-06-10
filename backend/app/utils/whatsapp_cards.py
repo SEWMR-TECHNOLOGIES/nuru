@@ -217,55 +217,110 @@ def wa_send_invitation_card(
             "cover_image": cover_image or "",
         }
 
-        # Stable per-recipient image_url — mirrors the pledge_thank_you_card
+        url: str | None = None
+
+        # 1) Prefer an organiser-prepared invitation card (custom design built
+        # in the Event Cards manager). If a SentEventCard row already exists
+        # for this guest with a rendered image, reuse that exact URL — that's
+        # the design the organiser personalised for this specific guest, so
+        # it should win over the generic invitation-card render. This covers
+        # both "prepared" placeholders and previously-sent cards.
+        try:
+            from core.database import SessionLocal as _SL
+            from models.event_cards import SentEventCard
+            from models import EventAttendee
+            _s = _SL()
+            try:
+                att = None
+                if guest_id:
+                    att = (
+                        _s.query(EventAttendee)
+                        .filter(
+                            EventAttendee.event_id == event_id,
+                            EventAttendee.invitation_id == guest_id,
+                        )
+                        .first()
+                    )
+                    if not att:
+                        att = (
+                            _s.query(EventAttendee)
+                            .filter(EventAttendee.id == guest_id)
+                            .first()
+                        )
+                if att:
+                    sec = (
+                        _s.query(SentEventCard)
+                        .filter(
+                            SentEventCard.event_id == event_id,
+                            SentEventCard.guest_attendee_id == att.id,
+                            SentEventCard.rendered_card_url.isnot(None),
+                        )
+                        .order_by(
+                            SentEventCard.sent_at.desc().nullslast(),
+                            SentEventCard.created_at.desc(),
+                        )
+                        .first()
+                    )
+                    if sec and sec.rendered_card_url:
+                        url = sec.rendered_card_url
+                        print(
+                            f"[wa_cards] invitation reusing organiser-prepared card url "
+                            f"sent_id={sec.id} status={sec.delivery_status!r}"
+                        )
+            finally:
+                _s.close()
+        except Exception as exc:
+            print(f"[wa_cards] prepared event-card lookup failed: {exc!r}")
+
+        # 2) Stable per-recipient image_url — mirrors the pledge_thank_you_card
         # WhatsApp flow exactly: render once, persist URL on a card mapping,
         # reuse the same image_url on every resend so Meta receives an
         # unchanging media URL and no duplicate storage objects are created.
         # See backend/app/docs/card_url_mappings.md.
-        url: str | None = None
-        try:
-            from core.database import SessionLocal
-            from services.card_url_service import (
-                get_existing_mapping,
-                generate_or_replace_card,
-            )
-            s = SessionLocal()
+        if not url:
             try:
-                existing = get_existing_mapping(
-                    s,
-                    recipient_type="guest",
-                    recipient_id=intl,
-                    card_purpose="invitation",
-                    event_id=str(event_id),
-                    related_entity_type="invitation",
-                    related_entity_id=str(guest_id),
+                from core.database import SessionLocal
+                from services.card_url_service import (
+                    get_existing_mapping,
+                    generate_or_replace_card,
                 )
-                if existing and existing.storage_url:
-                    url = existing.storage_url
-                    print(f"[wa_cards] invitation reusing stable url token={existing.token}")
-                else:
+                s = SessionLocal()
+                try:
+                    existing = get_existing_mapping(
+                        s,
+                        recipient_type="guest",
+                        recipient_id=intl,
+                        card_purpose="invitation",
+                        event_id=str(event_id),
+                        related_entity_type="invitation",
+                        related_entity_id=str(guest_id),
+                    )
+                    if existing and existing.storage_url:
+                        url = existing.storage_url
+                        print(f"[wa_cards] invitation reusing stable url token={existing.token}")
+                    else:
+                        url = _render(render_payload)
+                        if url:
+                            try:
+                                generate_or_replace_card(
+                                    s,
+                                    recipient_type="guest",
+                                    recipient_id=intl,
+                                    card_purpose="invitation",
+                                    template_slug="invitation-card",
+                                    event_id=str(event_id),
+                                    related_entity_type="invitation",
+                                    related_entity_id=str(guest_id),
+                                    pre_uploaded_url=url,
+                                )
+                            except Exception as exc:
+                                print(f"[wa_cards] invitation mapping persist failed: {exc!r}")
+                finally:
+                    s.close()
+            except Exception as exc:
+                print(f"[wa_cards] invitation stable-url lookup failed: {exc!r}")
+                if not url:
                     url = _render(render_payload)
-                    if url:
-                        try:
-                            generate_or_replace_card(
-                                s,
-                                recipient_type="guest",
-                                recipient_id=intl,
-                                card_purpose="invitation",
-                                template_slug="invitation-card",
-                                event_id=str(event_id),
-                                related_entity_type="invitation",
-                                related_entity_id=str(guest_id),
-                                pre_uploaded_url=url,
-                            )
-                        except Exception as exc:
-                            print(f"[wa_cards] invitation mapping persist failed: {exc!r}")
-            finally:
-                s.close()
-        except Exception as exc:
-            print(f"[wa_cards] invitation stable-url lookup failed: {exc!r}")
-            if not url:
-                url = _render(render_payload)
 
         if not url:
             # Card render failed — fall back to the approved text template

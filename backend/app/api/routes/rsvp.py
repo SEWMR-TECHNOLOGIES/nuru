@@ -27,6 +27,11 @@ class RSVPResponseInput(BaseModel):
     meal_preference: Optional[str] = Field(None, max_length=200)
     dietary_restrictions: Optional[str] = Field(None, max_length=500)
     special_requests: Optional[str] = Field(None, max_length=500)
+    # Origin of the response. When set to "whatsapp_button" we suppress the
+    # auto-resend of the invitation card (the guest already has it in the
+    # same WhatsApp thread) and instead reply with a short text ack.
+    source: Optional[str] = Field(None, max_length=64)
+    whatsapp_from: Optional[str] = Field(None, max_length=32)
 
 
 def _status_to_enum(status: str) -> RSVPStatusEnum:
@@ -486,23 +491,66 @@ def respond_to_rsvp(code: str, body: RSVPResponseInput):
 
         status_label = rsvp_enum.value
 
-        # Auto-send WhatsApp invitation card on RSVP accept (fire-and-forget).
-        if rsvp_enum == RSVPStatusEnum.confirmed:
+        is_whatsapp_button = (body.source or "").lower() == "whatsapp_button"
+
+        # Resolve guest phone + display name once (used by both branches).
+        guest_phone = None
+        guest_display = inv.guest_name or "Guest"
+        try:
+            from models.users import User as _U
+            if inv.invited_user_id:
+                u = db.query(_U).filter(_U.id == inv.invited_user_id).first()
+                if u:
+                    guest_phone = u.phone
+                    guest_display = (
+                        f"{u.first_name or ''} {u.last_name or ''}".strip()
+                        or guest_display
+                    )
+            if not guest_phone:
+                guest_phone = getattr(inv, "guest_phone", None)
+        except Exception:
+            guest_phone = guest_phone or getattr(inv, "guest_phone", None)
+        if not guest_phone and body.whatsapp_from:
+            guest_phone = body.whatsapp_from
+
+        if is_whatsapp_button:
+            # Guest tapped a quick-reply on the invitation card already in
+            # their WhatsApp thread. Don't resend the card — just send a
+            # short bilingual text acknowledgement.
+            try:
+                from utils.whatsapp import _send_whatsapp_text
+                first_name = (guest_display or "").split(" ")[0] or "rafiki"
+                event_label = event.name or "the event"
+                if rsvp_enum == RSVPStatusEnum.confirmed:
+                    msg = (
+                        f"Asante {first_name}! Tumepokea jibu lako — "
+                        f"umethibitisha kuhudhuria {event_label}. Karibu sana!\n\n"
+                        f"Thank you {first_name}! Your response has been received — "
+                        f"you have confirmed attendance for {event_label}. See you there!"
+                    )
+                elif rsvp_enum == RSVPStatusEnum.declined:
+                    msg = (
+                        f"Asante {first_name} kwa kujibu. Tumepokea taarifa kuwa "
+                        f"hutaweza kuhudhuria {event_label}. Tutakukumbuka.\n\n"
+                        f"Thanks {first_name} for letting us know. Your response has "
+                        f"been received — we’re sorry you can’t make it to {event_label}."
+                    )
+                else:  # maybe
+                    msg = (
+                        f"Asante {first_name}. Tumepokea jibu lako la \"labda\" "
+                        f"kwa {event_label}. Unaweza kubadilisha jibu wakati wowote.\n\n"
+                        f"Thanks {first_name}. Your \"maybe\" response for "
+                        f"{event_label} has been received. You can update it any time."
+                    )
+                if guest_phone:
+                    _send_whatsapp_text(guest_phone, msg)
+            except Exception as _e:
+                print(f"[rsvp] whatsapp_button ack failed: {_e}")
+        elif rsvp_enum == RSVPStatusEnum.confirmed:
+            # Web/URL confirmation — auto-send the invitation card so the
+            # guest receives it on WhatsApp (fire-and-forget).
             try:
                 from utils.whatsapp_cards import wa_send_invitation_card
-                from models.users import User as _U
-                guest_phone = None
-                guest_display = inv.guest_name or "Guest"
-                if inv.invited_user_id:
-                    u = db.query(_U).filter(_U.id == inv.invited_user_id).first()
-                    if u:
-                        guest_phone = u.phone
-                        guest_display = (
-                            f"{u.first_name or ''} {u.last_name or ''}".strip()
-                            or guest_display
-                        )
-                if not guest_phone:
-                    guest_phone = getattr(inv, "guest_phone", None)
                 from utils.event_owner import get_event_owner_display_name
                 organizer_name = get_event_owner_display_name(
                     event, db=db, fallback="Your host"
@@ -532,6 +580,7 @@ def respond_to_rsvp(code: str, body: RSVPResponseInput):
                     )
             except Exception as _e:
                 print(f"[rsvp] wa_send_invitation_card failed: {_e}")
+
 
         return standard_response(True, f"Your RSVP has been {status_label} successfully", data={
             "rsvp_status": status_label,
