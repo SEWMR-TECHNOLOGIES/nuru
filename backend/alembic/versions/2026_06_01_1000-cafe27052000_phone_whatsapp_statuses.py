@@ -9,6 +9,7 @@ Revises: cafe27051900
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 
 revision = "cafe27052000"
@@ -20,7 +21,7 @@ depends_on = None
 def upgrade() -> None:
     op.create_table(
         "phone_whatsapp_statuses",
-        sa.Column("id", sa.dialects.postgresql.UUID(as_uuid=True),
+        sa.Column("id", postgresql.UUID(as_uuid=True),
                   primary_key=True, server_default=sa.text("gen_random_uuid()")),
         sa.Column("raw_phone", sa.Text(), nullable=True),
         sa.Column("normalized_phone", sa.Text(), nullable=False),

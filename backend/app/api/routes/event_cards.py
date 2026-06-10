@@ -1234,6 +1234,7 @@ def send_pledge_thank_you_cards(
                 if phone:
                     try:
                         from utils.whatsapp import _send_whatsapp_sync
+                        from utils.whatsapp_availability import record_send_outcome
                         if is_guest_row:
                             # Approved Meta templates: invitation_card_sw / invitation_card_en
                             # Body placeholders required: {{1}} guest_name,
@@ -1346,6 +1347,30 @@ def send_pledge_thank_you_cards(
                         wa_message_id = wa_result.get("message_id")
                         wa_not_on_whatsapp = bool(wa_result.get("not_on_whatsapp"))
                         wa_error = None if ok_wa else (wa_result.get("error") or "send failed")
+                        try:
+                            if ok_wa and wa_message_id:
+                                record_send_outcome(
+                                    s, phone,
+                                    message_id=str(wa_message_id),
+                                    action=wa_action,
+                                )
+                            elif wa_not_on_whatsapp:
+                                record_send_outcome(
+                                    s, phone,
+                                    not_on_whatsapp=True,
+                                    error_code=str(wa_result.get("error_code") or "131026"),
+                                    error_message=wa_error,
+                                    action=wa_action,
+                                )
+                            elif not ok_wa:
+                                record_send_outcome(
+                                    s, phone,
+                                    error_code=str(wa_result.get("error_code") or wa_result.get("status") or ""),
+                                    error_message=wa_error,
+                                    action=wa_action,
+                                )
+                        except Exception as exc:
+                            print(f"[event_card_dispatch] whatsapp availability record skipped: {exc}")
                         if ok_wa:
                             channels.append("whatsapp")
                     except Exception as exc:

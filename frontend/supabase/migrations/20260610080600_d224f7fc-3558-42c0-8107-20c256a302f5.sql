@@ -1,0 +1,1 @@
+DROP POLICY IF EXISTS "Service role can manage phone whatsapp statuses" ON public.phone_whatsapp_statuses;
