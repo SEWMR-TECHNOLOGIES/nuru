@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, X, Clock, Users, Mail, Phone, Search, Filter, FileText } from 'lucide-react';
+import { CheckCircle, X, Clock, Users, Mail, Phone, Search, Filter, FileText } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import ReportPreviewDialog from '@/components/ReportPreviewDialog';
 import nuruLogoUrl from '@/assets/nuru-logo.png';
@@ -59,16 +59,17 @@ const EventRSVP = ({ eventId, eventTitle, permissions }: EventRSVPProps) => {
   });
 
   const getStatusBadge = (status: string) => {
+    const base = "rounded-full px-2.5 py-0.5 text-[11px] font-medium border";
     switch (status) {
       case 'confirmed':
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100"><Check className="w-3 h-3 mr-1" />Attending</Badge>;
+        return <Badge className={`${base} bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/30`}><CheckCircle className="w-3 h-3 mr-1" />Attending</Badge>;
       case 'declined':
-        return <Badge className="bg-red-100 text-red-800 hover:bg-red-100"><X className="w-3 h-3 mr-1" />Declined</Badge>;
+        return <Badge className={`${base} bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-500/10 dark:text-rose-300 dark:border-rose-500/30`}><X className="w-3 h-3 mr-1" />Declined</Badge>;
       case 'maybe':
-        return <Badge className="bg-orange-100 text-orange-800 hover:bg-orange-100"><Clock className="w-3 h-3 mr-1" />Maybe</Badge>;
+        return <Badge className={`${base} bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/30`}><Clock className="w-3 h-3 mr-1" />Maybe</Badge>;
       case 'pending':
       default:
-        return <Badge variant="outline"><Clock className="w-3 h-3 mr-1" />Pending</Badge>;
+        return <Badge className={`${base} bg-muted/60 text-muted-foreground border-border`}><span className="inline-block w-1.5 h-1.5 rounded-full bg-muted-foreground/60 mr-1.5" />Awaiting reply</Badge>;
     }
   };
 
