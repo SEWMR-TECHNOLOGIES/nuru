@@ -9,6 +9,7 @@ import '../core/services/event_groups_service.dart';
 import '../core/utils/event_groups_cache.dart';
 import '../core/utils/home_cache.dart';
 import '../core/utils/messages_cache.dart';
+import '../core/utils/mobile_cache.dart';
 import '../core/utils/money_format.dart' as money_fmt;
 
 class AuthProvider extends ChangeNotifier {
@@ -359,6 +360,10 @@ class AuthProvider extends ChangeNotifier {
     try { EventGroupsCache.reset(); EventGroupsCache.groups = null; } catch (_) {}
     try { HomeCache.reset(); } catch (_) {}
     try { MessagesCache.reset(); } catch (_) {}
+    // Wipe persistent generic API cache so the next signed-in user starts
+    // from a clean slate. Only triggered on explicit sign-out, never on
+    // transient network failures.
+    try { await MobileCache.clearAll(); } catch (_) {}
     _isLoggedIn = false;
     _user = null;
     notifyListeners();

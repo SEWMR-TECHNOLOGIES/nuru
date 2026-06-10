@@ -150,14 +150,45 @@ export const useEventGuests = (eventId: string | null, initialParams?: GuestQuer
     if (!eventId) return;
     if (!_guestsCache.has(eventId)) setLoading(true);
     try {
-      const response = await eventsApi.getGuests(eventId, params || initialParams);
-      if (response.success) {
-        _guestsCache.set(eventId, { guests: response.data.guests, summary: response.data.summary, pagination: response.data.pagination });
-        setGuests(response.data.guests);
-        setSummary(response.data.summary);
-        setPagination(response.data.pagination);
+      const merged: GuestQueryParams = { ...(initialParams || {}), ...(params || {}) };
+      // If the caller has not explicitly paginated, auto-page through every
+      // invited guest so RSVP reports/exports never silently truncate at 50.
+      // The backend enforces a max page size of 100 — we respect it and loop.
+      if (merged.page == null) {
+        const pageSize = Math.min(merged.limit ?? 100, 100);
+        let page = 1;
+        let allGuests: EventGuest[] = [];
+        let lastSummary: any = null;
+        let lastPagination: any = null;
+        while (true) {
+          const res = await eventsApi.getGuests(eventId, { ...merged, page, limit: pageSize });
+          if (!res.success) {
+            setError(res.message || "Failed to fetch guests");
+            break;
+          }
+          allGuests = allGuests.concat(res.data.guests || []);
+          lastSummary = res.data.summary;
+          lastPagination = res.data.pagination;
+          const totalPages = res.data.pagination?.total_pages ?? 1;
+          if (page >= totalPages) break;
+          page++;
+          // Hard safety cap so a mis-reported total never hangs the UI.
+          if (page > 200) break;
+        }
+        _guestsCache.set(eventId, { guests: allGuests, summary: lastSummary, pagination: lastPagination });
+        setGuests(allGuests);
+        setSummary(lastSummary);
+        setPagination(lastPagination);
       } else {
-        setError(response.message || "Failed to fetch guests");
+        const response = await eventsApi.getGuests(eventId, merged);
+        if (response.success) {
+          _guestsCache.set(eventId, { guests: response.data.guests, summary: response.data.summary, pagination: response.data.pagination });
+          setGuests(response.data.guests);
+          setSummary(response.data.summary);
+          setPagination(response.data.pagination);
+        } else {
+          setError(response.message || "Failed to fetch guests");
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -165,6 +196,7 @@ export const useEventGuests = (eventId: string | null, initialParams?: GuestQuer
       setLoading(false);
     }
   }, [eventId, initialParams]);
+
 
   useEffect(() => {
     if (eventId) fetchGuests();

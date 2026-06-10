@@ -26,6 +26,10 @@ export type WhatsAppStatus = "on_whatsapp" | "not_on_whatsapp" | "unknown";
 
 export interface SentCardRecipient {
   sent_id: string;
+  /** Originating contributor row id (null for guest cards). */
+  contributor_id?: string | null;
+  /** Originating event_attendee row id (null for contributor cards). */
+  guest_attendee_id?: string | null;
   recipient_name: string;
   recipient_phone?: string | null;
   rendered_card_url?: string | null;
@@ -160,12 +164,17 @@ export const eventCardsApi = {
     category: string,
     contributorIds: string[],
     preRenderedImages?: Record<string, string>,
+    /** "fresh" (default) resends to every selected recipient.
+     *  "skip_existing" silently drops anyone whose card was already
+     *  delivered before, so this becomes a "send only to not-yet-sent". */
+    mode?: "fresh" | "skip_existing",
   ) =>
-    post<{ queued: number }>(
+    post<{ queued: number; skipped_existing?: string[] }>(
       `/events/${eventId}/cards/${encodeURIComponent(category)}/send`,
       {
         contributor_ids: contributorIds,
         pre_rendered_images: preRenderedImages || undefined,
+        mode: mode || "fresh",
       },
     ),
 
@@ -178,31 +187,41 @@ export const eventCardsApi = {
     category: string,
     guestIds: string[],
     preRenderedImages?: Record<string, string>,
+    mode?: "fresh" | "skip_existing",
   ) =>
-    post<{ queued: number }>(
+    post<{ queued: number; skipped_existing?: string[] }>(
       `/events/${eventId}/cards/${encodeURIComponent(category)}/send`,
       {
         guest_ids: guestIds,
         pre_rendered_images: preRenderedImages || undefined,
+        mode: mode || "fresh",
       },
     ),
 
   // ── Prepared Cards (status='prepared' rows). ─────────────────────
   /** Identical to send, but only creates the per-recipient SentEventCard
    *  rows — no WhatsApp/SMS dispatch. Pre-rendered URLs (if provided) are
-   *  stashed on the row so the Prepared Cards tab can show thumbnails. */
+   *  stashed on the row so the Prepared Cards tab can show thumbnails.
+   *
+   *  ``mode`` controls duplicate handling:
+   *    "fresh"          → re-prepare for every selected recipient,
+   *                       overwriting any previously prepared card.
+   *    "skip_existing"  → skip recipients who already have a prepared/
+   *                       sent card so their stable URL is preserved. */
   prepareForContributors: (
     eventId: string,
     category: string,
     contributorIds: string[],
     preRenderedImages?: Record<string, string>,
+    mode?: "fresh" | "skip_existing",
   ) =>
-    post<{ prepared: number; sent_ids: string[] }>(
+    post<{ prepared: number; sent_ids: string[]; skipped_existing?: string[] }>(
       `/events/${eventId}/cards/${encodeURIComponent(category)}/send`,
       {
         contributor_ids: contributorIds,
         pre_rendered_images: preRenderedImages || undefined,
         prepare_only: true,
+        mode: mode || "fresh",
       },
     ),
 
@@ -211,21 +230,30 @@ export const eventCardsApi = {
     category: string,
     guestIds: string[],
     preRenderedImages?: Record<string, string>,
+    mode?: "fresh" | "skip_existing",
   ) =>
-    post<{ prepared: number; sent_ids: string[] }>(
+    post<{ prepared: number; sent_ids: string[]; skipped_existing?: string[] }>(
       `/events/${eventId}/cards/${encodeURIComponent(category)}/send`,
       {
         guest_ids: guestIds,
         pre_rendered_images: preRenderedImages || undefined,
         prepare_only: true,
+        mode: mode || "fresh",
       },
     ),
+
 
   listPreparedCards: (eventId: string) =>
     get<{ prepared_cards: PreparedCard[] }>(`/events/${eventId}/prepared-cards`),
 
   sendPreparedCards: (eventId: string, sentIds: string[]) =>
     post<{ queued: number }>(`/events/${eventId}/prepared-cards/send`, { sent_ids: sentIds }),
+
+  /** Resend cards that were already dispatched at least once — reuses the
+   *  stored ``rendered_card_url`` so the recipient sees the same image. */
+  resendSentCards: (eventId: string, sentIds: string[]) =>
+    post<{ queued: number }>(`/events/${eventId}/sent-cards/resend`, { sent_ids: sentIds }),
+
 
   discardPreparedCards: (eventId: string, sentIds: string[]) =>
     post<{ discarded: number }>(`/events/${eventId}/prepared-cards/discard`, { sent_ids: sentIds }),

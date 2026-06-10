@@ -92,6 +92,35 @@ def _user_avatar_url(db: Session, user_id) -> str | None:
     return social_avatar.strip() or None
 
 
+def _parse_what_to_expect(raw: Optional[str]):
+    """Accepts a JSON string from multipart Form. Returns a sanitized list
+    of {icon, label, description?} items, or None when empty/invalid."""
+    if not raw:
+        return None
+    txt = raw.strip()
+    if not txt:
+        return None
+    try:
+        data = json.loads(txt)
+    except Exception:
+        return None
+    if not isinstance(data, list):
+        return None
+    out = []
+    for it in data:
+        if not isinstance(it, dict):
+            continue
+        label = (it.get("label") or it.get("title") or "").strip()
+        if not label:
+            continue
+        icon = (it.get("icon") or "sparkle").strip() or "sparkle"
+        desc = (it.get("description") or "").strip() or None
+        out.append({"icon": icon, "label": label, "description": desc})
+        if len(out) >= 12:
+            break
+    return out or None
+
+
 def _initial_status(raw: Optional[str]):
     """Map an incoming `status` form value to an EventStatusEnum.
 
@@ -314,6 +343,7 @@ def _event_summary(db: Session, event: Event) -> dict:
         "budget": float(event.budget) if event.budget else None,
         "currency": _currency_code(db, event.currency_id),
         "dress_code": event.dress_code, "special_instructions": event.special_instructions,
+        "what_to_expect": event.what_to_expect, "what_to_expect_notes": event.what_to_expect_notes,
         "invitation_template_id": event.invitation_template_id,
         "invitation_accent_color": event.invitation_accent_color,
         "invitation_sample_names": event.invitation_sample_names,
@@ -622,17 +652,28 @@ def get_all_user_events(
     page: int = 1, limit: int = 20, status: str = "all",
     sort_by: str = "created_at", sort_order: str = "desc",
     search: Optional[str] = None,
+    created_only: bool = False,
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user),
 ):
-    """Returns events where the user is the creator OR the recorded event owner."""
+    """Returns events where the user is the creator OR the recorded event owner.
+
+    Pass ``created_only=true`` to restrict the result to events the user
+    actually created (``organizer_id == current_user.id``). Used by the
+    mobile **My Events** tab so events the user was only invited to, or
+    events recorded against them as ``event_owner_user_id`` by someone else,
+    never leak into the creator list.
+    """
     if status not in VALID_STATUS_FILTERS:
         return standard_response(False, f"Invalid status filter. Must be one of: {', '.join(VALID_STATUS_FILTERS)}")
 
-    # Include both creator-owned events AND events the user owns via event_owner_user_id
-    query = db.query(Event).filter(or_(
-        Event.organizer_id == current_user.id,
-        Event.event_owner_user_id == current_user.id,
-    ))
+    if created_only:
+        query = db.query(Event).filter(Event.organizer_id == current_user.id)
+    else:
+        # Include both creator-owned events AND events the user owns via event_owner_user_id
+        query = db.query(Event).filter(or_(
+            Event.organizer_id == current_user.id,
+            Event.event_owner_user_id == current_user.id,
+        ))
 
     if status != "all":
         mapped = status
@@ -997,6 +1038,8 @@ def get_invitation_card(
             "theme_color": event.theme_color,
             "dress_code": event.dress_code,
             "special_instructions": event.special_instructions,
+            "what_to_expect": event.what_to_expect,
+            "what_to_expect_notes": event.what_to_expect_notes,
             "invitation_template_id": event.invitation_template_id,
             "invitation_accent_color": event.invitation_accent_color,
             "invitation_content": event.invitation_content,
@@ -1356,6 +1399,8 @@ async def create_event(
     budget: Optional[float] = Form(None), currency: Optional[str] = Form(None),
     expected_guests: Optional[int] = Form(None), dress_code: Optional[str] = Form(None),
     special_instructions: Optional[str] = Form(None), rsvp_deadline: Optional[str] = Form(None),
+    what_to_expect: Optional[str] = Form(None),
+    what_to_expect_notes: Optional[str] = Form(None),
     reminder_contact_phone: Optional[str] = Form(None),
     contribution_payment_instructions: Optional[str] = Form(None),
     contribution_enabled: Optional[bool] = Form(False), contribution_target: Optional[float] = Form(None),
@@ -1460,6 +1505,8 @@ async def create_event(
         theme_color=theme_color.strip() if theme_color else None,
         dress_code=dress_code.strip() if dress_code else None,
         special_instructions=special_instructions.strip() if special_instructions else None,
+        what_to_expect=_parse_what_to_expect(what_to_expect),
+        what_to_expect_notes=(what_to_expect_notes.strip() or None) if what_to_expect_notes else None,
         reminder_contact_phone=reminder_contact_phone.strip() if reminder_contact_phone else None,
         contribution_payment_instructions=(contribution_payment_instructions.strip() or None) if contribution_payment_instructions else None,
         created_at=now, updated_at=now,
@@ -1616,6 +1663,8 @@ async def update_event(
     status: Optional[str] = Form(None), budget: Optional[float] = Form(None),
     currency: Optional[str] = Form(None), expected_guests: Optional[int] = Form(None),
     dress_code: Optional[str] = Form(None), special_instructions: Optional[str] = Form(None),
+    what_to_expect: Optional[str] = Form(None),
+    what_to_expect_notes: Optional[str] = Form(None),
     reminder_contact_phone: Optional[str] = Form(None),
     contribution_payment_instructions: Optional[str] = Form(None),
     invitation_template_id: Optional[str] = Form(None),
@@ -1753,6 +1802,11 @@ async def update_event(
         event.dress_code = dress_code.strip() if dress_code.strip() else None
     if special_instructions is not None:
         event.special_instructions = special_instructions.strip() if special_instructions.strip() else None
+    if what_to_expect is not None:
+        event.what_to_expect = _parse_what_to_expect(what_to_expect)
+    if what_to_expect_notes is not None:
+        wte_n = what_to_expect_notes.strip()
+        event.what_to_expect_notes = wte_n if wte_n else None
     if reminder_contact_phone is not None:
         rcp = reminder_contact_phone.strip()
         event.reminder_contact_phone = rcp if rcp else None

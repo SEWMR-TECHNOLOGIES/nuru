@@ -25,16 +25,23 @@ class EventGroupWorkspaceScreen extends StatefulWidget {
 }
 
 class _EventGroupWorkspaceScreenState extends State<EventGroupWorkspaceScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabs;
+    with TickerProviderStateMixin {
+  TabController? _tabs;
   Map<String, dynamic>? _group;
   List<dynamic> _members = [];
-  bool _loading = true;
+  // True only after the lightweight group fetch resolves. We never block
+  // the page on the heavier members / scoreboard / chat requests — those
+  // load progressively below the hero card.
+  bool _loadingGroup = true;
+  // Tab controller bookkeeping — only rebuild when the tab count or the
+  // viewer's organiser status actually changes. Recreating the controller
+  // on every build leaks tickers and crashes the screen.
+  int _lastTabCount = 0;
+  bool? _lastIsOrganizer;
 
   @override
   void initState() {
     super.initState();
-    _tabs = TabController(length: 3, vsync: this);
     // Seed from cache so the screen renders instantly on re-entry — the
     // background fetch below then refreshes silently.
     final cachedGroup = EventGroupsCache.getGroup(widget.groupId);
@@ -42,38 +49,68 @@ class _EventGroupWorkspaceScreenState extends State<EventGroupWorkspaceScreen>
     if (cachedGroup != null) {
       _group = cachedGroup;
       _members = cachedMembers ?? [];
-      _loading = false;
+      _loadingGroup = false;
     }
-    _load(silent: cachedGroup != null);
+    // Step 1: pull the basic group payload so the top of the page renders
+    // as fast as possible. Members come right after but never block render.
+    _loadGroup(silent: cachedGroup != null);
+    _loadMembers();
   }
 
-  Future<void> _load({bool silent = false}) async {
-    final results = await Future.wait([
-      EventGroupsService.getGroup(widget.groupId),
-      EventGroupsService.members(widget.groupId),
-    ]);
+  Future<void> _loadGroup({bool silent = false}) async {
+    final g = await EventGroupsService.getGroup(widget.groupId);
     if (!mounted) return;
     setState(() {
-      _loading = false;
-      final g = results[0];
+      _loadingGroup = false;
       if (g['success'] == true && g['data'] is Map) {
         _group = Map<String, dynamic>.from(g['data']);
         EventGroupsCache.putGroup(widget.groupId, _group!);
       }
-      final m = results[1];
-      if (m['success'] == true) {
-        final data = m['data'];
-        _members = data is Map ? (data['members'] ?? []) : [];
-        EventGroupsCache.putMembers(widget.groupId, _members);
-      }
     });
   }
 
+  Future<void> _loadMembers() async {
+    final m = await EventGroupsService.members(widget.groupId);
+    if (!mounted) return;
+    if (m['success'] == true) {
+      final data = m['data'];
+      final list = data is Map ? (data['members'] ?? []) : [];
+      setState(() {
+        _members = list;
+      });
+      EventGroupsCache.putMembers(widget.groupId, _members);
+    }
+  }
+
+  Future<void> _load({bool silent = false}) async {
+    await Future.wait([
+      _loadGroup(silent: silent),
+      _loadMembers(),
+    ]);
+  }
+
+
   @override
   void dispose() {
-    _tabs.dispose();
+    _tabs?.dispose();
     super.dispose();
   }
+
+  // Lazily build the TabController once we know how many tabs the viewer
+  // should see (organisers get 3, normal members only get 'Chat'). Only
+  // recreate when the count or the organiser flag actually changes — and
+  // always dispose the old controller first so we never leak a ticker.
+  void _ensureTabs(int count, bool isOrganizer) {
+    final shouldRecreate = _tabs == null
+        || _lastTabCount != count
+        || _lastIsOrganizer != isOrganizer;
+    if (!shouldRecreate) return;
+    _tabs?.dispose();
+    _tabs = TabController(length: count, vsync: this);
+    _lastTabCount = count;
+    _lastIsOrganizer = isOrganizer;
+  }
+
 
   Future<void> _copyInviteLink() async {
     final res = await EventGroupsService.createInvite(widget.groupId);
@@ -112,13 +149,15 @@ class _EventGroupWorkspaceScreenState extends State<EventGroupWorkspaceScreen>
 
   // ─── Tab pill (label only, no icons) ───
   Widget _pillTab(String label, int index) {
+    final ctrl = _tabs;
+    if (ctrl == null) return const SizedBox.shrink();
     return AnimatedBuilder(
-      animation: _tabs,
+      animation: ctrl,
       builder: (_, __) {
-        final active = _tabs.index == index;
+        final active = ctrl.index == index;
         final fg = active ? Colors.white : AppColors.primary;
         return GestureDetector(
-          onTap: () => _tabs.animateTo(index),
+          onTap: () => ctrl.animateTo(index),
           behavior: HitTestBehavior.opaque,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
@@ -138,6 +177,7 @@ class _EventGroupWorkspaceScreenState extends State<EventGroupWorkspaceScreen>
       },
     );
   }
+
 
   // ─── Header right-side icon button (no circle border per mockup) ───
   Widget _headerIcon({required Widget child, required VoidCallback onTap, String? tooltip}) {
@@ -254,13 +294,17 @@ class _EventGroupWorkspaceScreenState extends State<EventGroupWorkspaceScreen>
     final memberSubtitle = '$memberCount member${memberCount != 1 ? 's' : ''}'
         + (adminCount > 0 ? '  •  $adminCount admin${adminCount != 1 ? 's' : ''}' : '');
 
+    // Build the tab controller once we know which tabs apply to this viewer.
+    _ensureTabs(isAdmin ? 3 : 1, isAdmin);
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: SafeArea(
         bottom: false,
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
+        child: _loadingGroup
+            ? _buildSkeleton()
             : Column(children: [
+
                 // ─── Header row ───
                 Padding(
                   padding: const EdgeInsets.fromLTRB(8, 8, 12, 4),
@@ -407,35 +451,55 @@ class _EventGroupWorkspaceScreenState extends State<EventGroupWorkspaceScreen>
                 ),
 
                 // ─── Pill tabs (no icons) ───
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-                  child: Row(children: [
-                    _pillTab('Chat', 0),
-                    const SizedBox(width: 8),
-                    _pillTab('Contributors', 1),
-                    const SizedBox(width: 8),
-                    _pillTab('Analytics', 2),
-                  ]),
-                ),
+                // Non-organisers only ever see the chat workspace — the
+                // Contributors scoreboard and Analytics panel hold sensitive
+                // financial data. The same rule is enforced server-side.
+                if (isAdmin)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                    child: Row(children: [
+                      _pillTab('Chat', 0),
+                      const SizedBox(width: 8),
+                      _pillTab('Contributors', 1),
+                      const SizedBox(width: 8),
+                      _pillTab('Analytics', 2),
+                    ]),
+                  ),
 
                 // ─── Body ───
                 Expanded(
                   child: Stack(children: [
-                    AnimatedBuilder(
-                      animation: _tabs,
-                      builder: (_, __) => IndexedStack(
-                        index: _tabs.index,
-                        children: [
-                          ChatPanel(
-                            groupId: widget.groupId,
-                            meMemberId: me is Map ? me['id'] : null,
-                            isClosed: isClosed,
-                          ),
-                          ScoreboardPanel(groupId: widget.groupId),
-                          AnalyticsPanel(groupId: widget.groupId),
-                        ],
+                    if (isAdmin && _tabs != null)
+                      AnimatedBuilder(
+                        animation: _tabs!,
+                        builder: (_, __) => IndexedStack(
+                          index: _tabs!.index,
+                          children: [
+                            ChatPanel(
+                              groupId: widget.groupId,
+                              meMemberId: me is Map ? me['id'] : null,
+                              isClosed: isClosed,
+                            ),
+                            // Heavy panels are wrapped so they only fetch
+                            // when the organiser actually opens the tab.
+                            _LazyTab(
+                              active: _tabs!.index == 1,
+                              builder: () => ScoreboardPanel(groupId: widget.groupId),
+                            ),
+                            _LazyTab(
+                              active: _tabs!.index == 2,
+                              builder: () => AnalyticsPanel(groupId: widget.groupId),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      ChatPanel(
+                        groupId: widget.groupId,
+                        meMemberId: me is Map ? me['id'] : null,
+                        isClosed: isClosed,
                       ),
-                    ),
+
                     // ─── Members side panel — floating overlay (~62% width) ───
                     AnimatedPositioned(
                       duration: const Duration(milliseconds: 240),
@@ -487,7 +551,7 @@ class _EventGroupWorkspaceScreenState extends State<EventGroupWorkspaceScreen>
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 8, 20, 12 + MediaQuery.of(context).padding.bottom),
       child: GestureDetector(
-        onTap: () => _tabs.animateTo(0),
+        onTap: () => _tabs?.animateTo(0),
         behavior: HitTestBehavior.opaque,
         child: Container(
           constraints: const BoxConstraints(minHeight: 64),
@@ -531,5 +595,131 @@ class _EventGroupWorkspaceScreenState extends State<EventGroupWorkspaceScreen>
         ),
       ),
     );
+  }
+}
+
+extension _EventGroupWorkspaceSkeleton on _EventGroupWorkspaceScreenState {
+  Widget _buildSkeleton() {
+    Widget bar(double w, double h, {double r = 8}) => Container(
+          width: w,
+          height: h,
+          decoration: BoxDecoration(
+            color: AppColors.borderLight.withOpacity(0.55),
+            borderRadius: BorderRadius.circular(r),
+          ),
+        );
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // Header skeleton
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
+        child: Row(children: [
+          bar(22, 22, r: 6),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              bar(140, 14),
+              const SizedBox(height: 6),
+              bar(80, 10),
+            ]),
+          ),
+          bar(36, 36, r: 18),
+          const SizedBox(width: 8),
+          bar(36, 36, r: 18),
+        ]),
+      ),
+      const SizedBox(height: 8),
+      // Hero card skeleton
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.borderLight),
+          ),
+          child: Row(children: [
+            bar(56, 56, r: 14),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                bar(160, 14),
+                const SizedBox(height: 8),
+                bar(120, 10),
+                const SizedBox(height: 6),
+                bar(80, 10),
+              ]),
+            ),
+            const SizedBox(width: 8),
+            bar(92, 34, r: 22),
+          ]),
+        ),
+      ),
+      // Tab pill placeholders
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        child: Row(children: [
+          bar(72, 32, r: 22),
+          const SizedBox(width: 8),
+          bar(108, 32, r: 22),
+          const SizedBox(width: 8),
+          bar(92, 32, r: 22),
+        ]),
+      ),
+      // Chat lines placeholder
+      Expanded(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: ListView.separated(
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: 6,
+            separatorBuilder: (_, __) => const SizedBox(height: 14),
+            itemBuilder: (_, i) => Row(
+              mainAxisAlignment: i.isEven ? MainAxisAlignment.start : MainAxisAlignment.end,
+              children: [
+                bar(MediaQuery.of(context).size.width * (0.45 + (i % 3) * 0.08), 36, r: 14),
+              ],
+            ),
+          ),
+        ),
+      ),
+    ]);
+  }
+}
+
+/// Builds the heavy panel only after the tab becomes active for the first
+/// time. Avoids triggering scoreboard / analytics fetches on initial paint.
+class _LazyTab extends StatefulWidget {
+  final bool active;
+  final Widget Function() builder;
+  const _LazyTab({required this.active, required this.builder});
+
+  @override
+  State<_LazyTab> createState() => _LazyTabState();
+}
+
+class _LazyTabState extends State<_LazyTab> {
+  bool _hasBeenActive = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _hasBeenActive = widget.active;
+  }
+
+  @override
+  void didUpdateWidget(covariant _LazyTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !_hasBeenActive) {
+      _hasBeenActive = true;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_hasBeenActive) {
+      return const SizedBox.shrink();
+    }
+    return widget.builder();
   }
 }

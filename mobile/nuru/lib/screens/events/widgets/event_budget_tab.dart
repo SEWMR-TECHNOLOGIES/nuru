@@ -1,30 +1,32 @@
-import '../../../core/widgets/nuru_refresh_indicator.dart';
-import '../../../core/utils/money_format.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:open_filex/open_filex.dart';
+import '../../../core/widgets/nuru_refresh_indicator.dart';
+import '../../../core/widgets/app_icon.dart';
+import '../../../core/widgets/self_scrolling_pills.dart';
+import '../../../core/utils/money_format.dart';
 import '../../../core/services/events_service.dart';
 import '../../../core/services/report_generator.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/widgets/app_snackbar.dart';
-import '../report_preview_screen.dart';
-import '../../../core/widgets/deleting_overlay.dart';
 import '../../../core/theme/text_styles.dart';
+import '../../../core/widgets/app_snackbar.dart';
+import '../../../core/widgets/deleting_overlay.dart';
 import '../../../core/l10n/l10n_helper.dart';
+import '../report_preview_screen.dart';
 
-/// Budget categories matching web app
+/// Full redesign — Budget tab.
+/// Flat surfaces, project SVG icons, skeleton loader, header summary with
+/// progress ring (actual vs estimated), status filter pills, modern item cards.
 const _kCategories = [
-  'Venue', 'Catering', 'Decorations', 'Entertainment', 'Photography',
-  'Transport', 'Printing', 'Gifts & Favors', 'Equipment Rental',
-  'Marketing', 'Staffing', 'Audio & Visual', 'Flowers', 'Invitations',
-  'Security', 'Miscellaneous',
+  'Venue','Catering','Decorations','Entertainment','Photography','Transport',
+  'Printing','Gifts & Favors','Equipment Rental','Marketing','Staffing',
+  'Audio & Visual','Flowers','Invitations','Security','Miscellaneous',
 ];
 
 const _kStatusOptions = [
-  {'value': 'pending', 'label': 'Pending', 'color': Color(0xFFf59e0b)},
-  {'value': 'deposit_paid', 'label': 'Deposit Paid', 'color': Color(0xFF3b82f6)},
-  {'value': 'paid', 'label': 'Paid', 'color': Color(0xFF22c55e)},
+  {'value': 'pending', 'label': 'Pending', 'color': Color(0xFFD97706)},
+  {'value': 'deposit_paid', 'label': 'Deposit', 'color': Color(0xFF2471E7)},
+  {'value': 'paid', 'label': 'Paid', 'color': Color(0xFF16A34A)},
 ];
 
 class EventBudgetTab extends StatefulWidget {
@@ -32,17 +34,25 @@ class EventBudgetTab extends StatefulWidget {
   final Map<String, dynamic>? permissions;
   final String? eventTitle;
   final double? eventBudget;
-  const EventBudgetTab({super.key, required this.eventId, this.permissions, this.eventTitle, this.eventBudget});
+  const EventBudgetTab({
+    super.key,
+    required this.eventId,
+    this.permissions,
+    this.eventTitle,
+    this.eventBudget,
+  });
 
   @override
   State<EventBudgetTab> createState() => _EventBudgetTabState();
 }
 
-class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAliveClientMixin {
+class _EventBudgetTabState extends State<EventBudgetTab>
+    with AutomaticKeepAliveClientMixin {
   List<dynamic> _items = [];
   Map<String, dynamic> _summary = {};
   bool _loading = true;
   bool _deleting = false;
+  String _filter = 'all';
 
   @override
   bool get wantKeepAlive => true;
@@ -53,8 +63,8 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
     _load();
   }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
+  Future<void> _load({bool background = false}) async {
+    if (!background) setState(() => _loading = true);
     final res = await EventsService.getBudget(widget.eventId);
     if (!mounted) return;
     setState(() {
@@ -66,208 +76,490 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
     });
   }
 
+  List<dynamic> get _filtered {
+    if (_filter == 'all') return _items;
+    return _items
+        .where((i) => (i['status'] ?? 'pending').toString() == _filter)
+        .toList();
+  }
+
+  bool get _canManage =>
+      widget.permissions?['can_manage_budget'] == true ||
+      widget.permissions?['is_creator'] == true;
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final canManage = widget.permissions?['can_manage_budget'] == true || widget.permissions?['is_creator'] == true;
+    if (_loading) return _skeleton();
 
-    if (_loading) return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+    final estimated = _asNum(_summary['total_estimated']);
+    final actual = _asNum(_summary['total_actual']);
+    final variance =
+        _summary['variance'] != null ? _asNum(_summary['variance']) : estimated - actual;
+    final progress = estimated > 0 ? (actual / estimated).clamp(0.0, 1.0) : 0.0;
 
-    return Stack(
-      children: [
-        NuruRefreshIndicator(
-          onRefresh: _load,
-          color: AppColors.primary,
-          child: ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              // Summary cards
-              if (_summary.isNotEmpty)
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  margin: const EdgeInsets.only(bottom: 12),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Budget Summary', style: appText(size: 15, weight: FontWeight.w700)),
-                    const SizedBox(height: 12),
-                    Row(children: [
-                      Expanded(child: _summaryCard('Total Estimated', _formatAmount(_summary['total_estimated']), AppColors.primary)),
-                      const SizedBox(width: 10),
-                      Expanded(child: _summaryCard('Total Actual', _formatAmount(_summary['total_actual']), AppColors.secondary)),
-                    ]),
-                    const SizedBox(height: 10),
-                    Row(children: [
-                      Expanded(child: _summaryCard('Variance', _formatAmount(_summary['variance']), AppColors.accent)),
-                      const SizedBox(width: 10),
-                      Expanded(child: _summaryCard('Items', '${_items.length}', AppColors.textSecondary)),
-                    ]),
-                  ]),
-                ),
+    final paidCount =
+        _items.where((i) => (i['status'] ?? '') == 'paid').length;
+    final pendingCount =
+        _items.where((i) => (i['status'] ?? 'pending') == 'pending').length;
+    final depositCount =
+        _items.where((i) => (i['status'] ?? '') == 'deposit_paid').length;
 
-              // Download Reports
+    return Stack(children: [
+      NuruRefreshIndicator(
+        onRefresh: () => _load(background: true),
+        color: AppColors.primary,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+          children: [
+            if (_summary.isNotEmpty || _items.isNotEmpty)
+              _summaryHeader(estimated, actual, variance, progress),
+            const SizedBox(height: 14),
+            _exportRow(),
+            const SizedBox(height: 18),
+            _filterRow(_items.length, pendingCount, depositCount, paidCount),
+            const SizedBox(height: 12),
+            if (_items.isEmpty)
+              _emptyState()
+            else if (_filtered.isEmpty)
               Container(
-                padding: const EdgeInsets.all(14),
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Download Report', style: appText(size: 13, weight: FontWeight.w700)),
-                    const SizedBox(height: 10),
-                    Row(children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _downloadReport('pdf'),
-                          icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
-                          label: Text('PDF', style: appText(size: 12, weight: FontWeight.w600)),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.error,
-                            side: const BorderSide(color: AppColors.error),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => _downloadReport('xlsx'),
-                          icon: const Icon(Icons.table_chart_rounded, size: 16),
-                          label: Text('Excel', style: appText(size: 12, weight: FontWeight.w600)),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.accent,
-                            side: BorderSide(color: AppColors.accent),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                            padding: const EdgeInsets.symmetric(vertical: 10),
-                          ),
-                        ),
-                      ),
-                    ]),
-                  ],
-                ),
-              ),
-
-              Row(
-                children: [
-                  Expanded(child: Text('Budget Items', style: appText(size: 15, weight: FontWeight.w700))),
-                  if (canManage)
-                    GestureDetector(
-                      onTap: _showAddBudgetSheet,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(20)),
-                        child: Text('+ Add', style: appText(size: 12, weight: FontWeight.w700, color: Colors.white)),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              if (_items.isEmpty)
-                Container(
-                  padding: const EdgeInsets.all(30),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-                  child: Center(child: Text('No budget items yet', style: appText(size: 14, color: AppColors.textTertiary))),
-                )
-              else
-                ..._items.map((item) => _budgetTile(item, canManage)),
+                padding: const EdgeInsets.symmetric(vertical: 36),
+                alignment: Alignment.center,
+                child: Text('No items in this view',
+                    style: appText(size: 13, color: AppColors.textTertiary)),
+              )
+            else
+              ..._filtered.map((i) => _itemCard(i as Map<String, dynamic>)),
+            if (_canManage) ...[
+              const SizedBox(height: 16),
+              _addButton(),
             ],
-          ),
+          ],
         ),
-        DeletingOverlay(visible: _deleting),
+      ),
+      DeletingOverlay(visible: _deleting),
+    ]);
+  }
+
+  // ---------- Skeleton ----------
+  Widget _skeleton() {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+      children: [
+        _skel(height: 152, radius: 20),
+        const SizedBox(height: 14),
+        Row(children: [
+          Expanded(child: _skel(height: 46, radius: 14)),
+          const SizedBox(width: 10),
+          Expanded(child: _skel(height: 46, radius: 14)),
+        ]),
+        const SizedBox(height: 18),
+        Row(children: [
+          for (int i = 0; i < 4; i++) ...[
+            _skel(height: 32, width: 72, radius: 999),
+            const SizedBox(width: 8),
+          ],
+        ]),
+        const SizedBox(height: 14),
+        for (int i = 0; i < 4; i++) ...[
+          _skel(height: 84, radius: 16),
+          const SizedBox(height: 8),
+        ],
       ],
     );
   }
 
-  Widget _summaryCard(String label, String value, Color color) {
+  Widget _skel({double? width, required double height, double radius = 12}) =>
+      Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+            color: AppColors.borderLight,
+            borderRadius: BorderRadius.circular(radius)),
+      );
+
+  // ---------- Header summary ----------
+  Widget _summaryHeader(double est, double act, double variance, double p) {
+    final overBudget = act > est && est > 0;
     return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: color.withOpacity(0.08), borderRadius: BorderRadius.circular(12)),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.borderLight),
+      ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: appText(size: 11, color: AppColors.textTertiary)),
-        const SizedBox(height: 4),
-        Text(value, style: appText(size: 15, weight: FontWeight.w700, color: color)),
+        Row(children: [
+          SizedBox(
+            width: 76,
+            height: 76,
+            child: Stack(alignment: Alignment.center, children: [
+              SizedBox(
+                width: 76,
+                height: 76,
+                child: CircularProgressIndicator(
+                  value: p,
+                  strokeWidth: 7,
+                  backgroundColor: AppColors.borderLight,
+                  valueColor: AlwaysStoppedAnimation(
+                      overBudget ? AppColors.error : AppColors.primary),
+                ),
+              ),
+              Column(mainAxisSize: MainAxisSize.min, children: [
+                Text('${(p * 100).round()}%',
+                    style: appText(size: 16, weight: FontWeight.w800)),
+                Text('spent',
+                    style: appText(
+                        size: 10,
+                        color: AppColors.textTertiary,
+                        weight: FontWeight.w600)),
+              ]),
+            ]),
+          ),
+          const SizedBox(width: 18),
+          Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Estimated',
+                      style: appText(
+                          size: 11,
+                          color: AppColors.textTertiary,
+                          weight: FontWeight.w600)),
+                  const SizedBox(height: 2),
+                  Text(_money(est),
+                      style:
+                          appText(size: 19, weight: FontWeight.w800)),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    const AppIcon('wallet', size: 12, color: AppColors.primary),
+                    const SizedBox(width: 6),
+                    Text('Actual ${_money(act)}',
+                        style: appText(
+                            size: 12,
+                            color: AppColors.textSecondary,
+                            weight: FontWeight.w600)),
+                  ]),
+                ]),
+          ),
+        ]),
+        const SizedBox(height: 16),
+        Container(height: 1, color: AppColors.borderLight),
+        const SizedBox(height: 14),
+        Row(children: [
+          Expanded(
+              child: _metric(
+                  'Variance',
+                  _money(variance.abs()),
+                  variance >= 0 ? AppColors.success : AppColors.error,
+                  variance >= 0 ? 'trending-up' : 'warning')),
+          Container(width: 1, height: 34, color: AppColors.borderLight),
+          Expanded(
+              child: _metric('Items', '${_items.length}',
+                  AppColors.textPrimary, 'package')),
+        ]),
       ]),
     );
   }
 
-  Widget _budgetTile(Map<String, dynamic> item, bool canManage) {
-    final effectiveCost = (item['actual_cost'] != null && (item['actual_cost'] as num?) != 0)
-        ? item['actual_cost']
-        : item['estimated_cost'];
-    final isEstimate = item['actual_cost'] == null || item['actual_cost'] == 0;
-    final status = (item['status'] ?? 'pending').toString();
-    final statusOpt = _kStatusOptions.firstWhere((s) => s['value'] == status, orElse: () => _kStatusOptions[0]);
+  Widget _metric(String label, String value, Color color, String icon) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child:
+          Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          AppIcon(icon, size: 12, color: color),
+          const SizedBox(width: 5),
+          Text(label,
+              style: appText(
+                  size: 11,
+                  color: AppColors.textTertiary,
+                  weight: FontWeight.w600)),
+        ]),
+        const SizedBox(height: 4),
+        Text(value,
+            style: appText(size: 14, weight: FontWeight.w800, color: color)),
+      ]),
+    );
+  }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: [
-                  if (item['category'] != null)
-                    Text(item['category'].toString(), style: appText(size: 11, weight: FontWeight.w700, color: AppColors.primary)),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: (statusOpt['color'] as Color).withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(statusOpt['label'] as String, style: appText(size: 9, weight: FontWeight.w700, color: statusOpt['color'] as Color)),
-                  ),
-                ]),
-                const SizedBox(height: 2),
-                Text(item['description']?.toString() ?? item['item_name']?.toString() ?? 'Budget Item', style: appText(size: 14, weight: FontWeight.w600)),
-                Row(children: [
-                  Text(_formatAmount(effectiveCost), style: appText(size: 13, weight: FontWeight.w700, color: AppColors.primary)),
-                  if (isEstimate) ...[
-                    const SizedBox(width: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: AppColors.warning.withOpacity(0.15), borderRadius: BorderRadius.circular(6)),
-                      child: Text('estimate', style: appText(size: 9, weight: FontWeight.w700, color: AppColors.warning)),
-                    ),
-                  ],
-                  if (item['vendor_name'] != null) ...[
-                    const SizedBox(width: 8),
-                    Flexible(child: Text(item['vendor_name'].toString(), style: appText(size: 12, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis)),
-                  ],
-                ]),
-                if (item['notes'] != null && item['notes'].toString().isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(item['notes'].toString(), style: appText(size: 11, color: AppColors.textTertiary), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  ),
-              ],
-            ),
-          ),
-          if (canManage)
-            GestureDetector(
-              onTap: () => _deleteBudgetItem(item['id']?.toString() ?? ''),
-              child: Padding(
-                padding: const EdgeInsets.only(left: 8),
-                child: SvgPicture.asset('assets/icons/delete-icon.svg', width: 20, height: 20,
-                  colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
-              ),
-            ),
-        ],
+  // ---------- Export row ----------
+  Widget _exportRow() {
+    return Row(children: [
+      Expanded(
+          child: _exportBtn(
+              'PDF', 'file-pdf', AppColors.error, () => _download('pdf'))),
+      const SizedBox(width: 10),
+      Expanded(
+          child: _exportBtn(
+              'Excel', 'file-excel', AppColors.success, () => _download('xlsx'))),
+    ]);
+  }
+
+  Widget _exportBtn(String label, String icon, Color color, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.borderLight),
+        ),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          AppIcon(icon, size: 16, color: color),
+          const SizedBox(width: 8),
+          Text(label,
+              style: appText(size: 13, weight: FontWeight.w700, color: color)),
+        ]),
       ),
     );
   }
 
-  String _formatAmount(dynamic amount) {
-    if (amount == null) return '${getActiveCurrency()} 0';
-    final num = (amount is String ? double.tryParse(amount) : amount.toDouble()) ?? 0.0;
-    return '${getActiveCurrency()} ${num.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}';
+  // ---------- Filter pills ----------
+  Widget _filterRow(int total, int pend, int dep, int paid) {
+    final opts = [
+      ['all', 'All', total],
+      ['pending', 'Pending', pend],
+      ['deposit_paid', 'Deposit', dep],
+      ['paid', 'Paid', paid],
+    ];
+    final activeIndex = opts.indexWhere((o) => o[0] == _filter);
+    return SelfScrollingPills(
+      activeIndex: activeIndex < 0 ? 0 : activeIndex,
+      height: 38,
+      children: opts.map((o) {
+        final active = _filter == o[0];
+        return GestureDetector(
+          onTap: () => setState(() => _filter = o[0] as String),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: active ? AppColors.primary : Colors.white,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                  color: active ? AppColors.primary : AppColors.borderLight),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Text(o[1] as String,
+                  style: appText(
+                      size: 12,
+                      weight: FontWeight.w700,
+                      color: active ? Colors.white : AppColors.textPrimary)),
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: active
+                      ? Colors.white.withOpacity(0.22)
+                      : AppColors.primarySoft,
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text('${o[2]}',
+                    style: appText(
+                        size: 10,
+                        weight: FontWeight.w800,
+                        color: active ? Colors.white : AppColors.primaryDark)),
+              ),
+            ]),
+          ),
+        );
+      }).toList(),
+    );
   }
 
-  Future<void> _downloadReport(String format) async {
-    AppSnackbar.success(context, 'Generating ${format == 'xlsx' ? 'Excel' : 'PDF'} report...');
+
+  Widget _emptyState() {
+    return Container(
+      padding: const EdgeInsets.all(28),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      child: Column(children: [
+        Container(
+          width: 56,
+          height: 56,
+          decoration: BoxDecoration(
+            color: AppColors.primarySoft,
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child:
+              const Center(child: AppIcon('wallet', size: 26, color: AppColors.primary)),
+        ),
+        const SizedBox(height: 14),
+        Text('No budget yet', style: appText(size: 15, weight: FontWeight.w800)),
+        const SizedBox(height: 4),
+        Text('Plan how every shilling will be spent for this event.',
+            style: appText(size: 12, color: AppColors.textTertiary),
+            textAlign: TextAlign.center),
+      ]),
+    );
+  }
+
+  // ---------- Item card ----------
+  Widget _itemCard(Map<String, dynamic> item) {
+    final actualNum = _asNum(item['actual_cost']);
+    final estNum = _asNum(item['estimated_cost']);
+    final isEstimate = actualNum == 0;
+    final effective = isEstimate ? estNum : actualNum;
+    final status = (item['status'] ?? 'pending').toString();
+    final s = _kStatusOptions
+        .firstWhere((x) => x['value'] == status, orElse: () => _kStatusOptions.first);
+    final category = item['category']?.toString();
+    final name = item['description']?.toString() ??
+        item['item_name']?.toString() ??
+        'Item';
+    final vendor = item['vendor_name']?.toString();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+              color: AppColors.primarySoft,
+              borderRadius: BorderRadius.circular(12)),
+          child:
+              const Center(child: AppIcon('package', size: 18, color: AppColors.primary)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              if (category != null && category.isNotEmpty)
+                Flexible(
+                  child: Text(category.toUpperCase(),
+                      style: appText(
+                          size: 10,
+                          weight: FontWeight.w800,
+                          color: AppColors.primary),
+                      overflow: TextOverflow.ellipsis),
+                ),
+              const Spacer(),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                    color: (s['color'] as Color).withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(999)),
+                child: Text(s['label'] as String,
+                    style: appText(
+                        size: 10,
+                        weight: FontWeight.w800,
+                        color: s['color'] as Color)),
+              ),
+            ]),
+            const SizedBox(height: 4),
+            Text(name,
+                style: appText(size: 14, weight: FontWeight.w700),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis),
+            const SizedBox(height: 6),
+            Row(children: [
+              Text(_money(effective),
+                  style: appText(
+                      size: 14,
+                      weight: FontWeight.w800,
+                      color: AppColors.textPrimary)),
+              if (isEstimate) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(
+                      color: AppColors.warningSoft,
+                      borderRadius: BorderRadius.circular(6)),
+                  child: Text('estimate',
+                      style: appText(
+                          size: 9,
+                          weight: FontWeight.w800,
+                          color: AppColors.warning)),
+                ),
+              ],
+              if (vendor != null && vendor.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    const AppIcon('user',
+                        size: 11, color: AppColors.textTertiary),
+                    const SizedBox(width: 3),
+                    Flexible(
+                        child: Text(vendor,
+                            style: appText(
+                                size: 11,
+                                color: AppColors.textTertiary),
+                            overflow: TextOverflow.ellipsis)),
+                  ]),
+                ),
+              ],
+            ]),
+            if (item['notes'] != null &&
+                item['notes'].toString().isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(item['notes'].toString(),
+                  style: appText(size: 11, color: AppColors.textTertiary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis),
+            ],
+          ]),
+        ),
+        if (_canManage)
+          GestureDetector(
+            onTap: () => _deleteItem(item['id']?.toString() ?? ''),
+            child: const Padding(
+              padding: EdgeInsets.only(left: 8, top: 2),
+              child: AppIcon('delete', size: 16, color: AppColors.textHint),
+            ),
+          ),
+      ]),
+    );
+  }
+
+  Widget _addButton() {
+    return GestureDetector(
+      onTap: _showAddSheet,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: AppColors.primary,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          const AppIcon('plus', size: 16, color: Colors.white),
+          const SizedBox(width: 8),
+          Text('Add budget item',
+              style: appText(
+                  size: 14, weight: FontWeight.w800, color: Colors.white)),
+        ]),
+      ),
+    );
+  }
+
+  // ---------- helpers ----------
+  double _asNum(dynamic v) {
+    if (v == null) return 0;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString()) ?? 0;
+  }
+
+  String _money(double v) {
+    return '${getActiveCurrency()} ${v
+        .toStringAsFixed(0)
+        .replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}';
+  }
+
+  Future<void> _download(String format) async {
+    AppSnackbar.success(
+        context, 'Generating ${format == 'xlsx' ? 'Excel' : 'PDF'} report...');
     try {
       final res = await ReportGenerator.generateBudgetReport(
         widget.eventId,
@@ -280,26 +572,27 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
       if (!mounted) return;
       if (res['success'] == true) {
         if (format == 'pdf' && res['bytes'] != null) {
-          Navigator.push(context, MaterialPageRoute(
-            builder: (_) => ReportPreviewScreen(
-              title: 'Budget Report',
-              pdfBytes: res['bytes'] as Uint8List,
-              filePath: res['path'] as String,
-            ),
-          ));
+          Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => ReportPreviewScreen(
+                        title: 'Budget Report',
+                        pdfBytes: res['bytes'] as Uint8List,
+                        filePath: res['path'] as String,
+                      )));
         } else if (res['path'] != null) {
           await OpenFilex.open(res['path'] as String);
           if (mounted) AppSnackbar.success(context, 'Report opened');
         }
       } else {
-        AppSnackbar.error(context, res['message'] ?? 'Failed to generate report');
+        AppSnackbar.error(context, res['message'] ?? 'Failed');
       }
     } catch (_) {
       if (mounted) AppSnackbar.error(context, 'Failed to generate report');
     }
   }
 
-  Future<void> _deleteBudgetItem(String id) async {
+  Future<void> _deleteItem(String id) async {
     if (id.isEmpty) return;
     setState(() => _deleting = true);
     final res = await EventsService.deleteBudgetItem(widget.eventId, id);
@@ -307,206 +600,234 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
     setState(() => _deleting = false);
     if (res['success'] == true) {
       AppSnackbar.success(context, 'Removed');
-      _load();
+      _load(background: true);
     } else {
       AppSnackbar.error(context, res['message'] ?? 'Failed');
     }
   }
 
-  /// Full add budget item bottom sheet matching web: Category (select), Status, Item Name,
-  /// Estimated Cost, Actual Cost, Vendor, Notes
-  void _showAddBudgetSheet() {
+  void _showAddSheet() {
     final descCtrl = TextEditingController();
     final estCtrl = TextEditingController();
     final actCtrl = TextEditingController();
     final vendorCtrl = TextEditingController();
     final notesCtrl = TextEditingController();
+    final customCatCtrl = TextEditingController();
     String selectedCategory = _kCategories.first;
     String selectedStatus = 'pending';
-    bool customCategoryMode = false;
-    final customCatCtrl = TextEditingController();
+    bool customMode = false;
 
-    // Collect unique categories from existing items
-    final existingCats = <String>{};
-    for (final item in _items) {
-      if (item['category'] != null) existingCats.add(item['category'].toString());
+    final existing = <String>{};
+    for (final i in _items) {
+      if (i['category'] != null) existing.add(i['category'].toString());
     }
-    final allCats = <String>{..._kCategories, ...existingCats};
-    final sortedCats = allCats.toList()..sort();
+    final cats = (<String>{..._kCategories, ...existing}).toList()..sort();
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) => Padding(
-          padding: EdgeInsets.fromLTRB(20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+          padding: EdgeInsets.fromLTRB(
+              20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
           child: SingleChildScrollView(
             child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
-                const SizedBox(height: 20),
-                Text('Add Budget Item', style: appText(size: 18, weight: FontWeight.w700)),
-                const SizedBox(height: 18),
-
-                // Category + Status row
-                Row(children: [
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('Category *', style: appText(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
-                      const SizedBox(height: 6),
-                      if (customCategoryMode)
-                        Row(children: [
-                          Expanded(child: _styledInput(customCatCtrl, 'Custom category')),
-                          const SizedBox(width: 6),
-                          GestureDetector(
-                            onTap: () {
-                              if (customCatCtrl.text.trim().isNotEmpty) {
-                                setSheetState(() {
-                                  selectedCategory = customCatCtrl.text.trim();
-                                  customCategoryMode = false;
-                                });
-                              }
-                            },
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                              decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(12)),
-                              child: Text('Set', style: appText(size: 12, weight: FontWeight.w700, color: Colors.white)),
-                            ),
-                          ),
-                        ])
-                      else
-                        Container(
-                          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: sortedCats.contains(selectedCategory) ? selectedCategory : null,
-                              isExpanded: true,
-                              style: appText(size: 14),
-                              hint: Text('Select', style: appText(size: 14, color: AppColors.textHint)),
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                          color: AppColors.border,
+                          borderRadius: BorderRadius.circular(2)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text('Add budget item',
+                      style: appText(size: 18, weight: FontWeight.w800)),
+                  const SizedBox(height: 18),
+                  Row(children: [
+                    Expanded(
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                          _label('Category *'),
+                          if (customMode)
+                            Row(children: [
+                              Expanded(child: _input(customCatCtrl, 'Custom')),
+                              const SizedBox(width: 6),
+                              GestureDetector(
+                                onTap: () {
+                                  if (customCatCtrl.text.trim().isNotEmpty) {
+                                    setSheetState(() {
+                                      selectedCategory =
+                                          customCatCtrl.text.trim();
+                                      customMode = false;
+                                    });
+                                  }
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 14),
+                                  decoration: BoxDecoration(
+                                      color: AppColors.primary,
+                                      borderRadius: BorderRadius.circular(12)),
+                                  child: Text('Set',
+                                      style: appText(
+                                          size: 12,
+                                          weight: FontWeight.w700,
+                                          color: Colors.white)),
+                                ),
+                              ),
+                            ])
+                          else
+                            _dropdown<String>(
+                              value: cats.contains(selectedCategory)
+                                  ? selectedCategory
+                                  : null,
+                              hint: 'Select',
                               items: [
-                                ...sortedCats.map((c) => DropdownMenuItem(value: c, child: Text(c, style: appText(size: 14)))),
-                                DropdownMenuItem(value: '__custom__', child: Text('+ Add custom', style: appText(size: 14, color: AppColors.primary, weight: FontWeight.w600))),
+                                ...cats.map((c) =>
+                                    DropdownMenuItem(value: c, child: Text(c))),
+                                DropdownMenuItem(
+                                    value: '__custom__',
+                                    child: Text('+ Add custom',
+                                        style: appText(
+                                            size: 13,
+                                            weight: FontWeight.w700,
+                                            color: AppColors.primary))),
                               ],
                               onChanged: (v) {
                                 if (v == '__custom__') {
-                                  setSheetState(() => customCategoryMode = true);
+                                  setSheetState(() => customMode = true);
                                 } else if (v != null) {
                                   setSheetState(() => selectedCategory = v);
                                 }
                               },
                             ),
-                          ),
-                        ),
-                    ]),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('Status', style: appText(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
-                      const SizedBox(height: 6),
-                      Container(
-                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
+                        ])),
+                    const SizedBox(width: 12),
+                    Expanded(
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                          _label('Status'),
+                          _dropdown<String>(
                             value: selectedStatus,
-                            isExpanded: true,
-                            style: appText(size: 14),
-                            items: _kStatusOptions.map((s) => DropdownMenuItem(
-                              value: s['value'] as String,
-                              child: Text(s['label'] as String, style: appText(size: 14)),
-                            )).toList(),
-                            onChanged: (v) { if (v != null) setSheetState(() => selectedStatus = v); },
+                            items: _kStatusOptions
+                                .map((s) => DropdownMenuItem(
+                                    value: s['value'] as String,
+                                    child: Text(s['label'] as String)))
+                                .toList(),
+                            onChanged: (v) {
+                              if (v != null) {
+                                setSheetState(() => selectedStatus = v);
+                              }
+                            },
                           ),
-                        ),
+                        ])),
+                  ]),
+                  const SizedBox(height: 14),
+                  _label('Item name *'),
+                  _input(descCtrl, 'e.g. Main hall booking'),
+                  const SizedBox(height: 14),
+                  Row(children: [
+                    Expanded(
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                          _label('Estimated cost'),
+                          _input(estCtrl, '${getActiveCurrency()} 0',
+                              keyboard: TextInputType.number),
+                        ])),
+                    const SizedBox(width: 12),
+                    Expanded(
+                        child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                          _label('Actual cost'),
+                          _input(actCtrl, '${getActiveCurrency()} 0',
+                              keyboard: TextInputType.number),
+                        ])),
+                  ]),
+                  const SizedBox(height: 14),
+                  _label('Vendor / supplier'),
+                  _input(vendorCtrl, 'Search or type name'),
+                  const SizedBox(height: 14),
+                  _label('Notes'),
+                  _input(notesCtrl, 'Optional notes...', maxLines: 2),
+                  const SizedBox(height: 22),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primary,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(999)),
                       ),
-                    ]),
-                  ),
-                ]),
-                const SizedBox(height: 14),
-
-                // Item Name
-                Text('Item Name *', style: appText(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
-                const SizedBox(height: 6),
-                _styledInput(descCtrl, 'e.g. Main hall booking'),
-                const SizedBox(height: 14),
-
-                // Estimated + Actual Cost row
-                Row(children: [
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Estimated Cost', style: appText(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
-                    const SizedBox(height: 6),
-                    _styledInput(estCtrl, '${getActiveCurrency()} 0', keyboard: TextInputType.number),
-                  ])),
-                  const SizedBox(width: 12),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('Actual Cost', style: appText(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
-                    const SizedBox(height: 6),
-                    _styledInput(actCtrl, '${getActiveCurrency()} 0', keyboard: TextInputType.number),
-                  ])),
-                ]),
-                const SizedBox(height: 14),
-
-                // Vendor
-                Text('Vendor / Supplier', style: appText(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
-                const SizedBox(height: 6),
-                _styledInput(vendorCtrl, 'Search or type vendor name'),
-                const SizedBox(height: 14),
-
-                // Notes
-                Text('Notes', style: appText(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
-                const SizedBox(height: 6),
-                _styledInput(notesCtrl, 'Optional notes...', maxLines: 2),
-                const SizedBox(height: 20),
-
-                SizedBox(
-                  width: double.infinity, height: 50,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      if (descCtrl.text.trim().isEmpty) return;
-                      Navigator.pop(ctx);
-                      final res = await EventsService.addBudgetItem(widget.eventId, {
-                        'category': selectedCategory,
-                        'description': descCtrl.text.trim(),
-                        'estimated_cost': double.tryParse(estCtrl.text.trim()) ?? 0,
-                        'actual_cost': double.tryParse(actCtrl.text.trim()) ?? 0,
-                        'vendor_name': vendorCtrl.text.trim().isEmpty ? null : vendorCtrl.text.trim(),
-                        'notes': notesCtrl.text.trim().isEmpty ? null : notesCtrl.text.trim(),
-                        'status': selectedStatus,
-                      });
-                      if (!mounted) return;
-                      if (res['success'] == true) {
-                        AppSnackbar.success(context, 'Added');
-                        _load();
-                      } else {
-                        AppSnackbar.error(context, res['message'] ?? 'Failed');
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                      onPressed: () async {
+                        if (descCtrl.text.trim().isEmpty) return;
+                        Navigator.pop(ctx);
+                        final res = await EventsService.addBudgetItem(
+                            widget.eventId, {
+                          'category': selectedCategory,
+                          'description': descCtrl.text.trim(),
+                          'estimated_cost':
+                              double.tryParse(estCtrl.text.trim()) ?? 0,
+                          'actual_cost':
+                              double.tryParse(actCtrl.text.trim()) ?? 0,
+                          'vendor_name': vendorCtrl.text.trim().isEmpty
+                              ? null
+                              : vendorCtrl.text.trim(),
+                          'notes': notesCtrl.text.trim().isEmpty
+                              ? null
+                              : notesCtrl.text.trim(),
+                          'status': selectedStatus,
+                        });
+                        if (!mounted) return;
+                        if (res['success'] == true) {
+                          AppSnackbar.success(context, 'Added');
+                          _load(background: true);
+                        } else {
+                          AppSnackbar.error(
+                              context, res['message'] ?? 'Failed');
+                        }
+                      },
+                      child: Text('Save',
+                          style: appText(
+                              size: 14,
+                              weight: FontWeight.w800,
+                              color: Colors.white)),
                     ),
-                    child: Text('Save', style: appText(size: 15, weight: FontWeight.w700, color: Colors.white)),
                   ),
-                ),
-              ],
-            ),
+                ]),
           ),
         ),
       ),
     );
   }
 
-  Widget _styledInput(TextEditingController ctrl, String hint, {TextInputType keyboard = TextInputType.text, int maxLines = 1}) {
+  Widget _label(String t) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(t,
+            style: appText(
+                size: 12,
+                weight: FontWeight.w700,
+                color: AppColors.textSecondary)),
+      );
+
+  Widget _input(TextEditingController c, String hint,
+      {TextInputType keyboard = TextInputType.text, int maxLines = 1}) {
     return TextField(
-      controller: ctrl,
+      controller: c,
       keyboardType: keyboard,
       maxLines: maxLines,
       style: appText(size: 14),
@@ -515,8 +836,43 @@ class _EventBudgetTabState extends State<EventBudgetTab> with AutomaticKeepAlive
         hintStyle: appText(size: 13, color: AppColors.textHint),
         filled: true,
         fillColor: Colors.white,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: const Color(0xFFE5E7EB), width: 1)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: AppColors.borderLight)),
+        enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: AppColors.borderLight)),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      ),
+    );
+  }
+
+  Widget _dropdown<T>({
+    required T? value,
+    String? hint,
+    required List<DropdownMenuItem<T>> items,
+    required ValueChanged<T?> onChanged,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      child: DropdownButtonFormField<T>(
+        value: value,
+        decoration: InputDecoration(
+          border: InputBorder.none,
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          hintText: hint,
+          hintStyle: appText(size: 13, color: AppColors.textHint),
+        ),
+        style: appText(size: 13),
+        isExpanded: true,
+        items: items,
+        onChanged: onChanged,
       ),
     );
   }

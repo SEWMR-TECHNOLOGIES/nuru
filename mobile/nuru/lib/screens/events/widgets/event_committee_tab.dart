@@ -88,7 +88,7 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    if (_loading) return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+    if (_loading) return _skeleton();
 
     final filtered = _filteredMembers;
 
@@ -98,36 +98,37 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
         children: [
-          // Committee Report callout
-          GestureDetector(
-            onTap: _generateReport,
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: const Color(0xFFFFF8E6),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(children: [
-                Container(
-                  width: 54, height: 54,
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16),
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 6)]),
-                  child: const AppIcon('card', size: 26, color: AppColors.primary),
-                ),
-                const SizedBox(width: 14),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                  Text('Committee Report', style: appText(size: 15, weight: FontWeight.w800, color: AppColors.textPrimary)),
-                  const SizedBox(height: 2),
-                  Text('View roles, permissions and activity across your team.', style: appText(size: 11, color: AppColors.textSecondary), maxLines: 2),
-                ])),
-                Container(
-                  width: 36, height: 36,
-                  decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle,
-                    boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)]),
-                  child: const AppIcon('chevron-right', size: 18, color: AppColors.primary),
-                ),
-              ]),
+          // Committee Report — minimal, premium, icon-free
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.borderLight),
             ),
+            padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                  Text('REPORT', style: appText(size: 10, weight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 1.4)),
+                  const SizedBox(height: 6),
+                  Text('Committee overview', style: appText(size: 16, weight: FontWeight.w800, color: AppColors.textPrimary)),
+                  const SizedBox(height: 4),
+                  Text('Roles, permissions and activity in one PDF.', style: appText(size: 12, color: AppColors.textSecondary)),
+                ]),
+              ),
+              const SizedBox(width: 12),
+              FilledButton(
+                onPressed: _generateReport,
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  textStyle: appText(size: 13, weight: FontWeight.w700),
+                ),
+                child: const Text('Generate'),
+              ),
+            ]),
           ),
 
           const SizedBox(height: 14),
@@ -733,5 +734,30 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
     } else {
       AppSnackbar.error(context, res['message'] ?? 'Failed');
     }
+  }
+
+  Widget _skeleton() {
+    Widget box({double? w, required double h, double r = 12}) => Container(
+          width: w,
+          height: h,
+          decoration: BoxDecoration(
+              color: AppColors.borderLight,
+              borderRadius: BorderRadius.circular(r)),
+        );
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+      children: [
+        box(h: 86, r: 20),
+        const SizedBox(height: 14),
+        box(h: 54, r: 16),
+        const SizedBox(height: 18),
+        box(w: 140, h: 18, r: 6),
+        const SizedBox(height: 12),
+        for (int i = 0; i < 4; i++) ...[
+          box(h: 130, r: 20),
+          const SizedBox(height: 12),
+        ],
+      ],
+    );
   }
 }

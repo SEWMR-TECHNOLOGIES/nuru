@@ -1,15 +1,20 @@
-import '../../../core/widgets/nuru_refresh_indicator.dart';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:google_fonts/google_fonts.dart';
+import '../../../core/widgets/nuru_refresh_indicator.dart';
+import '../../../core/widgets/app_icon.dart';
+import '../../../core/widgets/self_scrolling_pills.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/theme/text_styles.dart';
 import '../../../core/services/events_service.dart';
 import '../../../core/services/report_generator.dart';
 import '../../../core/widgets/app_snackbar.dart';
-import '../report_preview_screen.dart';
-import '../../../core/theme/text_styles.dart';
 import '../../../core/l10n/l10n_helper.dart';
+import '../report_preview_screen.dart';
 
-/// RSVP tab — shows RSVP stats and guest responses, mirroring web EventRSVP.tsx
+/// RSVP tab — full redesign.
+/// Flat surfaces, project SVG icons only, no material icons, no gradients.
 class EventRsvpTab extends StatefulWidget {
   final String eventId;
   const EventRsvpTab({super.key, required this.eventId});
@@ -18,345 +23,467 @@ class EventRsvpTab extends StatefulWidget {
   State<EventRsvpTab> createState() => _EventRsvpTabState();
 }
 
-class _EventRsvpTabState extends State<EventRsvpTab>
-    with AutomaticKeepAliveClientMixin {
+class _EventRsvpTabState extends State<EventRsvpTab> with AutomaticKeepAliveClientMixin {
   List<dynamic> _guests = [];
   Map<String, dynamic> _summary = {};
   bool _loading = true;
-  String _filter = 'all';
+  bool _generating = false;
+  String _filter = 'all'; // all | confirmed | pending | declined | maybe
   final _searchCtrl = TextEditingController();
 
   @override
   bool get wantKeepAlive => true;
 
   @override
-  void initState() {
-    super.initState();
-    _load();
-  }
+  void initState() { super.initState(); _load(); }
 
   @override
-  void dispose() {
-    _searchCtrl.dispose();
-    super.dispose();
-  }
+  void dispose() { _searchCtrl.dispose(); super.dispose(); }
 
-  Future<void> _load() async {
-    setState(() => _loading = true);
+  Future<void> _load({bool background = false}) async {
+    if (!background) setState(() => _loading = true);
     final res = await EventsService.getGuests(
       widget.eventId,
       rsvpStatus: _filter == 'all' ? null : _filter,
       search: _searchCtrl.text.trim().isEmpty ? null : _searchCtrl.text.trim(),
     );
-    if (mounted)
-      setState(() {
-        _loading = false;
-        if (res['success'] == true) {
-          final data = res['data'];
-          _guests = data?['guests'] ?? [];
-          _summary = data?['summary'] ?? {};
-        }
-      });
+    if (!mounted) return;
+    setState(() {
+      _loading = false;
+      if (res['success'] == true) {
+        final data = res['data'];
+        _guests = (data?['guests'] as List?) ?? [];
+        _summary = (data?['summary'] as Map?)?.cast<String, dynamic>() ?? {};
+      }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    final stats = {
-      'attending': _summary['confirmed'] ?? 0,
-      'declined': _summary['declined'] ?? 0,
-      'pending': _summary['pending'] ?? 0,
-      'maybe': _summary['maybe'] ?? 0,
-      'total': _summary['total'] ?? 0,
-      'checked_in': _summary['checked_in'] ?? 0,
-    };
+    if (_loading && _guests.isEmpty) return _skeleton();
 
-    return Column(
-      children: [
-        // Stats cards
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-          child: Row(
-            children: [
-              _statCard('Attending', stats['attending'], AppColors.accent),
-              _statCard('Declined', stats['declined'], AppColors.error),
-              _statCard('Pending', stats['pending'], AppColors.warning),
-              _statCard('Maybe', stats['maybe'], AppColors.blue),
-              _statCard('Total', stats['total'], AppColors.textPrimary),
-            ],
-          ),
-        ),
-
-        // Report button
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-          child: SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
-              onPressed: _generateReport,
-              icon: const Icon(Icons.description_rounded, size: 16),
-              label: Text(
-                'RSVP Report',
-                style: appText(size: 12, weight: FontWeight.w600),
-              ),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primary,
-                side: const BorderSide(color: AppColors.primary),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                padding: const EdgeInsets.symmetric(vertical: 10),
-              ),
-            ),
-          ),
-        ),
-
-        // Search
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-          child: TextField(
-            controller: _searchCtrl,
-            onChanged: (_) => _load(),
-            style: appText(size: 14),
-            decoration: InputDecoration(
-              hintText: 'Search RSVPs...',
-              hintStyle: appText(size: 13, color: AppColors.textHint),
-              prefixIcon: const Icon(
-                Icons.search_rounded,
-                size: 20,
-                color: AppColors.textHint,
-              ),
-              filled: true,
-              fillColor: Colors.white,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(14),
-                borderSide: BorderSide.none,
-              ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 10),
-            ),
-          ),
-        ),
-
-        // Filter chips
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: ['all', 'confirmed', 'pending', 'declined', 'maybe']
-                .map(
-                  (f) => Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() => _filter = f);
-                        _load();
-                      },
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 7,
-                        ),
-                        decoration: BoxDecoration(
-                          color: _filter == f
-                              ? AppColors.primary
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: _filter == f
-                                ? AppColors.primary
-                                : AppColors.border,
-                          ),
-                        ),
-                        child: Text(
-                          f[0].toUpperCase() + f.substring(1),
-                          style: appText(
-                            size: 12,
-                            weight: FontWeight.w600,
-                            color: _filter == f
-                                ? Colors.white
-                                : AppColors.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                )
-                .toList(),
-          ),
-        ),
-
-        // List
-        Expanded(
-          child: _loading
-              ? const Center(
-                  child: CircularProgressIndicator(color: AppColors.primary),
-                )
-              : _guests.isEmpty
-              ? Center(
-                  child: Text(
-                    'No RSVP responses yet',
-                    style: appText(size: 14, color: AppColors.textTertiary),
-                  ),
-                )
-              : NuruRefreshIndicator(
-                  onRefresh: _load,
-                  color: AppColors.primary,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    itemCount: _guests.length,
-                    itemBuilder: (_, i) => _rsvpTile(_guests[i]),
-                  ),
-                ),
-        ),
-      ],
+    return NuruRefreshIndicator(
+      onRefresh: _load,
+      color: AppColors.primary,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+        children: [
+          _responseCard(),
+          const SizedBox(height: 14),
+          _checkInRow(),
+          const SizedBox(height: 14),
+          _searchField(),
+          const SizedBox(height: 12),
+          _filterStrip(),
+          const SizedBox(height: 14),
+          if (_guests.isEmpty)
+            _emptyState()
+          else
+            ..._guests.map((g) => _guestTile(g as Map<String, dynamic>)),
+          const SizedBox(height: 14),
+          _reportButton(),
+        ],
+      ),
     );
   }
 
-  Widget _rsvpTile(Map<String, dynamic> g) {
-    final name = extractStr(
-      g['name'],
-      fallback: extractStr(g['full_name'], fallback: 'Guest'),
-    );
-    final rsvp = extractStr(g['rsvp_status'], fallback: 'pending');
-    final phone = g['phone']?.toString() ?? '';
-    final email = g['email']?.toString() ?? '';
-    final rsvpColor =
-        {
-          'confirmed': AppColors.accent,
-          'pending': AppColors.warning,
-          'declined': AppColors.error,
-          'maybe': AppColors.blue,
-        }[rsvp] ??
-        AppColors.textTertiary;
-    final rsvpIcon =
-        {
-          'confirmed': Icons.check_circle_rounded,
-          'pending': Icons.access_time_rounded,
-          'declined': Icons.cancel_rounded,
-          'maybe': Icons.help_outline_rounded,
-        }[rsvp] ??
-        Icons.help_outline_rounded;
+  // ─── headline response card ───────────────────────────────────
+  Widget _responseCard() {
+    final confirmed = (_summary['confirmed'] ?? 0) as int;
+    final pending = (_summary['pending'] ?? 0) as int;
+    final declined = (_summary['declined'] ?? 0) as int;
+    final maybe = (_summary['maybe'] ?? 0) as int;
+    final total = (_summary['total'] ?? (confirmed + pending + declined + maybe)) as int;
+    final responded = confirmed + declined + maybe;
+    final responseRate = total > 0 ? responded / total : 0.0;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            Text('Response rate', style: appText(size: 12, color: AppColors.textTertiary, weight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              Text('${(responseRate * 100).toStringAsFixed(0)}%',
+                  style: appText(size: 34, weight: FontWeight.w800, height: 1.0)),
+              const SizedBox(width: 8),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text('$responded of $total',
+                    style: appText(size: 12, color: AppColors.textTertiary)),
+              ),
+            ]),
+          ])),
+          SizedBox(
+            width: 64, height: 64,
+            child: Stack(alignment: Alignment.center, children: [
+              SizedBox(
+                width: 64, height: 64,
+                child: CircularProgressIndicator(
+                  value: responseRate,
+                  strokeWidth: 6,
+                  backgroundColor: const Color(0xFFF1F1F4),
+                  valueColor: const AlwaysStoppedAnimation(AppColors.primary),
+                ),
+              ),
+              const AppIcon('users', size: 22, color: AppColors.primary),
+            ]),
+          ),
+        ]),
+        const SizedBox(height: 18),
+        Row(children: [
+          Expanded(child: _responseMetric('$confirmed', 'Confirmed', const Color(0xFF16A34A), 'verified')),
+          const SizedBox(width: 8),
+          Expanded(child: _responseMetric('$pending', 'Pending', const Color(0xFFCA8A04), 'clock')),
+          const SizedBox(width: 8),
+          Expanded(child: _responseMetric('$declined', 'Declined', const Color(0xFFDC2626), 'close-circle')),
+          const SizedBox(width: 8),
+          Expanded(child: _responseMetric('$maybe', 'Maybe', const Color(0xFF2563EB), 'info')),
+        ]),
+      ]),
+    );
+  }
+
+  Widget _responseMetric(String value, String label, Color color, String icon) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        AppIcon(icon, size: 16, color: color),
+        const SizedBox(height: 6),
+        Text(value,
+            style: appText(size: 16, weight: FontWeight.w800, color: color),
+            maxLines: 1, overflow: TextOverflow.ellipsis),
+        const SizedBox(height: 2),
+        Text(label,
+            style: appText(size: 10, weight: FontWeight.w600, color: color),
+            maxLines: 1, overflow: TextOverflow.ellipsis),
+      ]),
+    );
+  }
+
+  Widget _checkInRow() {
+    final checkedIn = (_summary['checked_in'] ?? 0) as int;
+    final invitationsSent = (_summary['invitations_sent'] ?? 0) as int;
+    return Row(children: [
+      Expanded(child: _miniStat('event-calendar-check', 'Checked in', '$checkedIn')),
+      const SizedBox(width: 10),
+      Expanded(child: _miniStat('send', 'Invitations sent', '$invitationsSent')),
+    ]);
+  }
+
+  Widget _miniStat(String icon, String label, String value) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: AppColors.borderLight),
+    ),
+    child: Row(children: [
+      Container(
+        width: 32, height: 32,
+        decoration: const BoxDecoration(color: Color(0xFFF3F4F6), shape: BoxShape.circle),
+        child: Center(child: AppIcon(icon, size: 14, color: AppColors.textSecondary)),
+      ),
+      const SizedBox(width: 10),
+      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+        Text(label, style: appText(size: 11, color: AppColors.textTertiary)),
+        const SizedBox(height: 2),
+        Text(value, style: appText(size: 15, weight: FontWeight.w800)),
+      ])),
+    ]),
+  );
+
+  // ─── search (matches conversations search style) ───────────────
+  Widget _searchField() => Container(
+    height: 48,
+    padding: const EdgeInsets.symmetric(horizontal: 18),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(28),
+      border: Border.all(color: const Color(0xFFEDEDEF), width: 1),
+    ),
+    child: Row(children: [
+      const Icon(Icons.search_rounded, size: 20, color: Color(0xFF8E8E93)),
+      const SizedBox(width: 12),
+      Expanded(
+        child: TextField(
+          controller: _searchCtrl,
+          onChanged: (_) => _load(background: true),
+          cursorColor: Colors.black,
+          textAlignVertical: TextAlignVertical.center,
+          style: GoogleFonts.inter(fontSize: 14, color: Colors.black),
+          decoration: InputDecoration(
+            isDense: true,
+            filled: false,
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            disabledBorder: InputBorder.none,
+            errorBorder: InputBorder.none,
+            focusedErrorBorder: InputBorder.none,
+            contentPadding: const EdgeInsets.symmetric(vertical: 14),
+            hintText: 'Search by name or phone',
+            hintStyle: GoogleFonts.inter(
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+              color: const Color(0xFF9E9E9E),
+            ),
+          ),
+        ),
+      ),
+    ]),
+  );
+
+  // ─── filter pills — self-scrolls active into view ─────────────
+  Widget _filterStrip() {
+    const opts = [
+      ['all', 'All', null],
+      ['confirmed', 'Confirmed', Color(0xFF16A34A)],
+      ['pending', 'Pending', Color(0xFFCA8A04)],
+      ['declined', 'Declined', Color(0xFFDC2626)],
+      ['maybe', 'Maybe', Color(0xFF2563EB)],
+    ];
+    final activeIndex = opts.indexWhere((o) => o[0] == _filter);
+    return SelfScrollingPills(
+      activeIndex: activeIndex < 0 ? 0 : activeIndex,
+      height: 36,
+      children: opts
+          .map((o) => _pill(o[1] as String, o[0] as String, o[2] as Color?))
+          .toList(),
+    );
+  }
+
+  Widget _pill(String label, String value, Color? dot) {
+    final active = _filter == value;
+    return GestureDetector(
+      onTap: () { setState(() => _filter = value); _load(background: true); },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: active ? AppColors.primarySoft : Colors.white,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: active ? AppColors.primary.withOpacity(0.35) : AppColors.borderLight),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (dot != null) ...[
+            Container(width: 7, height: 7, decoration: BoxDecoration(color: dot, shape: BoxShape.circle)),
+            const SizedBox(width: 6),
+          ],
+          Text(label, style: appText(size: 12, weight: FontWeight.w700,
+              color: active ? AppColors.primaryDark : AppColors.textSecondary)),
+        ]),
+      ),
+    );
+  }
+
+  // ─── guest tile ────────────────────────────────────────────────
+  Widget _guestTile(Map<String, dynamic> g) {
+    final name = (g['name'] ?? g['full_name'] ?? 'Guest').toString();
+    final rsvp = (g['rsvp_status'] ?? 'pending').toString();
+    final phone = (g['phone'] ?? '').toString();
+    final avatar = (g['avatar'] ?? g['avatar_url'] ?? '').toString();
+    final checkedIn = g['checked_in'] == true;
+
+    Color color; String icon; String label;
+    switch (rsvp) {
+      case 'confirmed':
+        color = const Color(0xFF16A34A); icon = 'verified'; label = 'Confirmed'; break;
+      case 'declined':
+        color = const Color(0xFFDC2626); icon = 'close-circle'; label = 'Declined'; break;
+      case 'maybe':
+        color = const Color(0xFF2563EB); icon = 'info'; label = 'Maybe'; break;
+      default:
+        color = const Color(0xFFCA8A04); icon = 'clock'; label = 'Pending';
+    }
+
+    final initial = name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : '?';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.borderLight),
       ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: rsvpColor.withOpacity(0.1),
-            child: Text(
-              name.isNotEmpty ? name[0].toUpperCase() : '?',
-              style: appText(
-                size: 16,
-                weight: FontWeight.w700,
-                color: rsvpColor,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: appText(size: 14, weight: FontWeight.w600),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Icon(rsvpIcon, size: 14, color: rsvpColor),
-                    const SizedBox(width: 4),
-                    Text(
-                      rsvp[0].toUpperCase() + rsvp.substring(1),
-                      style: appText(
-                        size: 12,
-                        weight: FontWeight.w600,
-                        color: rsvpColor,
+      child: Row(children: [
+        ClipOval(
+          child: SizedBox(
+            width: 44, height: 44,
+            child: avatar.isNotEmpty
+                ? CachedNetworkImage(
+                    imageUrl: avatar,
+                    width: 44, height: 44, fit: BoxFit.cover,
+                    imageBuilder: (_, p) => Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        image: DecorationImage(image: p, fit: BoxFit.cover),
                       ),
                     ),
-                    if (phone.isNotEmpty) ...[
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: Text(
-                          phone,
-                          style: appText(
-                            size: 11,
-                            color: AppColors.textTertiary,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-                if (email.isNotEmpty)
-                  Text(
-                    email,
-                    style: appText(size: 11, color: AppColors.textTertiary),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-              ],
-            ),
+                    errorWidget: (_, __, ___) => _initialAvatar(initial, color),
+                  )
+                : _initialAvatar(initial, color),
           ),
-        ],
-      ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: Text(name, style: appText(size: 14, weight: FontWeight.w700),
+                maxLines: 1, overflow: TextOverflow.ellipsis)),
+            if (checkedIn) Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+              decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(999)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const AppIcon('event-calendar-check', size: 10, color: Color(0xFF1D4ED8)),
+                const SizedBox(width: 4),
+                Text('Checked in', style: appText(size: 9, weight: FontWeight.w700, color: const Color(0xFF1D4ED8))),
+              ]),
+            ),
+          ]),
+          const SizedBox(height: 6),
+          Row(children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(color: color.withOpacity(0.12), borderRadius: BorderRadius.circular(999)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                AppIcon(icon, size: 10, color: color),
+                const SizedBox(width: 4),
+                Text(label, style: appText(size: 10, weight: FontWeight.w700, color: color)),
+              ]),
+            ),
+            if (phone.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              const AppIcon('phone', size: 11, color: AppColors.textTertiary),
+              const SizedBox(width: 4),
+              Flexible(child: Text(phone,
+                  style: appText(size: 11, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis)),
+            ],
+          ]),
+        ])),
+      ]),
     );
   }
 
-  Widget _statCard(String label, dynamic count, Color color) {
-    return Container(
-      margin: const EdgeInsets.only(right: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+  Widget _initialAvatar(String initial, Color color) => Container(
+    color: color.withOpacity(0.12),
+    alignment: Alignment.center,
+    child: Text(initial, style: appText(size: 17, weight: FontWeight.w800, color: color)),
+  );
+
+  // ─── empty + report ────────────────────────────────────────────
+  Widget _emptyState() => Container(
+    padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: AppColors.borderLight),
+    ),
+    child: Column(children: [
+      Container(
+        width: 60, height: 60,
+        decoration: const BoxDecoration(color: Color(0xFFF3F4F6), shape: BoxShape.circle),
+        child: const Center(child: AppIcon('users', size: 26, color: AppColors.textTertiary)),
+      ),
+      const SizedBox(height: 14),
+      Text('No responses yet', style: appText(size: 15, weight: FontWeight.w700)),
+      const SizedBox(height: 4),
+      Text('Guest responses will appear here as they come in.',
+          style: appText(size: 12, color: AppColors.textTertiary), textAlign: TextAlign.center),
+    ]),
+  );
+
+  Widget _reportButton() => GestureDetector(
+    onTap: _generating ? null : _generateReport,
+    child: Container(
+      padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(16),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.borderLight),
       ),
-      child: Column(
-        children: [
-          Text(
-            '${count ?? 0}',
-            style: appText(size: 20, weight: FontWeight.w800, color: color),
-          ),
+      child: Row(children: [
+        Container(
+          width: 36, height: 36,
+          decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(10)),
+          child: const Center(child: AppIcon('file-pdf', size: 16, color: AppColors.primary)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Text('RSVP report', style: appText(size: 13, weight: FontWeight.w700)),
           const SizedBox(height: 2),
-          Text(
-            label,
-            style: appText(size: 11, weight: FontWeight.w600, color: color),
-          ),
-        ],
-      ),
+          Text('Download a printable PDF of all responses',
+              style: appText(size: 11, color: AppColors.textTertiary)),
+        ])),
+        if (_generating)
+          const SizedBox(width: 16, height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
+        else
+          const AppIcon('chevron-right', size: 16, color: AppColors.textTertiary),
+      ]),
+    ),
+  );
+
+  // ─── skeleton ──────────────────────────────────────────────────
+  Widget _skeleton() {
+    Widget bar(double w, double h, {double r = 8}) => Container(
+      width: w, height: h,
+      decoration: BoxDecoration(color: const Color(0xFFF1F1F4), borderRadius: BorderRadius.circular(r)),
     );
+    Widget tile() => Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.borderLight)),
+      child: Row(children: [
+        Container(width: 44, height: 44, decoration: const BoxDecoration(color: Color(0xFFF1F1F4), shape: BoxShape.circle)),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          bar(140, 13), const SizedBox(height: 8), bar(90, 18, r: 999),
+        ])),
+      ]),
+    );
+    return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 32), children: [
+      Container(height: 196, decoration: BoxDecoration(color: const Color(0xFFF1F1F4), borderRadius: BorderRadius.circular(22))),
+      const SizedBox(height: 14),
+      Row(children: [Expanded(child: bar(double.infinity, 56, r: 14)), const SizedBox(width: 10), Expanded(child: bar(double.infinity, 56, r: 14))]),
+      const SizedBox(height: 14),
+      bar(double.infinity, 46, r: 14),
+      const SizedBox(height: 12),
+      SizedBox(height: 34, child: Row(children: List.generate(5, (_) => Padding(padding: const EdgeInsets.only(right: 8), child: bar(80, 30, r: 999))))),
+      const SizedBox(height: 14),
+      ...List.generate(5, (_) => tile()),
+    ]);
   }
 
   Future<void> _generateReport() async {
-    AppSnackbar.success(context, 'Generating RSVP report...');
+    setState(() => _generating = true);
     final res = await ReportGenerator.generateRsvpReport(
       widget.eventId,
       format: 'pdf',
       guests: _guests,
     );
     if (!mounted) return;
+    setState(() => _generating = false);
     if (res['success'] == true && res['bytes'] != null) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => ReportPreviewScreen(
-            title: 'RSVP Report',
-            pdfBytes: res['bytes'] as Uint8List,
-            filePath: res['path'] as String?,
-          ),
+      Navigator.push(context, MaterialPageRoute(
+        builder: (_) => ReportPreviewScreen(
+          title: 'RSVP Report',
+          pdfBytes: res['bytes'] as Uint8List,
+          filePath: res['path'] as String?,
         ),
-      );
+      ));
     } else {
-      AppSnackbar.error(context, res['message'] ?? 'Failed');
+      AppSnackbar.error(context, res['message']?.toString() ?? "We couldn't generate the report");
     }
   }
 }

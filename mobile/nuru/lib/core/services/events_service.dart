@@ -114,10 +114,16 @@ class EventsService {
     int limit = 20,
     String? status,
     String? search,
+    // The mobile "My Events" tab is strictly the events I created. Without
+    // this flag the backend also returns events somebody else recorded
+    // against me via event_owner_user_id, which leaks invitations/owned-on-
+    // behalf-of rows into the creator list.
+    bool createdOnly = true,
   }) {
     final params = <String, String>{'page': '$page', 'limit': '$limit'};
     if (status != null && status != 'all') params['status'] = status;
     if (search != null && search.trim().isNotEmpty) params['search'] = search.trim();
+    if (createdOnly) params['created_only'] = 'true';
     return ApiBase.get(
       '/user-events/',
       queryParams: params,
@@ -170,6 +176,8 @@ class EventsService {
     String? venueAddress,
     String? reminderContactPhone,
     String? contributionPaymentInstructions,
+    List<Map<String, dynamic>>? whatToExpect,
+    String? whatToExpectNotes,
     String status = 'published',
     bool createdForSomeoneElse = false,
     String? eventOwnerUserId,
@@ -209,6 +217,10 @@ class EventsService {
         request.fields['reminder_contact_phone'] = reminderContactPhone;
       if (contributionPaymentInstructions != null)
         request.fields['contribution_payment_instructions'] = contributionPaymentInstructions;
+      if (whatToExpect != null)
+        request.fields['what_to_expect'] = jsonEncode(whatToExpect);
+      if (whatToExpectNotes != null)
+        request.fields['what_to_expect_notes'] = whatToExpectNotes;
       request.fields['created_for_someone_else'] = createdForSomeoneElse ? 'true' : 'false';
       if (createdForSomeoneElse && eventOwnerUserId != null && eventOwnerUserId.isNotEmpty) {
         request.fields['event_owner_user_id'] = eventOwnerUserId;
@@ -255,6 +267,8 @@ class EventsService {
     String? venueAddress,
     String? reminderContactPhone,
     String? contributionPaymentInstructions,
+    List<Map<String, dynamic>>? whatToExpect,
+    String? whatToExpectNotes,
     String? invitationTemplateId,
     String? invitationAccentColor,
     Map<String, dynamic>? invitationContent,
@@ -294,6 +308,10 @@ class EventsService {
         request.fields['reminder_contact_phone'] = reminderContactPhone;
       if (contributionPaymentInstructions != null)
         request.fields['contribution_payment_instructions'] = contributionPaymentInstructions;
+      if (whatToExpect != null)
+        request.fields['what_to_expect'] = jsonEncode(whatToExpect);
+      if (whatToExpectNotes != null)
+        request.fields['what_to_expect_notes'] = whatToExpectNotes;
       if (invitationTemplateId != null)
         request.fields['invitation_template_id'] = invitationTemplateId;
       if (invitationAccentColor != null)

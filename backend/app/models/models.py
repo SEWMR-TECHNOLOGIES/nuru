@@ -1198,6 +1198,8 @@ class Event(Base):
     theme_color = Column(String(7))
     dress_code = Column(String(100))
     special_instructions = Column(Text)
+    what_to_expect = Column(JSONB, nullable=True)
+    what_to_expect_notes = Column(Text, nullable=True)
     # Optional fallback phone used in contributor reminder/bulk messages.
     reminder_contact_phone = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now())

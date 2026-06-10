@@ -9,7 +9,9 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/services/social_service.dart';
 import '../../../core/widgets/nuru_video_player.dart';
 import '../../../core/widgets/image_gallery_viewer.dart';
+import '../../../core/widgets/event_cover_image.dart';
 import '../../../core/l10n/l10n_helper.dart';
+import '../../events/event_public_view_screen.dart';
 
 /// Full-screen modal for post detail with scrollable echoes — matches web PostDetail
 class PostDetailModal extends StatefulWidget {
@@ -145,6 +147,15 @@ class _PostDetailModalState extends State<PostDetailModal> {
     }).toList();
   }
 
+  Map<String, dynamic>? get _sharedEvent {
+    final se = _post['shared_event'] ?? _post['event'];
+    if (se is Map) return Map<String, dynamic>.from(se);
+    return null;
+  }
+
+  bool get _isEventShare =>
+      _post['post_type']?.toString() == 'event_share' && _sharedEvent != null;
+
   Future<void> _handleGlow() async {
     HapticFeedback.lightImpact();
     final was = _glowed;
@@ -255,6 +266,12 @@ class _PostDetailModalState extends State<PostDetailModal> {
                   if (_title.isNotEmpty && _content.isNotEmpty) const SizedBox(height: 6),
                   if (_content.isNotEmpty)
                     Text(_content, style: GoogleFonts.inter(fontSize: 15, color: AppColors.textPrimary, height: 1.6)),
+
+                  // Shared event card (event_share posts)
+                  if (_isEventShare) ...[
+                    const SizedBox(height: 12),
+                    _buildSharedEventCard(),
+                  ],
 
                   // Media
                   if (_images.isNotEmpty) ...[
@@ -497,6 +514,88 @@ class _PostDetailModalState extends State<PostDetailModal> {
           );
         },
       ),
+    );
+  }
+
+  Widget _buildSharedEventCard() {
+    final event = _sharedEvent!;
+    final title = (event['title'] ?? 'Event').toString();
+    final desc = (event['description'] ?? '').toString();
+    final date = (event['start_date'] ?? '').toString();
+    final loc = (event['location'] ?? '').toString();
+    final type = (event['event_type'] ?? '').toString();
+    final cover = event['cover_image']?.toString();
+    final imgs = (event['images'] as List?)?.cast<dynamic>() ?? const [];
+    final heroUrl = imgs.isNotEmpty ? imgs.first.toString() : cover;
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Stack(children: [
+          SizedBox(
+            height: 180, width: double.infinity,
+            child: EventCoverImage(event: event, url: heroUrl, fit: BoxFit.cover),
+          ),
+          if (type.isNotEmpty)
+            Positioned(
+              top: 10, left: 10,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(6)),
+                child: Text(type, style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white)),
+              ),
+            ),
+        ]),
+        Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(title, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+            if (desc.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(desc, maxLines: 2, overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary, height: 1.4)),
+            ],
+            const SizedBox(height: 10),
+            if (date.isNotEmpty) _evtMeta(Icons.calendar_today_outlined, date),
+            if (loc.isNotEmpty) _evtMeta(Icons.place_outlined, loc),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () {
+                  final id = event['id']?.toString();
+                  if (id == null || id.isEmpty) return;
+                  Navigator.push(context, MaterialPageRoute(
+                    builder: (_) => EventPublicViewScreen(eventId: id, initialData: event),
+                  ));
+                },
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  side: const BorderSide(color: AppColors.border),
+                ),
+                child: Text('View Event Details', style: GoogleFonts.inter(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+              ),
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  Widget _evtMeta(IconData icon, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(children: [
+        Icon(icon, size: 14, color: AppColors.textTertiary),
+        const SizedBox(width: 6),
+        Flexible(child: Text(text, maxLines: 1, overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary))),
+      ]),
     );
   }
 

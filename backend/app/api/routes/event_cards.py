@@ -41,6 +41,12 @@ from models import (
 )
 from utils.auth import get_current_user
 from utils.card_storage import get_card_storage
+from utils.card_render_cache import (
+    read_text_cached,
+    font_data_uri,
+    get_font_face_block,
+    set_font_face_block,
+)
 from utils.helpers import standard_response
 
 router = APIRouter(tags=["Event Cards"])
@@ -273,7 +279,8 @@ def _inject_template_font_faces(svg: str, tpl: CardTemplate, mode: str = "file")
     fonts = meta.get("fonts") or []
     if not fonts:
         return svg
-    blocks: List[str] = []
+    # Resolve absolute font paths once (cheap) and try the cached <style> block.
+    resolved: List[tuple[str, str, str, str, bool]] = []  # (abs_path, mime, fmt, filename, is_italic)
     for filename in fonts:
         if not isinstance(filename, str) or not _SAFE_NAME.match(filename):
             continue
@@ -282,13 +289,20 @@ def _inject_template_font_faces(svg: str, tpl: CardTemplate, mode: str = "file")
         if not abs_path:
             continue
         mime, fmt = _font_media_type_and_format(abs_path, filename)
+        resolved.append((abs_path, mime, fmt, filename, "italic" in filename.lower()))
+    if not resolved:
+        return svg
+    cache_key_paths = tuple(sorted(r[0] for r in resolved))
+    cached_block = get_font_face_block(str(tpl.id), mode, cache_key_paths)
+    if cached_block is not None:
+        return re.sub(r"</svg>\s*$", f"{cached_block}</svg>", svg, flags=re.IGNORECASE)
+    blocks: List[str] = []
+    for abs_path, mime, fmt, filename, is_italic in resolved:
         bare = re.sub(r"\.(ttf|otf|woff2?|eot)$", "", filename, flags=re.IGNORECASE)
         spaced = re.sub(r"\s*Italic\s*$", "", bare, flags=re.IGNORECASE).strip()
         squashed = re.sub(r"\s+", "", spaced)
-        is_italic = "italic" in filename.lower()
         if mode == "data":
-            data = base64.b64encode(Path(abs_path).read_bytes()).decode("ascii")
-            url = f"data:{mime};base64,{data}"
+            url = font_data_uri(abs_path, mime)
         else:
             url = Path(abs_path).resolve().as_uri()
         for family in dict.fromkeys([spaced, squashed]):
@@ -298,7 +312,9 @@ def _inject_template_font_faces(svg: str, tpl: CardTemplate, mode: str = "file")
                 )
     if not blocks:
         return svg
-    return re.sub(r"</svg>\s*$", f"<style>{''.join(blocks)}</style></svg>", svg, flags=re.IGNORECASE)
+    style_block = f"<style>{''.join(blocks)}</style>"
+    set_font_face_block(str(tpl.id), mode, cache_key_paths, style_block)
+    return re.sub(r"</svg>\s*$", f"{style_block}</svg>", svg, flags=re.IGNORECASE)
 
 
 def _apply_text_edits(svg: str, edits: Dict[str, str], allowed_ids: List[str]) -> str:
@@ -407,7 +423,9 @@ def _render_event_card_svg(
         raise HTTPException(status_code=404, detail="Card template missing.")
     if not _storage.exists(tpl.svg_path):
         raise HTTPException(status_code=500, detail="Card asset missing.")
-    raw = _sanitize_svg(_storage.read_text(tpl.svg_path))
+    _abs = _storage.absolute_path(tpl.svg_path)
+    raw_text = read_text_cached(_abs) if _abs else _storage.read_text(tpl.svg_path)
+    raw = _sanitize_svg(raw_text)
     meta = tpl.metadata_json or {}
     allowed = [f["id"] for f in meta.get("editable_fields", []) if f.get("id")]
     svg = _apply_text_edits(raw, ec.custom_text_values or {}, allowed)
@@ -750,6 +768,22 @@ def send_pledge_thank_you_cards(
     # them under the Prepared Cards tab and send them in bulk.
     prepare_only = bool(body.get("prepare_only"))
 
+    # mode controls duplicate handling:
+    #   "fresh"          → always (re)act on every selected recipient.
+    #                      For prepare_only this overwrites the existing
+    #                      prepared row (preserving its stable URL behind
+    #                      the same id when the browser uploads to the same
+    #                      key, otherwise replacing rendered_card_url).
+    #                      For send this dispatches again even to people
+    #                      who were sent before.
+    #   "skip_existing"  → recipients who already have a usable card row
+    #                      are silently dropped before any work runs.
+    # Default is "fresh" to preserve the previous behaviour for older
+    # frontends that don't pass the field.
+    mode = (body.get("mode") or "fresh").strip().lower()
+    if mode not in ("fresh", "skip_existing"):
+        mode = "fresh"
+
     raw_guest_ids = body.get("guest_ids")
     raw_contrib_ids = body.get("contributor_ids")
     is_guest_dispatch = bool(raw_guest_ids)
@@ -792,6 +826,52 @@ def send_pledge_thank_you_cards(
     if not active_card:
         raise HTTPException(status_code=404, detail="No card configured for this event yet.")
     dispatch_event_card_id = active_card.id
+
+    # ── skip_existing pre-filter ──
+    # "Skip existing" means: drop recipients who already have a row that
+    # represents the kind of work we're about to do. For prepare_only we
+    # drop anything except discarded/failed. For send we drop only rows
+    # that were actually successfully delivered to WhatsApp/SMS (so a
+    # previous failed send is retried automatically).
+    skipped_existing_ids: List[str] = []
+    if mode == "skip_existing":
+        if prepare_only:
+            keep_statuses = {"discarded", "failed", "cancelled"}
+        else:
+            # Anything Meta acknowledged counts as "already sent".
+            keep_statuses = {"prepared", "pending", "failed", "discarded", "cancelled"}
+        column = SentEventCard.guest_attendee_id if is_guest_dispatch else SentEventCard.contributor_id
+        existing_rows = (
+            db.query(column, SentEventCard.delivery_status)
+            .filter(
+                SentEventCard.event_id == dispatch_event_id,
+                SentEventCard.event_card_id == dispatch_event_card_id,
+                column.in_(ids),
+            )
+            .all()
+        )
+        already_done: set = set()
+        for rid, status in existing_rows:
+            if rid is None:
+                continue
+            if status and str(status) in keep_statuses:
+                continue
+            already_done.add(rid)
+        if already_done:
+            skipped_existing_ids = [str(x) for x in already_done]
+            ids = [i for i in ids if i not in already_done]
+        if not ids:
+            return standard_response(
+                True,
+                "Nothing to do — every selected recipient already has a card.",
+                {
+                    "prepared": 0,
+                    "queued": 0,
+                    "skipped_existing": skipped_existing_ids,
+                    "sent_ids": [],
+                },
+            )
+
 
     sent_card_ids: List[str] = []
     sid_to_pre_rendered: Dict[str, str] = {}
@@ -890,6 +970,11 @@ def send_pledge_thank_you_cards(
         for ec in contributors:
             if not ec.contributor:
                 continue
+            # Display name — prefer the organiser-supplied common_name
+            # ("Mr & Mrs Mpinzile") for cards, fall back to the canonical
+            # contributor name. Mirrors the guest branch above.
+            contrib_common = (getattr(ec.contributor, "common_name", None) or "").strip()
+            contrib_display = contrib_common or (ec.contributor.name or "Friend")
             existing = None
             if prepare_only:
                 existing = (
@@ -903,7 +988,7 @@ def send_pledge_thank_you_cards(
                     .first()
                 )
             if existing:
-                existing.recipient_name = ec.contributor.name or "Friend"
+                existing.recipient_name = contrib_display
                 existing.recipient_phone = ec.contributor.phone
                 existing.sent_by_user_id = dispatch_sender_user_id
                 db.commit()
@@ -916,7 +1001,7 @@ def send_pledge_thank_you_cards(
                 event_id=dispatch_event_id,
                 contributor_id=ec.id,
                 event_card_id=dispatch_event_card_id,
-                recipient_name=ec.contributor.name or "Friend",
+                recipient_name=contrib_display,
                 recipient_phone=ec.contributor.phone,
                 delivery_status="pending",
                 delivery_channel="whatsapp",
@@ -929,6 +1014,7 @@ def send_pledge_thank_you_cards(
             pre_url = pre_rendered.get(str(ec.id))
             if pre_url:
                 sid_to_pre_rendered[str(sent.id)] = pre_url
+
 
     # ── Prepare-only path: stash rows under 'prepared' and stop here. ──
     # The browser-side pre-rendered URL (if any) is recorded on
@@ -1242,6 +1328,10 @@ def send_pledge_thank_you_cards(
                                 "organizer_phone": organizer_phone or "—",
                                 "image_url": image_url or "",
                                 "lang": wa_lang,
+                                # Powers the WhatsApp quick-reply RSVP buttons
+                                # (confirm / maybe / decline). Shared with the
+                                # /rsvp/{code} URL flow.
+                                "rsvp_code": (row.recipient_qr_payload or "").strip() or "—",
                             }
                         else:
                             wa_action = "pledge_thank_you_card"
@@ -1509,6 +1599,90 @@ def send_prepared_cards(
     return standard_response(
         True,
         f"Sending {total_queued} prepared cards.",
+        {"queued": total_queued},
+    )
+
+
+
+@router.post("/events/{event_id}/sent-cards/resend")
+def resend_sent_cards(
+    event_id: str,
+    body: dict = Body(...),
+    background_tasks: BackgroundTasks = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Resend cards that were already dispatched at least once.
+
+    Reuses each row's existing ``rendered_card_url`` as ``pre_rendered_images``
+    so we never re-render server-side — the recipient gets exactly the same
+    card image they saw before, just delivered again."""
+    event = _assert_event_manager(db, event_id, current_user)
+    raw_ids = body.get("sent_ids") or []
+    if not isinstance(raw_ids, list) or not raw_ids:
+        raise HTTPException(status_code=400, detail="sent_ids is required")
+    try:
+        uuids = [uuid.UUID(str(x)) for x in raw_ids]
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid sent_id")
+
+    rows = (
+        db.query(SentEventCard)
+        .filter(
+            SentEventCard.event_id == event.id,
+            SentEventCard.id.in_(uuids),
+        )
+        .all()
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="No matching cards selected.")
+
+    ec_ids = {r.event_card_id for r in rows if r.event_card_id}
+    ecs = {
+        ec.id: ec
+        for ec in db.query(EventCard).filter(EventCard.id.in_(ec_ids)).all()
+    } if ec_ids else {}
+
+    buckets: Dict[tuple, Dict[str, Any]] = {}
+    for r in rows:
+        ec = ecs.get(r.event_card_id) if r.event_card_id else None
+        if not ec:
+            continue
+        kind = "guest" if r.guest_attendee_id else "contributor"
+        key = (ec.category, kind)
+        b = buckets.setdefault(key, {"ids": [], "pre_rendered": {}})
+        rec_id = str(r.guest_attendee_id if kind == "guest" else r.contributor_id)
+        b["ids"].append(rec_id)
+        if r.rendered_card_url:
+            b["pre_rendered"][rec_id] = r.rendered_card_url
+
+    total_queued = 0
+    for (cat, kind), b in buckets.items():
+        inner_body: Dict[str, Any] = {
+            "pre_rendered_images": b["pre_rendered"],
+            "mode": "fresh",
+        }
+        if kind == "guest":
+            inner_body["guest_ids"] = b["ids"]
+        else:
+            inner_body["contributor_ids"] = b["ids"]
+        try:
+            resp = send_pledge_thank_you_cards(
+                event_id=str(event.id),
+                category=cat,
+                body=inner_body,
+                background_tasks=background_tasks,
+                db=db,
+                current_user=current_user,
+            )
+            data = (resp or {}).get("data") if isinstance(resp, dict) else None
+            total_queued += int((data or {}).get("queued", 0))
+        except Exception as exc:
+            print(f"[sent_cards_resend] dispatch failed cat={cat} kind={kind}: {exc!r}")
+
+    return standard_response(
+        True,
+        f"Resending {total_queued} card{'s' if total_queued != 1 else ''}.",
         {"queued": total_queued},
     )
 
@@ -1856,6 +2030,11 @@ def list_sent_card_recipients(
         ts = r.sent_at or r.created_at
         out.append({
             "sent_id": str(r.id),
+            # Expose the originating recipient ids so the "Only those not
+            # sent yet" pre-filter on the send picker can drop people who
+            # already received a card without an extra lookup.
+            "contributor_id": str(r.contributor_id) if r.contributor_id else None,
+            "guest_attendee_id": str(r.guest_attendee_id) if r.guest_attendee_id else None,
             "recipient_name": r.recipient_name,
             "recipient_phone": r.recipient_phone,
             "rendered_card_url": url,

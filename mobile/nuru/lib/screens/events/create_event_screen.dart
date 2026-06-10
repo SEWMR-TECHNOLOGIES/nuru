@@ -46,6 +46,11 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   final _specialInstructionsCtrl = TextEditingController();
   final _reminderContactPhoneCtrl = TextEditingController();
   final _contributionPaymentInstructionsCtrl = TextEditingController();
+  final _whatToExpectNotesCtrl = TextEditingController();
+  final List<Map<String, String>> _whatToExpectItems = [];
+  static const List<String> _wteIconChoices = [
+    'sparkle','calendar','clock','heart','camera','star','users','microphone','user'
+  ];
   String? _eventTypeId;
   String _visibility = 'private';
   DateTime? _startDate;
@@ -147,6 +152,22 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     _specialInstructionsCtrl.text = extractStr(e['special_instructions']);
     _reminderContactPhoneCtrl.text = extractStr(e['reminder_contact_phone']);
     _contributionPaymentInstructionsCtrl.text = extractStr(e['contribution_payment_instructions']);
+    _whatToExpectNotesCtrl.text = extractStr(e['what_to_expect_notes']);
+    _whatToExpectItems.clear();
+    final rawWte = e['what_to_expect'];
+    if (rawWte is List) {
+      for (final it in rawWte) {
+        if (it is Map) {
+          final label = (it['label'] ?? it['title'] ?? '').toString().trim();
+          if (label.isEmpty) continue;
+          _whatToExpectItems.add({
+            'icon': (it['icon'] ?? 'sparkle').toString(),
+            'label': label,
+            'description': (it['description'] ?? '').toString(),
+          });
+        }
+      }
+    }
     String _toIntStr(dynamic v) {
       if (v == null) return '';
       final n = v is num ? v : num.tryParse(v.toString());
@@ -438,6 +459,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
     _specialInstructionsCtrl.dispose();
     _reminderContactPhoneCtrl.dispose();
     _contributionPaymentInstructionsCtrl.dispose();
+    _whatToExpectNotesCtrl.dispose();
     _vendorSearchCtrl.dispose();
     _recognizableOwnerNameCtrl.dispose();
     _ownerSearchCtrl.dispose();
@@ -493,6 +515,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         specialInstructions: _specialInstructionsCtrl.text.trim().isEmpty ? null : _specialInstructionsCtrl.text.trim(),
         reminderContactPhone: _reminderContactPhoneCtrl.text.trim().isEmpty ? null : _reminderContactPhoneCtrl.text.trim(),
         contributionPaymentInstructions: _contributionPaymentInstructionsCtrl.text.trim(),
+        whatToExpect: _wtePayload(),
+        whatToExpectNotes: _whatToExpectNotesCtrl.text.trim(),
         time: timeStr,
         imagePath: _imagePath,
         venueLatitude: _venueLatitude,
@@ -530,6 +554,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
         specialInstructions: _specialInstructionsCtrl.text.trim().isEmpty ? null : _specialInstructionsCtrl.text.trim(),
         reminderContactPhone: _reminderContactPhoneCtrl.text.trim().isEmpty ? null : _reminderContactPhoneCtrl.text.trim(),
         contributionPaymentInstructions: _contributionPaymentInstructionsCtrl.text.trim().isEmpty ? null : _contributionPaymentInstructionsCtrl.text.trim(),
+        whatToExpect: _wtePayload(),
+        whatToExpectNotes: _whatToExpectNotesCtrl.text.trim().isEmpty ? null : _whatToExpectNotesCtrl.text.trim(),
         time: timeStr,
         imagePath: _imagePath,
         venueLatitude: _venueLatitude,
@@ -1412,6 +1438,8 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
             specialInstructions: _specialInstructionsCtrl.text.trim().isEmpty ? null : _specialInstructionsCtrl.text.trim(),
             reminderContactPhone: _reminderContactPhoneCtrl.text.trim().isEmpty ? null : _reminderContactPhoneCtrl.text.trim(),
             contributionPaymentInstructions: _contributionPaymentInstructionsCtrl.text.trim(),
+            whatToExpect: _wtePayload(),
+            whatToExpectNotes: _whatToExpectNotesCtrl.text.trim(),
           );
         }
       }
@@ -1781,7 +1809,158 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       const SizedBox(height: 16),
       _label('Contributor payment instructions (optional)'),
       _input(_contributionPaymentInstructionsCtrl, 'Explain how contributors should complete their payment. This will be included in contribution target messages.', maxLines: 3),
+      const SizedBox(height: 20),
+      _whatToExpectSection(),
     ]));
+  }
+
+  List<Map<String, dynamic>>? _wtePayload() {
+    final out = <Map<String, dynamic>>[];
+    for (final it in _whatToExpectItems) {
+      final label = (it['label'] ?? '').trim();
+      if (label.isEmpty) continue;
+      out.add({
+        'icon': (it['icon'] ?? 'sparkle').trim(),
+        'label': label,
+        'description': (it['description'] ?? '').trim(),
+      });
+    }
+    return out.isEmpty ? null : out;
+  }
+
+  Widget _whatToExpectSection() {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _label('What to expect (optional)'),
+      Text(
+        'Add a short list so guests know what to look forward to. Leave blank to hide this section.',
+        style: appText(size: 12, color: AppColors.textTertiary),
+      ),
+      const SizedBox(height: 12),
+      ..._whatToExpectItems.asMap().entries.map((entry) {
+        final i = entry.key;
+        final item = entry.value;
+        return Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.border, width: 1),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              GestureDetector(
+                onTap: () => _pickWteIcon(i),
+                child: Container(
+                  width: 40, height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySoft,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Center(
+                    child: SvgPicture.asset(
+                      'assets/icons/${item['icon']}-icon.svg',
+                      width: 18, height: 18,
+                      colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextFormField(
+                  initialValue: item['label'],
+                  onChanged: (v) => item['label'] = v,
+                  style: appText(size: 14, weight: FontWeight.w700),
+                  decoration: InputDecoration(
+                    hintText: 'e.g. Live music',
+                    hintStyle: appText(size: 13, color: AppColors.textHint),
+                    isDense: true,
+                    border: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: () => setState(() => _whatToExpectItems.removeAt(i)),
+                child: const Padding(
+                  padding: EdgeInsets.all(6),
+                  child: Icon(Icons.close, size: 18, color: AppColors.textTertiary),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 6),
+            TextFormField(
+              initialValue: item['description'],
+              onChanged: (v) => item['description'] = v,
+              style: appText(size: 13, color: AppColors.textSecondary),
+              maxLines: 2,
+              decoration: InputDecoration(
+                hintText: 'Short description (optional)',
+                hintStyle: appText(size: 12, color: AppColors.textHint),
+                isDense: true,
+                border: InputBorder.none,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+          ]),
+        );
+      }),
+      if (_whatToExpectItems.length < 12)
+        GestureDetector(
+          onTap: () => setState(() => _whatToExpectItems.add({'icon': 'sparkle', 'label': '', 'description': ''})),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+            decoration: BoxDecoration(
+              color: AppColors.primarySoft,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.add, size: 16, color: AppColors.primary),
+              const SizedBox(width: 6),
+              Text('Add item', style: appText(size: 13, weight: FontWeight.w700, color: AppColors.primary)),
+            ]),
+          ),
+        ),
+      const SizedBox(height: 14),
+      _label('Notes (optional)'),
+      _input(_whatToExpectNotesCtrl, 'Anything else guests should know — schedule notes, parking, dress code reminders, etc.', maxLines: 3),
+    ]);
+  }
+
+  Future<void> _pickWteIcon(int index) async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Choose an icon', style: appText(size: 16, weight: FontWeight.w800)),
+          const SizedBox(height: 14),
+          Wrap(spacing: 10, runSpacing: 10, children: _wteIconChoices.map((name) => GestureDetector(
+            onTap: () => Navigator.pop(ctx, name),
+            child: Container(
+              width: 56, height: 56,
+              decoration: BoxDecoration(
+                color: AppColors.primarySoft,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Center(
+                child: SvgPicture.asset(
+                  'assets/icons/$name-icon.svg',
+                  width: 22, height: 22,
+                  colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn),
+                ),
+              ),
+            ),
+          )).toList()),
+        ]),
+      ),
+    );
+    if (picked != null && mounted) {
+      setState(() => _whatToExpectItems[index]['icon'] = picked);
+    }
   }
 
   Widget _buildSaveButton() {

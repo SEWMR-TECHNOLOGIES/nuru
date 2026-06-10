@@ -23,10 +23,117 @@ router = APIRouter(prefix="/rsvp", tags=["RSVP"])
 # ── Schemas ──────────────────────────────────────────
 
 class RSVPResponseInput(BaseModel):
-    rsvp_status: str = Field(..., pattern="^(confirmed|declined)$")
+    rsvp_status: str = Field(..., pattern="^(confirmed|declined|maybe)$")
     meal_preference: Optional[str] = Field(None, max_length=200)
     dietary_restrictions: Optional[str] = Field(None, max_length=500)
     special_requests: Optional[str] = Field(None, max_length=500)
+
+
+def _status_to_enum(status: str) -> RSVPStatusEnum:
+    s = (status or "").lower().strip()
+    if s == "confirmed":
+        return RSVPStatusEnum.confirmed
+    if s == "declined":
+        return RSVPStatusEnum.declined
+    if s in ("maybe", "tentative"):
+        return RSVPStatusEnum.maybe
+    raise ValueError(f"Unsupported RSVP status: {status!r}")
+
+
+def _lookup_by_phone(phone: str, db=None):
+    """Find the most recent pending invitation for a phone number.
+    Returns dict {code, guest_name} or None. Used by the WhatsApp bot
+    when the guest replies with free text (no button payload)."""
+    from utils.phone_numbers import normalize_phone
+    close = False
+    if db is None:
+        db = SessionLocal()
+        close = True
+    try:
+        intl = normalize_phone(phone) if phone else None
+        if not intl:
+            return None
+        digits = "".join(c for c in intl if c.isdigit())[-9:]
+        if not digits:
+            return None
+        # Match on the last 9 digits, the project-wide TZ phone convention.
+        inv = (
+            db.query(EventInvitation)
+            .filter(sql_func.right(EventInvitation.guest_phone, 9) == digits)
+            .order_by(EventInvitation.created_at.desc())
+            .first()
+        )
+        if not inv:
+            return None
+        return {
+            "code": inv.invitation_code,
+            "guest_name": inv.guest_name,
+        }
+    except Exception:
+        return None
+    finally:
+        if close:
+            db.close()
+
+
+def _respond_internal(db, code: str, status: str) -> bool:
+    """Apply an RSVP response from the WhatsApp bot (button or text).
+    Mirrors the URL respond endpoint but skips HTTP plumbing and the
+    auto-resend of the invitation card. Returns True on success.
+    Accepts statuses: confirmed | declined | maybe."""
+    if not code:
+        return False
+    try:
+        rsvp_enum = _status_to_enum(status)
+    except ValueError:
+        return False
+
+    inv = db.query(EventInvitation).filter(
+        EventInvitation.invitation_code == code
+    ).first()
+    if not inv:
+        return False
+
+    # Refuse to overwrite an invitation that's already been used for check-in.
+    existing_att = None
+    if inv.guest_type == GuestTypeEnum.user and inv.invited_user_id:
+        existing_att = db.query(EventAttendee).filter(
+            EventAttendee.event_id == inv.event_id,
+            EventAttendee.attendee_id == inv.invited_user_id,
+        ).first()
+    elif inv.guest_type == GuestTypeEnum.contributor and inv.contributor_id:
+        existing_att = db.query(EventAttendee).filter(
+            EventAttendee.event_id == inv.event_id,
+            EventAttendee.contributor_id == inv.contributor_id,
+        ).first()
+    else:
+        existing_att = db.query(EventAttendee).filter(
+            EventAttendee.invitation_id == inv.id,
+        ).first()
+    if existing_att and getattr(existing_att, "checked_in", False):
+        return False
+
+    inv.rsvp_status = rsvp_enum
+    inv.rsvp_at = sql_func.now()
+
+    attendee = existing_att
+    if not attendee:
+        attendee = EventAttendee(
+            event_id=inv.event_id,
+            guest_type=inv.guest_type or GuestTypeEnum.user,
+            attendee_id=inv.invited_user_id if inv.guest_type == GuestTypeEnum.user else None,
+            contributor_id=inv.contributor_id if inv.guest_type == GuestTypeEnum.contributor else None,
+            guest_name=inv.guest_name,
+            invitation_id=inv.id,
+            rsvp_status=rsvp_enum,
+        )
+        db.add(attendee)
+    else:
+        attendee.rsvp_status = rsvp_enum
+
+    db.commit()
+    return True
+
 
 
 # ── Code Generation ─────────────────────────────────
@@ -42,7 +149,32 @@ def generate_rsvp_code() -> str:
 # ── Helpers ──────────────────────────────────────────
 
 def _resolve_guest_name(inv: EventInvitation, db) -> str:
-    """Return guest display name from invitation record."""
+    """Return guest display name from invitation record.
+
+    Prefers organiser-supplied ``common_name`` on the matching attendee or
+    contributor record so cards render the human-friendly label (e.g.
+    "Mr & Mrs Mpinzile") without touching the stored legal name.
+    """
+    # 1. Attendee common_name takes top priority (set per-event by organiser).
+    try:
+        attendees = getattr(inv, "attendees", None) or []
+        for att in attendees:
+            common = (getattr(att, "common_name", None) or "").strip()
+            if common:
+                return common
+    except Exception:
+        pass
+
+    # 2. Contributor common_name (global address book override).
+    if inv.guest_type == GuestTypeEnum.contributor and inv.contributor_id:
+        c = db.query(UserContributor).filter(UserContributor.id == inv.contributor_id).first()
+        if c:
+            common = (getattr(c, "common_name", None) or "").strip()
+            if common:
+                return common
+            if c.name:
+                return c.name
+
     if inv.guest_name:
         return inv.guest_name
     if inv.guest_type == GuestTypeEnum.user and inv.invited_user_id:
@@ -267,7 +399,10 @@ def respond_to_rsvp(code: str, body: RSVPResponseInput):
         if not event:
             return standard_response(False, "Event not found", errors=["EVENT_NOT_FOUND"])
 
-        rsvp_enum = RSVPStatusEnum.confirmed if body.rsvp_status == "confirmed" else RSVPStatusEnum.declined
+        try:
+            rsvp_enum = _status_to_enum(body.rsvp_status)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Invalid RSVP status")
 
         # If guest already checked in (manually by organizer or via QR scan),
         # the invitation is "used" and cannot be modified.
@@ -339,7 +474,7 @@ def respond_to_rsvp(code: str, body: RSVPResponseInput):
 
         db.commit()
 
-        status_label = "confirmed" if rsvp_enum == RSVPStatusEnum.confirmed else "declined"
+        status_label = rsvp_enum.value
 
         # Auto-send WhatsApp invitation card on RSVP accept (fire-and-forget).
         if rsvp_enum == RSVPStatusEnum.confirmed:

@@ -19,6 +19,9 @@ class UserContributor(Base):
     # can see this contribution in their "My Contributions" tab and self-pay.
     contributor_user_id = Column(UUID(as_uuid=True), ForeignKey('users.id', ondelete='SET NULL'), nullable=True, index=True)
     name = Column(Text, nullable=False)
+    # Optional human-friendly label used on invitation cards (e.g.
+    # "Mr & Mrs Mpinzile"). Falls back to ``name`` when empty.
+    common_name = Column(Text, nullable=True)
     email = Column(Text)
     phone = Column(Text)
     notes = Column(Text)

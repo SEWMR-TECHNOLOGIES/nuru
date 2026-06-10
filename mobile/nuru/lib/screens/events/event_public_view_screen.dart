@@ -1,5 +1,6 @@
 import '../../core/utils/money_format.dart';
 import '../../core/widgets/nuru_skeleton.dart';
+import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/nuru_refresh.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -827,7 +828,7 @@ class _EventPublicViewScreenState extends State<EventPublicViewScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.event_busy_rounded, size: 48, color: AppColors.textHint),
+            const AppIcon('event-calendar-check', size: 44, color: AppColors.textHint),
             const SizedBox(height: 12),
             Text(
               'Event not found',
@@ -1025,9 +1026,9 @@ class _EventPublicViewScreenState extends State<EventPublicViewScreen> {
                               color: AppColors.primary.withOpacity(0.12),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Icon(
-                              Icons.qr_code_rounded,
-                              size: 22,
+                            child: const AppIcon(
+                              'card',
+                              size: 20,
                               color: AppColors.primary,
                             ),
                           ),
@@ -1263,10 +1264,10 @@ class _EventPublicViewScreenState extends State<EventPublicViewScreen> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                const Icon(
-                                  Icons.directions_rounded,
+                                const AppIcon(
+                                  'location',
                                   color: Colors.white,
-                                  size: 14,
+                                  size: 12,
                                 ),
                                 const SizedBox(width: 4),
                                 Text(
@@ -1309,8 +1310,7 @@ class _EventPublicViewScreenState extends State<EventPublicViewScreen> {
                   const SizedBox(height: 14),
                 ],
 
-                _expectCard(),
-                const SizedBox(height: 14),
+                ..._expectCard(e),
 
                 _galleryStrip(e, cover),
                 const SizedBox(height: 14),
@@ -1603,7 +1603,15 @@ class _EventPublicViewScreenState extends State<EventPublicViewScreen> {
             child: url.isNotEmpty
                 ? CachedNetworkImage(
                     imageUrl: url,
+                    width: 34,
+                    height: 34,
                     fit: BoxFit.cover,
+                    imageBuilder: (_, provider) => Container(
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        image: DecorationImage(image: provider, fit: BoxFit.cover),
+                      ),
+                    ),
                     errorWidget: (_, __, ___) => Center(
                       child: Text(
                         initial,
@@ -1726,66 +1734,86 @@ class _EventPublicViewScreenState extends State<EventPublicViewScreen> {
     );
   }
 
-  Widget _expectCard() {
-    final items = const [
-      ['assets/icons/play-icon.svg', 'Live performances'],
-      ['assets/icons/card-icon.svg', 'Food and drinks'],
-      ['assets/icons/verified-icon.svg', 'VIP lounge'],
-      ['assets/icons/shield-icon.svg', 'Secure parking'],
-    ];
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.borderLight),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'What to Expect',
-            style: appText(size: 15, weight: FontWeight.w800),
-          ),
-          const SizedBox(height: 12),
-          ...items.map(
-            (it) => Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
-                children: [
+  /// Renders the organiser-defined "What to Expect" block. Returns an
+  /// empty list when neither items nor notes are provided so the section
+  /// is hidden entirely (no hardcoded fallback content).
+  List<Widget> _expectCard(Map<String, dynamic> e) {
+    final rawItems = e['what_to_expect'];
+    final notes = (e['what_to_expect_notes'] ?? '').toString().trim();
+    final items = <Map<String, String>>[];
+    if (rawItems is List) {
+      for (final it in rawItems) {
+        if (it is Map) {
+          final label = (it['label'] ?? it['title'] ?? '').toString().trim();
+          if (label.isEmpty) continue;
+          items.add({
+            'icon': (it['icon'] ?? 'sparkle').toString(),
+            'label': label,
+            'description': (it['description'] ?? '').toString().trim(),
+          });
+        }
+      }
+    }
+    if (items.isEmpty && notes.isEmpty) return const [];
+
+    return [
+      Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.borderLight),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('What to Expect',
+                style: appText(size: 15, weight: FontWeight.w800)),
+            if (items.isNotEmpty) const SizedBox(height: 12),
+            ...items.map(
+              (it) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Container(
-                    width: 34,
-                    height: 34,
+                    width: 34, height: 34,
                     decoration: BoxDecoration(
                       color: AppColors.primarySoft,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Center(
                       child: SvgPicture.asset(
-                        it[0],
-                        width: 16,
-                        height: 16,
+                        'assets/icons/${it['icon']}-icon.svg',
+                        width: 16, height: 16,
                         colorFilter: const ColorFilter.mode(
-                          AppColors.primary,
-                          BlendMode.srcIn,
-                        ),
+                          AppColors.primary, BlendMode.srcIn),
                       ),
                     ),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      it[1],
-                      style: appText(size: 13, weight: FontWeight.w700),
-                    ),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(it['label']!,
+                          style: appText(size: 13, weight: FontWeight.w700)),
+                      if ((it['description'] ?? '').isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(it['description']!,
+                            style: appText(size: 12, color: AppColors.textTertiary)),
+                      ],
+                    ]),
                   ),
-                ],
+                ]),
               ),
             ),
-          ),
-        ],
+            if (notes.isNotEmpty) ...[
+              if (items.isNotEmpty) const SizedBox(height: 6),
+              Text(notes,
+                  style: appText(size: 13, color: AppColors.textSecondary, height: 1.5)),
+            ],
+          ],
+        ),
       ),
-    );
+      const SizedBox(height: 14),
+    ];
   }
 
   Widget _galleryStrip(Map<String, dynamic> e, String? cover) {
@@ -1912,13 +1940,13 @@ class _EventPublicViewScreenState extends State<EventPublicViewScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(
+                          AppIcon(
                             _rsvpStatus == 'confirmed'
-                                ? Icons.check_circle_rounded
+                                ? 'double-check'
                                 : _rsvpStatus == 'declined'
-                                ? Icons.cancel_rounded
-                                : Icons.schedule_rounded,
-                            size: 14,
+                                ? 'close-circle'
+                                : 'clock',
+                            size: 12,
                             color: statusColor,
                           ),
                           const SizedBox(width: 4),
@@ -1949,7 +1977,7 @@ class _EventPublicViewScreenState extends State<EventPublicViewScreen> {
                     'Accept',
                     AppColors.primary,
                     Colors.white,
-                    Icons.check_circle_rounded,
+                    'double-check',
                     () => _handleRSVP('confirmed'),
                     loadingFor: 'confirmed',
                   ),
@@ -1960,7 +1988,7 @@ class _EventPublicViewScreenState extends State<EventPublicViewScreen> {
                     'Decline',
                     Colors.white,
                     AppColors.error,
-                    Icons.cancel_rounded,
+                    'close-circle',
                     () => _handleRSVP('declined'),
                     outlined: true,
                     loadingFor: 'declined',
@@ -1973,7 +2001,7 @@ class _EventPublicViewScreenState extends State<EventPublicViewScreen> {
               'Cancel RSVP',
               Colors.white,
               AppColors.error,
-              Icons.cancel_rounded,
+              'close-circle',
               () => _handleRSVP('declined'),
               outlined: true,
               loadingFor: 'declined',
@@ -1983,7 +2011,7 @@ class _EventPublicViewScreenState extends State<EventPublicViewScreen> {
               'Accept Instead',
               AppColors.primary,
               Colors.white,
-              Icons.check_circle_rounded,
+              'double-check',
               () => _handleRSVP('confirmed'),
               loadingFor: 'confirmed',
             ),
@@ -1996,7 +2024,7 @@ class _EventPublicViewScreenState extends State<EventPublicViewScreen> {
     String label,
     Color bg,
     Color fg,
-    IconData icon,
+    String iconName,
     VoidCallback onTap, {
     bool outlined = false,
     String? loadingFor,
@@ -2028,7 +2056,7 @@ class _EventPublicViewScreenState extends State<EventPublicViewScreen> {
                 ),
               )
             else ...[
-              Icon(icon, size: 16, color: outlined ? fg : Colors.white),
+              AppIcon(iconName, size: 14, color: outlined ? fg : Colors.white),
               const SizedBox(width: 6),
               Text(
                 label,

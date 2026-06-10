@@ -77,10 +77,20 @@ export default function AdminLayout() {
 
   const isActive = (path: string) => {
     if (path === "/admin") return location.pathname === "/admin";
-    return location.pathname.startsWith(path);
+    // If a more specific nav entry starts with this path, require exact match
+    // (prevents /admin/whatsapp from also matching /admin/whatsapp/templates).
+    const hasMoreSpecific = navItems.some(
+      (n) => n.to !== path && n.to.startsWith(path + "/"),
+    );
+    if (hasMoreSpecific) return location.pathname === path;
+    return location.pathname === path || location.pathname.startsWith(path + "/");
   };
 
-  const currentLabel = navItems.find((n) => isActive(n.to))?.label || "Admin Panel";
+  // Prefer the most-specific (longest) matching nav entry for the page title.
+  const currentLabel =
+    [...navItems]
+      .sort((a, b) => b.to.length - a.to.length)
+      .find((n) => isActive(n.to))?.label || "Admin Panel";
 
   // When mobile sidebar opens, ensure it shows text labels
   const handleMobileToggle = () => {

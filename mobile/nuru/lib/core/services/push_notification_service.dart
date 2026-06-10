@@ -285,7 +285,7 @@ class PushNotificationService {
       case 'rsvp_update':
         final ref = (data['reference_id'] ?? '').toString();
         if (ref.isNotEmpty) {
-          nav.pushNamed('/event', arguments: {'event_id': ref});
+          nav.pushNamed('/event', arguments: {'id': ref, 'event_id': ref});
         } else {
           nav.pushNamed('/notifications');
         }

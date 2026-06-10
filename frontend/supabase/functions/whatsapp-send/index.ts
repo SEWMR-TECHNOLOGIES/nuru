@@ -32,6 +32,16 @@ const urlButton = (suffix: string) => ({
   parameters: [{ type: "text", text: String(suffix || "").slice(0, 60) }],
 });
 
+// Quick-reply button payload component. Meta requires one component
+// per button, addressed by its index. The payload string is what the
+// webhook receives on tap (interactive.button_reply.id / button.payload).
+const quickReplyButton = (index: number, payload: string) => ({
+  type: "button",
+  sub_type: "quick_reply",
+  index: String(index),
+  parameters: [{ type: "payload", payload: String(payload || "").slice(0, 256) }],
+});
+
 // ── Catalogue-aligned builders ─────────────────────────
 // Each function returns { name, lang, components } given (lang, params).
 // Templates with dynamic URL buttons append a button component.
@@ -196,10 +206,12 @@ const BUILDERS: Record<string, (lang: Lang, p: any) => Built> = {
   // invitation_card_sw / invitation_card_en (replaces nuru_invitation_card_message_{sw,en})
   // Body: {{1}} guest_name · {{2}} organizer_name · {{3}} event_name ·
   //       {{4}} event_date (language-formatted) · {{5}} venue · {{6}} organizer_phone
-  invitation_card_message: (lang, p) => ({
-    name: `invitation_card_${lang}`,
-    lang,
-    components: [
+  invitation_card_message: (lang, p) => {
+    // RSVP code shared with the existing /rsvp/{code} flow, so the
+    // webhook can map tapped quick-reply buttons back to the same
+    // EventInvitation row used by the URL flow.
+    const rsvpCode = String(p.rsvp_code || "").trim();
+    const components: Array<Record<string, unknown>> = [
       { type: "header", parameters: [{ type: "image", image: { link: toWaImageLink(p.image_url || "") } }] },
       ...bodyParams([
         p.guest_name || "Guest",
@@ -209,8 +221,22 @@ const BUILDERS: Record<string, (lang: Lang, p: any) => Built> = {
         p.venue || p.location || "TBA",
         p.organizer_phone || p.organiser_phone || "—",
       ]),
-    ],
-  }),
+    ];
+    if (rsvpCode) {
+      // Order MUST match Meta template button order:
+      //   index 0 = confirm  (Nitahudhuria / I will attend)
+      //   index 1 = maybe    (Sina uhakika / Maybe)
+      //   index 2 = decline  (Sitahudhuria / I will not attend)
+      components.push(quickReplyButton(0, `rsvp_confirm_${rsvpCode}`));
+      components.push(quickReplyButton(1, `rsvp_maybe_${rsvpCode}`));
+      components.push(quickReplyButton(2, `rsvp_decline_${rsvpCode}`));
+    }
+    return {
+      name: `invitation_card_${lang}`,
+      lang,
+      components,
+    };
+  },
 
   // #17/18 — guest_contribution_invite, dynamic URL button = share_token
   guest_contribution_invite: (lang, p) => ({
