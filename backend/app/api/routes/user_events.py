@@ -2632,7 +2632,19 @@ def update_guest(event_id: str, guest_id: str, body: dict = Body(...), db: Sessi
     if "dietary_requirements" in body: att.dietary_restrictions = body["dietary_requirements"]
     if "meal_preference" in body: att.meal_preference = body["meal_preference"]
     if "special_requests" in body: att.special_requests = body["special_requests"]
-    if "rsvp_status" in body: att.rsvp_status = body["rsvp_status"]
+    if "rsvp_status" in body:
+        new_status = (body.get("rsvp_status") or "").strip().lower()
+        valid_statuses = {"pending", "confirmed", "declined", "maybe", "checked_in"}
+        if new_status not in valid_statuses:
+            return standard_response(False, f"Invalid RSVP status. Must be one of: {', '.join(sorted(valid_statuses))}")
+        att.rsvp_status = new_status
+        # Mirror to the linked invitation row so the RSVP tab and webhook stay in sync.
+        if att.invitation_id:
+            inv = db.query(EventInvitation).filter(EventInvitation.id == att.invitation_id).first()
+            if inv:
+                inv.rsvp_status = new_status
+                inv.rsvp_at = now
+                inv.updated_at = now
     if "common_name" in body:
         cn = (body.get("common_name") or "").strip()
         att.common_name = cn or None

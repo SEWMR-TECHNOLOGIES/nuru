@@ -1,5 +1,5 @@
 from sqlalchemy import Column, Boolean, DateTime, Integer, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from core.base import Base
 
@@ -16,5 +16,8 @@ class AppVersionSetting(Base):
     force_update = Column(Boolean, nullable=False, default=False)
     update_url = Column(Text)
     message = Column(Text)
+    # List of {title, description} entries shown under "What's new" in the
+    # mobile update modal.
+    highlights = Column(JSONB, nullable=False, server_default='[]')
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())

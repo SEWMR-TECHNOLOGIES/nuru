@@ -72,6 +72,25 @@ def get_app_version(platform: str = "android", db: Session = Depends(get_db)):
     min_supported_build = row.min_supported_build if row else (int(env_min_build) if env_min_build else 1)
     force_update = bool(row.force_update) if row else env_force
 
+    # Normalize highlights — only accept list of {title, description} dicts.
+    raw_highlights = getattr(row, "highlights", None) if row else None
+    highlights: list[dict] = []
+    if isinstance(raw_highlights, list):
+        for item in raw_highlights:
+            if not isinstance(item, dict):
+                continue
+            title = str(item.get("title") or "").strip()
+            description = str(item.get("description") or "").strip()
+            if not title:
+                continue
+            highlights.append({"title": title, "description": description})
+    if not highlights:
+        highlights = [
+            {"title": "Smoother event planning", "description": "Create and manage events with a simpler, faster flow."},
+            {"title": "Improved tickets & check-in", "description": "Easier ticket management and a faster, more reliable check-in experience."},
+            {"title": "Faster group updates", "description": "Real-time updates in event groups so everyone stays in the loop."},
+        ]
+
     return standard_response(True, "App version retrieved", {
         "platform": platform_key,
         "latest_version": latest_version or "1.0.0",
@@ -80,6 +99,7 @@ def get_app_version(platform: str = "android", db: Session = Depends(get_db)):
         "force_update": force_update,
         "update_url": env_update_url or (row.update_url if row and row.update_url else default_url),
         "message": (row.message if row and row.message else None) or os.getenv("NURU_APP_UPDATE_MESSAGE", "A new Nuru update is available."),
+        "highlights": highlights,
     })
 
 

@@ -590,6 +590,125 @@ def validate_name_endpoint(name: str = "", db: Session = Depends(get_db)):
 
 
 # ──────────────────────────────────────────────
+# Internal helpers shared by /username-suggestions and /check-username
+# ──────────────────────────────────────────────
+def _normalize_name_part(value: str) -> str:
+    """Lowercase, strip whitespace and anything that isn't a-z0-9."""
+    if not value:
+        return ""
+    return re.sub(r"[^a-z0-9]", "", value.lower())
+
+
+def _username_candidates_from_names(first_name: str, last_name: str) -> list[str]:
+    """Generate a small batch of clean, Gmail-style candidate usernames."""
+    import random
+
+    fn = _normalize_name_part(first_name)
+    ln = _normalize_name_part(last_name)
+
+    candidates: list[str] = []
+
+    if fn and ln:
+        candidates += [
+            f"{fn}{ln}",
+            f"{fn}.{ln}",
+            f"{fn[0]}{ln}",
+            f"{fn}{ln[0]}",
+            f"{fn}_{ln}",
+        ]
+    elif fn or ln:
+        base = fn or ln
+        candidates += [base, f"{base}_nuru", f"the{base}"]
+
+    # Numeric variants — short, meaningful, not noisy
+    if fn and ln:
+        for _ in range(4):
+            n = random.randint(1, 99)
+            candidates.append(f"{fn}{ln}{n}")
+            candidates.append(f"{fn}.{ln}{random.randint(1, 9)}")
+
+    # Deduplicate while preserving order, validate, drop too-short
+    seen: set[str] = set()
+    cleaned: list[str] = []
+    for c in candidates:
+        c = c.replace("..", ".").strip(".")
+        if len(c) < 3 or len(c) > 30:
+            continue
+        if c in seen:
+            continue
+        # Allow dots in stored form; the column accepts them via validate_username
+        if not validate_username(c.replace(".", "_")):
+            continue
+        seen.add(c)
+        cleaned.append(c)
+    return cleaned
+
+
+def _pick_available_usernames(db: Session, candidates: list[str], limit: int = 5) -> list[str]:
+    """Indexed lookup: one IN query against the unique username column."""
+    if not candidates:
+        return []
+    # Normalize to the stored form (we store letters/numbers/underscores).
+    lookup_map = {c: c.replace(".", "_") for c in candidates}
+    stored_forms = list({v for v in lookup_map.values()})
+    taken_rows = (
+        db.query(User.username)
+        .filter(User.username.in_(stored_forms))
+        .all()
+    )
+    taken = {row[0] for row in taken_rows}
+    available: list[str] = []
+    for display, stored in lookup_map.items():
+        if stored in taken:
+            continue
+        # Return the readable form (with the dot) — frontend stores it as-is
+        # if validate_username accepts it, otherwise it submits the stored form.
+        available.append(display if validate_username(display) else stored)
+        if len(available) >= limit:
+            break
+    return available
+
+
+# ──────────────────────────────────────────────
+# Username Suggestions from name (PUBLIC — no auth required)
+# Defined BEFORE the /{user_id} catch-all.
+# ──────────────────────────────────────────────
+@router.get("/username-suggestions")
+def username_suggestions(
+    first_name: str = "",
+    last_name: str = "",
+    db: Session = Depends(get_db),
+):
+    """Return 5 available username suggestions derived from first + last name.
+
+    Uses a single indexed IN-lookup against ``users.username`` (unique index)
+    — never scans the whole users table.
+    """
+    fn = (first_name or "").strip()
+    ln = (last_name or "").strip()
+    if not fn and not ln:
+        return standard_response(False, "Provide first_name and/or last_name")
+
+    # Generate a slightly larger pool than we need, so taken ones don't shrink output
+    candidates = _username_candidates_from_names(fn, ln)
+    suggestions = _pick_available_usernames(db, candidates, limit=5)
+
+    # If we somehow ran out, append numeric fallbacks until we have 5
+    if len(suggestions) < 5:
+        import random
+        base = _normalize_name_part(fn) + _normalize_name_part(ln)
+        if not base:
+            base = "user"
+        extra: list[str] = []
+        for _ in range(20):
+            extra.append(f"{base}{random.randint(10, 9999)}")
+        more = _pick_available_usernames(db, extra, limit=5 - len(suggestions))
+        suggestions += [s for s in more if s not in suggestions]
+
+    return standard_response(True, "Username suggestions", {"suggestions": suggestions})
+
+
+# ──────────────────────────────────────────────
 # Check Username Availability (PUBLIC — no auth required)
 # IMPORTANT: This must be defined BEFORE the /{user_id} catch-all route
 # ──────────────────────────────────────────────

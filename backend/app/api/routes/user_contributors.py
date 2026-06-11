@@ -1112,6 +1112,7 @@ def get_event_contributors(
     all_dicts = [_event_contributor_dict(ec, wa_map=summary_wa_map) for ec in unique_summary_ecs]
     total_pledged = sum(d["pledge_amount"] for d in all_dicts)
     total_paid = sum(d["total_paid"] for d in all_dicts)
+    total_balance = sum(d.get("balance", 0) for d in all_dicts)
     currency = _currency_code(db, event)
 
     # WhatsApp availability rollup (uses primary phone)
@@ -1125,7 +1126,7 @@ def get_event_contributors(
         "summary": {
             "total_pledged": total_pledged,
             "total_paid": total_paid,
-            "total_balance": max(0, total_pledged - total_paid),
+            "total_balance": total_balance,
             "count": total,
             "currency": currency,
             "whatsapp": wa_counts,
@@ -2430,6 +2431,7 @@ def get_contribution_report(
     # Full (all-time) totals for summary cards
     full_total_pledged = 0
     full_total_paid = 0
+    full_total_balance = 0
 
     for ec in ecs:
         pledge = float(ec.pledge_amount or 0)
@@ -2439,8 +2441,10 @@ def get_contribution_report(
             if (not hasattr(c, 'confirmation_status') or c.confirmation_status is None or c.confirmation_status == ContributionStatusEnum.confirmed)
         ]
         all_paid = sum(float(c.amount or 0) for c in all_confirmed)
+        all_balance = max(0, pledge - all_paid)
         full_total_pledged += pledge
         full_total_paid += all_paid
+        full_total_balance += all_balance
 
         # Filter payments by date range (for table rows)
         if from_dt or to_dt:
@@ -2493,7 +2497,7 @@ def get_contribution_report(
         "full_summary": {
             "total_pledged": full_total_pledged,
             "total_paid": full_total_paid,
-            "total_balance": max(0, full_total_pledged - full_total_paid),
+            "total_balance": full_total_balance,
             "count": len(ecs),
             "currency": currency,
         },
@@ -2929,7 +2933,7 @@ def upsert_messaging_template(
     Use this when the organiser tweaks the template and wants to persist the
     change without actually sending. The send endpoint also auto-saves.
     """
-    if case_type not in ("no_contribution", "partial", "completed"):
+    if case_type not in ("no_contribution", "partial", "completed", "not_pledged"):
         return standard_response(False, "Invalid case_type")
 
     try:

@@ -38,6 +38,8 @@ import ReportPreviewDialog from '@/components/ReportPreviewDialog';
 import { contributorsApi } from '@/lib/api/contributors';
 import { eventsApi } from '@/lib/api/events';
 import type { EventContributorSummary } from '@/lib/api/contributors';
+import { validateInternationalPhone } from '@/lib/validators/phone';
+import { getActiveRegion } from '@/lib/region/host';
 import type { EventPermissions } from '@/hooks/useEventPermissions';
 import ContributorMessaging from './ContributorMessaging';
 import SvgIcon from '@/components/ui/svg-icon';
@@ -216,6 +218,15 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
   const summary = ecSummary || { total_pledged: 0, total_paid: 0, total_balance: 0, count: 0, currency: 'TZS' };
   const currency = summary.currency || 'TZS';
 
+  // Outstanding Pledge — match the Contributors Report logic exactly:
+  // sum of each contributor's positive (pledged - paid) balance. Using the
+  // event-wide (total_pledged - total_paid) understates the true outstanding
+  // because contributors who overpay would cancel out those still owing.
+  const outstandingPledge = eventContributors.reduce(
+    (s, ec) => s + Math.max(0, (ec as any).balance ?? Math.max(0, (ec.pledge_amount || 0) - (ec.total_paid || 0))),
+    0,
+  );
+
   // Filter event contributors
   const filteredContributors = eventContributors.filter(ec => {
     if (!searchQuery) return true;
@@ -242,13 +253,21 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
       } else {
         if (!newContributor.name.trim()) { toast.error('Name is required'); setIsSubmitting(false); return; }
         if (!newContributor.phone.trim()) { toast.error('Phone number is required'); setIsSubmitting(false); return; }
+        const primaryCheck = validateInternationalPhone(newContributor.phone, getActiveRegion().code);
+        if (!primaryCheck.ok) { toast.error(primaryCheck.message); setIsSubmitting(false); return; }
+        let normalizedSecondary: string | undefined;
+        if (newContributor.secondary_phone.trim()) {
+          const secCheck = validateInternationalPhone(newContributor.secondary_phone, getActiveRegion().code);
+          if (!secCheck.ok) { toast.error(secCheck.message); setIsSubmitting(false); return; }
+          normalizedSecondary = secCheck.e164;
+        }
         await addToEvent({
           name: newContributor.name,
           email: newContributor.email || undefined,
-          phone: newContributor.phone,
+          phone: primaryCheck.e164 || newContributor.phone,
           pledge_amount: newContributor.pledge_amount ? parseFloat(newContributor.pledge_amount) : 0,
           notes: newContributor.notes || undefined,
-          secondary_phone: newContributor.secondary_phone || undefined,
+          secondary_phone: normalizedSecondary,
           notify_target: newContributor.notify_target,
         });
       }
@@ -288,9 +307,15 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
     if (!editAmount || parseFloat(editAmount) < 0) { toast.error('Enter valid amount'); return; }
     setIsSubmitting(true);
     try {
+      let normalizedSecondary: string | null = null;
+      if (editSecondaryPhone.trim()) {
+        const check = validateInternationalPhone(editSecondaryPhone, getActiveRegion().code);
+        if (!check.ok) { toast.error(check.message); setIsSubmitting(false); return; }
+        normalizedSecondary = check.e164 || editSecondaryPhone.trim();
+      }
       await updateEventContributor(editTarget.id, {
         pledge_amount: parseFloat(editAmount),
-        secondary_phone: editSecondaryPhone.trim() ? editSecondaryPhone.trim() : null,
+        secondary_phone: normalizedSecondary,
         notify_target: editNotifyTarget,
       });
       toast.success('Contributor updated');
@@ -459,14 +484,22 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
       { value: ec.total_paid || 0, type: Number },
       { value: ec.balance || 0, type: Number },
     ]);
+    const rowTotals = sortedContributors.reduce(
+      (totals, ec) => ({
+        pledged: totals.pledged + (ec.pledge_amount || 0),
+        paid: totals.paid + (ec.total_paid || 0),
+        balance: totals.balance + Math.max(0, ec.balance ?? Math.max(0, (ec.pledge_amount || 0) - (ec.total_paid || 0))),
+      }),
+      { pledged: 0, paid: 0, balance: 0 }
+    );
 
     const totalsRow = [
       { value: '', type: String },
       { value: `Total (${sortedContributors.length})`, type: String, fontWeight: 'bold' as const },
       { value: '', type: String },
-      { value: summary.total_pledged || 0, type: Number, fontWeight: 'bold' as const },
-      { value: summary.total_paid || 0, type: Number, fontWeight: 'bold' as const },
-      { value: summary.total_balance || 0, type: Number, fontWeight: 'bold' as const },
+      { value: rowTotals.pledged, type: Number, fontWeight: 'bold' as const },
+      { value: rowTotals.paid, type: Number, fontWeight: 'bold' as const },
+      { value: rowTotals.balance, type: Number, fontWeight: 'bold' as const },
     ];
 
     await writeXlsxFile([HEADER_ROW, ...dataRows, totalsRow] as any, {
@@ -688,7 +721,7 @@ const EventContributions = ({ eventId, eventTitle, eventBudget, eventEndDate, re
       {/* Row 2: Total Pledged | Outstanding Pledge | Unpledged */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Total Pledged</p><p className="text-base font-semibold text-yellow-600">{formatPrice(summary.total_pledged)}</p></div><div className="w-7 h-7 bg-yellow-100 rounded-lg flex items-center justify-center"><TrendingUp className="w-3.5 h-3.5 text-yellow-600" /></div></div></CardContent></Card>
-        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Outstanding Pledge</p><p className="text-base font-semibold text-orange-600">{formatPrice(Math.max(0, summary.total_pledged - summary.total_paid))}</p></div><div className="w-7 h-7 bg-orange-100 rounded-lg flex items-center justify-center"><Clock className="w-3.5 h-3.5 text-orange-600" /></div></div></CardContent></Card>
+        <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Outstanding Pledge</p><p className="text-base font-semibold text-orange-600">{formatPrice(outstandingPledge)}</p></div><div className="w-7 h-7 bg-orange-100 rounded-lg flex items-center justify-center"><Clock className="w-3.5 h-3.5 text-orange-600" /></div></div></CardContent></Card>
         {eventBudget ? (
           <Card><CardContent className="p-4"><div className="flex items-center justify-between"><div><p className="text-xs text-muted-foreground">Unpledged</p><p className="text-base font-semibold text-purple-600">{formatPrice(Math.max(0, eventBudget - summary.total_pledged))}</p></div><div className="w-7 h-7 bg-purple-100 rounded-lg flex items-center justify-center"><TrendingUp className="w-3.5 h-3.5 text-purple-600" /></div></div></CardContent></Card>
         ) : null}

@@ -27,6 +27,37 @@ router = APIRouter(tags=["WhatsApp"])
 # Import admin auth dependency from admin routes
 from api.routes.admin import require_admin
 
+
+def _mirror_delivery_status(db: Session, wa_message_id: str, status: str, error_message: str | None = None):
+    if not wa_message_id or not status:
+        return
+    try:
+        msg = db.query(WAMessage).filter(WAMessage.wa_message_id == wa_message_id).first()
+        if msg:
+            order = {"sent": 0, "delivered": 1, "read": 2, "failed": -1}
+            try:
+                new_status = WAMessageStatusEnum(status)
+            except ValueError:
+                new_status = None
+            if new_status is not None:
+                cur = order.get(msg.status.value if msg.status else "sent", 0)
+                nxt = order.get(status, 0)
+                if status == "failed" or nxt > cur:
+                    msg.status = new_status
+        try:
+            from models import SentEventCard
+            sent_card = db.query(SentEventCard).filter(SentEventCard.whatsapp_message_id == wa_message_id).first()
+            if sent_card:
+                sent_card.delivery_status = status
+                if error_message:
+                    sent_card.error_message = error_message
+        except Exception as e:  # noqa: BLE001
+            print(f"[wa-webhook] sent card status mirror failed: {e}")
+        db.commit()
+    except Exception as e:  # noqa: BLE001
+        db.rollback()
+        print(f"[wa-webhook] local status mirror failed: {e}")
+
 EDGE_FUNCTION_URL = os.getenv("EDGE_FUNCTION_URL", "") or os.getenv("SUPABASE_URL", "")
 EDGE_FUNCTION_KEY = os.getenv("EDGE_FUNCTION_KEY", "") or os.getenv("SUPABASE_ANON_KEY", "")
 WHATSAPP_SEND_URL = f"{EDGE_FUNCTION_URL}/functions/v1/whatsapp-send" if EDGE_FUNCTION_URL else ""
@@ -54,6 +85,13 @@ def store_incoming_message(body: dict = Body(...), db: Session = Depends(get_db)
     if not phone or not content:
         return standard_response(False, "Phone and content required")
 
+    # Check duplicate wa_message_id before touching unread counters. Meta may
+    # retry webhooks, and duplicate retries must not create phantom unread 2s.
+    if wa_message_id:
+        existing = db.query(WAMessage).filter(WAMessage.wa_message_id == wa_message_id).first()
+        if existing:
+            return standard_response(True, "Duplicate message, skipped")
+
     # Find or create conversation
     conv = db.query(WAConversation).filter(WAConversation.phone == phone).first()
     now = datetime.now(EAT)
@@ -74,13 +112,6 @@ def store_incoming_message(body: dict = Body(...), db: Session = Depends(get_db)
         conv.last_message = content[:200]
         conv.last_activity_at = now
         conv.unread_count = (conv.unread_count or 0) + 1
-
-    # Check duplicate wa_message_id
-    if wa_message_id:
-        existing = db.query(WAMessage).filter(WAMessage.wa_message_id == wa_message_id).first()
-        if existing:
-            db.commit()
-            return standard_response(True, "Duplicate message, skipped")
 
     msg = WAMessage(
         conversation_id=conv.id,
@@ -109,6 +140,7 @@ def store_status_update(body: dict = Body(...), db: Session = Depends(get_db)):
     status = body.get("status")  # sent, delivered, read, failed
     recipient_phone = body.get("recipient_phone") or body.get("recipient_id")
     errors = body.get("errors")  # webhook errors array, optional
+    error_message = None
 
     if not wa_message_id or not status:
         return standard_response(False, "wa_message_id and status required")
@@ -120,7 +152,6 @@ def store_status_update(body: dict = Body(...), db: Session = Depends(get_db)):
         if recipient_phone:
             from utils.whatsapp_availability import record_delivery_outcome
             error_code = None
-            error_message = None
             if isinstance(errors, list) and errors:
                 first = errors[0] or {}
                 error_code = str(first.get("code")) if first.get("code") is not None else None
@@ -135,23 +166,7 @@ def store_status_update(body: dict = Body(...), db: Session = Depends(get_db)):
         print(f"[whatsapp] delivery callback record skipped: {e}")
 
     # ── 2. Local WAMessage status bump (unchanged behaviour).
-    msg = db.query(WAMessage).filter(WAMessage.wa_message_id == wa_message_id).first()
-    if not msg:
-        return standard_response(True, "Message not found, skipped")
-
-    # Only update to a "higher" status
-    status_order = {"sent": 0, "delivered": 1, "read": 2, "failed": -1}
-    try:
-        new_status = WAMessageStatusEnum(status)
-    except ValueError:
-        return standard_response(False, f"Unknown status: {status}")
-
-    current_order = status_order.get(msg.status.value if msg.status else "sent", 0)
-    new_order = status_order.get(status, 0)
-
-    if new_order > current_order:
-        msg.status = new_status
-        db.commit()
+    _mirror_delivery_status(db, wa_message_id, str(status), error_message)
 
     return standard_response(True, "Status updated")
 
@@ -432,9 +447,14 @@ def _store_incoming(db: Session, *, phone: str, content: str,
                     wa_message_id: str | None, contact_name: str,
                     direction: str = "inbound",
                     media_url: str | None = None,
-                    media_type: str | None = None):
+                    media_type: str | None = None,
+                    status: str | None = None):
     if not phone or (not content and not media_url):
         return
+    if wa_message_id:
+        existing = db.query(WAMessage).filter(WAMessage.wa_message_id == wa_message_id).first()
+        if existing:
+            return
     now = datetime.now(EAT)
     conv = db.query(WAConversation).filter(WAConversation.phone == phone).first()
     if not conv:
@@ -455,12 +475,11 @@ def _store_incoming(db: Session, *, phone: str, content: str,
         if direction == "inbound":
             conv.unread_count = (conv.unread_count or 0) + 1
 
-    if wa_message_id:
-        existing = db.query(WAMessage).filter(WAMessage.wa_message_id == wa_message_id).first()
-        if existing:
-            db.commit()
-            return
     dir_enum = WAMessageDirectionEnum.inbound if direction == "inbound" else WAMessageDirectionEnum.outbound
+    try:
+        msg_status = WAMessageStatusEnum(status) if status else None
+    except ValueError:
+        msg_status = None
     msg = WAMessage(
         conversation_id=conv.id,
         wa_message_id=wa_message_id,
@@ -468,7 +487,7 @@ def _store_incoming(db: Session, *, phone: str, content: str,
         content=content or "",
         media_url=media_url,
         media_type=media_type,
-        status=WAMessageStatusEnum.delivered if direction == "inbound" else WAMessageStatusEnum.sent,
+        status=msg_status or (WAMessageStatusEnum.delivered if direction == "inbound" else WAMessageStatusEnum.sent),
     )
     db.add(msg)
     db.commit()
@@ -541,24 +560,9 @@ def whatsapp_webhook_receive(body: dict = Body(...), db: Session = Depends(get_d
                     except Exception as e:  # noqa: BLE001
                         print(f"[wa-webhook] availability update failed: {e}")
 
-                # Mirror the bump to our local WAMessage row, if we have one.
+                # Mirror the bump to local wa_messages and sent_event_cards.
                 if wamid and status:
-                    try:
-                        msg = db.query(WAMessage).filter(WAMessage.wa_message_id == wamid).first()
-                        if msg:
-                            order = {"sent": 0, "delivered": 1, "read": 2, "failed": -1}
-                            try:
-                                new_status = WAMessageStatusEnum(status)
-                            except ValueError:
-                                new_status = None
-                            if new_status is not None:
-                                cur = order.get(msg.status.value if msg.status else "sent", 0)
-                                nxt = order.get(status, 0)
-                                if nxt > cur:
-                                    msg.status = new_status
-                                    db.commit()
-                    except Exception as e:  # noqa: BLE001
-                        print(f"[wa-webhook] local status mirror failed: {e}")
+                    _mirror_delivery_status(db, wamid, status, error_message)
 
         # ── 2. Incoming messages ──────────────────────────────────────
         messages = value.get("messages") or []
@@ -617,12 +621,12 @@ def whatsapp_webhook_receive(body: dict = Body(...), db: Session = Depends(get_d
             except Exception:
                 lookup = None
             guest_full = (lookup or {}).get("guest_name") if isinstance(lookup, dict) else None
-            first_name = _extract_first_name(guest_full or wa_name)
+            guest_display_name = (guest_full or wa_name or "Guest").strip()
             invitation_code = (lookup or {}).get("code") if isinstance(lookup, dict) else None
 
             def _do_rsvp(code, status):
                 if not code:
-                    return f"Sorry {first_name}, I couldn't find an invitation linked to your number."
+                    return f"Sorry {guest_display_name}, I couldn't find an invitation linked to your number."
                 applied = False
                 try:
                     if hasattr(rsvp_module, "_respond_internal"):
@@ -630,15 +634,15 @@ def whatsapp_webhook_receive(body: dict = Body(...), db: Session = Depends(get_d
                 except Exception as e:  # noqa: BLE001
                     print(f"[wa-webhook] rsvp respond failed: {e}")
                 if not applied:
-                    return f"Sorry {first_name}, I couldn't update your RSVP. Please open the invitation link and try again."
+                    return f"Sorry {guest_display_name}, I couldn't update your RSVP. Please open the invitation link and try again."
                 if status == "confirmed":
-                    return f"Great news {first_name}! Your attendance has been confirmed."
+                    return f"Great news {guest_display_name}! Your attendance has been confirmed."
                 if status == "maybe":
                     return (
-                        f"Thanks {first_name}, we've noted that you might attend. "
+                        f"Thanks {guest_display_name}, we've noted that you might attend. "
                         "Tap Confirm or Decline anytime to update your response."
                     )
-                return f"Thank you {first_name}. Your response has been recorded."
+                return f"Thank you {guest_display_name}. Your response has been recorded."
 
             if button_payload:
                 m_conf = re.match(r"^rsvp_confirm_(.+)$", button_payload)

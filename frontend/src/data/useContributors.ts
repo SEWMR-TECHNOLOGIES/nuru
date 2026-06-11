@@ -38,7 +38,11 @@ export const useEventContributors = (eventId: string | null) => {
 
         const enrichedSummary = {
           ...backendSummary,
-          total_balance: Math.max(0, (backendSummary.total_pledged || 0) - (backendSummary.total_paid || 0)),
+          total_balance: contributors.reduce((sum, c) => {
+            const explicit = Number(c.balance ?? NaN);
+            if (Number.isFinite(explicit)) return sum + Math.max(0, explicit);
+            return sum + Math.max(0, (c.pledge_amount || 0) - (c.total_paid || 0));
+          }, 0),
           count: contributors.length,
           pledged_count: contributors.filter(c => (c.pledge_amount || 0) > 0).length,
           paid_count: contributors.filter(c => (c.total_paid || 0) > 0).length,

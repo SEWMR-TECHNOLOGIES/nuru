@@ -117,8 +117,30 @@ def _send_whatsapp_sync(action: str, phone: str, params: dict):
                     "status": resp.status_code,
                     "message_id": message_id,
                     "not_on_whatsapp": not_on_wa,
+                    "error_code": data.get("error_code"),
                     "error": body,
                 }
+            try:
+                from core.database import SessionLocal
+                from api.routes.whatsapp_admin import _store_incoming
+                db = SessionLocal()
+                try:
+                    summary = _whatsapp_admin_summary(action, params or {})
+                    image_url = (params or {}).get("image_url") or (params or {}).get("media_url") or (params or {}).get("header_image")
+                    _store_incoming(
+                        db,
+                        phone=international_phone,
+                        content=summary,
+                        wa_message_id=str(message_id),
+                        contact_name=str((params or {}).get("guest_name") or (params or {}).get("contributor_name") or (params or {}).get("name") or ""),
+                        direction="outbound",
+                        media_url=str(image_url) if image_url else None,
+                        media_type="image" if image_url else None,
+                    )
+                finally:
+                    db.close()
+            except Exception as mirror_exc:  # noqa: BLE001
+                print(f"[WhatsApp] admin mirror skipped action={action} phone_tail={phone_tail}: {mirror_exc}")
             return {"ok": True, "status": resp.status_code, "message_id": message_id}
         return {"ok": False, "error": "no edge URL responded"}
     except Exception as e:
@@ -143,6 +165,33 @@ def _send_whatsapp(action: str, phone: str, params: dict):
             print(f"[WhatsApp] enqueue failed, sending inline: {e}")
     result = _send_whatsapp_sync(action, phone, params or {})
     return bool(result.get("ok")) if isinstance(result, dict) else bool(result)
+
+
+def _whatsapp_admin_summary(action: str, params: dict) -> str:
+    if params.get("message"):
+        return str(params.get("message"))[:1000]
+    labels = {
+        "contribution_recorded_with_balance": "Contribution recorded",
+        "contribution_recorded": "Contribution recorded",
+        "contribution_recorded_pledge_complete": "Contribution completed",
+        "invitation_card_message": "Invitation card sent",
+        "send_invitation_card": "Invitation card sent",
+        "pledge_thank_you_card": "Thank-you card sent",
+        "guest_invitation": "Guest invitation sent",
+        "send_invitation_text": "Invitation message sent",
+    }
+    label = labels.get(action) or action.replace("_", " ").strip().title() or "WhatsApp message"
+    parts = [label]
+    name = params.get("guest_name") or params.get("contributor_name") or params.get("recipient_name") or params.get("name")
+    event_name = params.get("event_name")
+    amount = params.get("amount_text") or params.get("amount")
+    if name:
+        parts.append(str(name))
+    if event_name:
+        parts.append(str(event_name))
+    if amount:
+        parts.append(str(amount))
+    return " | ".join(parts)[:1000]
 
 
 def _send_whatsapp_text(phone: str, message: str):

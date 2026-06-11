@@ -8,7 +8,7 @@
  * master template. The contributor name placeholder is only substituted at
  * delivery time, never at edit time.
  */
-import { get, post, put, resolveApiBaseUrl } from "./helpers";
+import { get, post, put, postFormData, resolveApiBaseUrl } from "./helpers";
 
 export interface SentCardTemplateSummary {
   template_id: string;
@@ -158,6 +158,16 @@ export const eventCardsApi = {
       custom_text_values: Record<string, string>;
     },
   ) => put<SavedEventCard>(`/events/${eventId}/cards`, payload),
+
+  uploadRenderedCard: (eventId: string, category: string, recipientId: string, file: File) => {
+    const formData = new FormData();
+    formData.append("recipient_id", recipientId);
+    formData.append("file", file);
+    return postFormData<{ url: string; path: string }>(
+      `/events/${eventId}/cards/${encodeURIComponent(category)}/upload-render`,
+      formData,
+    );
+  },
 
   sendToContributors: (
     eventId: string,
