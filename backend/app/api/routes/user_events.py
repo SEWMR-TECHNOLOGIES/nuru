@@ -2246,7 +2246,7 @@ def get_guests(event_id: str, page: int = 1, limit: int = 50, rsvp_status: str =
         EventAttendee.event_id == eid, EventAttendee.checked_in == True
     ).scalar() or 0
     invitations_sent = db.query(sa_func.count(EventInvitation.id)).filter(
-        EventInvitation.event_id == eid, EventInvitation.sent_at.isnot(None)
+        EventInvitation.event_id == eid
     ).scalar() or 0
 
     summary = {

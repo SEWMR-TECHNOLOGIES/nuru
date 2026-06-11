@@ -1,9 +1,14 @@
 import 'dart:io';
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:provider/provider.dart';
+import 'package:record/record.dart';
 import 'package:http/http.dart' as http;
 import '../../core/services/secure_token_storage.dart';
 import '../../core/theme/app_colors.dart';
@@ -12,6 +17,7 @@ import 'service_verification_screen.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/user_services_service.dart';
 import '../../core/widgets/app_snackbar.dart';
+import '../../providers/wallet_provider.dart';
 import '../../core/l10n/l10n_helper.dart';
 
 /// Full-page Edit Service screen — matches Add Service card styling.
@@ -31,7 +37,6 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
   late TextEditingController _locationCtrl;
 
   String _status = 'active';
-  String _availability = 'available';
   bool _submitting = false;
 
   List<dynamic> _categories = [];
@@ -48,6 +53,13 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
   // Intro media
   List<dynamic> _introMedia = [];
   bool _uploadingMedia = false;
+
+  // Voice recording (intro audio)
+  final AudioRecorder _recorder = AudioRecorder();
+  bool _isRecording = false;
+  String? _recordPath;
+  Duration _recordDuration = Duration.zero;
+  Timer? _recordTimer;
 
   // Track original values for re-verification detection
   late String _originalCategoryId;
@@ -68,7 +80,9 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
     _maxPriceCtrl = TextEditingController(text: _initPrice(s['max_price']));
     _locationCtrl = TextEditingController(text: (s['location'] ?? '').toString());
     _status = (s['status']?.toString() ?? 'active').toLowerCase();
-    _availability = (s['availability']?.toString() ?? 'available').toLowerCase();
+    // Treat anything that isn't a known "live" status as paused for the UI
+    // toggle. The backend still controls draft/pending/approved.
+    if (_status != 'active' && _status != 'paused') _status = 'active';
     _selectedCategoryId = (s['service_category_id'] ?? s['service_category']?['id'] ?? '').toString();
 
     // Initialise multi-type selection
@@ -107,6 +121,8 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
     _minPriceCtrl.dispose();
     _maxPriceCtrl.dispose();
     _locationCtrl.dispose();
+    _recordTimer?.cancel();
+    _recorder.dispose();
     super.dispose();
   }
 
@@ -210,19 +226,33 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
     }
   }
 
-  Future<void> _uploadIntroMedia() async {
+  Future<void> _uploadIntroMedia({String source = 'video'}) async {
     final serviceId = widget.service['id']?.toString() ?? '';
-    final picker = ImagePicker();
-    final picked = await picker.pickVideo(source: ImageSource.gallery);
-    if (picked == null) return;
+    String? filePath;
+    String mediaType = 'video';
+    if (source == 'video') {
+      final picker = ImagePicker();
+      final picked = await picker.pickVideo(source: ImageSource.gallery);
+      if (picked == null) return;
+      filePath = picked.path;
+      mediaType = 'video';
+    } else if (source == 'audio') {
+      final res = await FilePicker.platform.pickFiles(
+        type: FileType.audio, allowMultiple: false, withData: false,
+      );
+      if (res == null || res.files.isEmpty) return;
+      filePath = res.files.single.path;
+      mediaType = 'audio';
+    }
+    if (filePath == null) return;
 
     setState(() => _uploadingMedia = true);
     try {
       final uri = Uri.parse('$_baseUrl/user-services/$serviceId/intro-media');
       final request = http.MultipartRequest('POST', uri);
       request.headers.addAll(await _authOnlyHeaders());
-      request.fields['media_type'] = 'video';
-      request.files.add(await http.MultipartFile.fromPath('media', picked.path));
+      request.fields['media_type'] = mediaType;
+      request.files.add(await http.MultipartFile.fromPath('media', filePath));
       final streamedRes = await request.send();
       await streamedRes.stream.bytesToString();
       if (streamedRes.statusCode >= 200 && streamedRes.statusCode < 300) {
@@ -235,6 +265,71 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
       }
     } catch (_) {
       if (mounted) AppSnackbar.error(context, 'Failed to upload intro clip');
+    } finally {
+      if (mounted) setState(() => _uploadingMedia = false);
+    }
+  }
+
+  Future<void> _startVoiceRecording() async {
+    try {
+      if (!await _recorder.hasPermission()) {
+        if (mounted) AppSnackbar.error(context, 'Microphone permission denied');
+        return;
+      }
+      final dir = await getTemporaryDirectory();
+      final path = '${dir.path}/intro_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _recorder.start(
+        const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 128000, sampleRate: 44100),
+        path: path,
+      );
+      _recordPath = path;
+      _recordDuration = Duration.zero;
+      setState(() => _isRecording = true);
+      _recordTimer?.cancel();
+      _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() => _recordDuration += const Duration(seconds: 1));
+      });
+    } catch (_) {
+      if (mounted) AppSnackbar.error(context, 'Could not start recording');
+    }
+  }
+
+  Future<void> _cancelVoiceRecording() async {
+    try { await _recorder.stop(); } catch (_) {}
+    _recordTimer?.cancel();
+    if (_recordPath != null) {
+      try { File(_recordPath!).deleteSync(); } catch (_) {}
+    }
+    _recordPath = null;
+    if (mounted) setState(() { _isRecording = false; _recordDuration = Duration.zero; });
+  }
+
+  Future<void> _stopAndUploadVoiceRecording() async {
+    final serviceId = widget.service['id']?.toString() ?? '';
+    String? path;
+    try { path = await _recorder.stop(); } catch (_) {}
+    _recordTimer?.cancel();
+    if (mounted) setState(() { _isRecording = false; _recordDuration = Duration.zero; });
+    final filePath = path ?? _recordPath;
+    _recordPath = null;
+    if (filePath == null || filePath.isEmpty) return;
+
+    setState(() => _uploadingMedia = true);
+    try {
+      final uri = Uri.parse('$_baseUrl/user-services/$serviceId/intro-media');
+      final request = http.MultipartRequest('POST', uri);
+      request.headers.addAll(await _authOnlyHeaders());
+      request.fields['media_type'] = 'audio';
+      request.files.add(await http.MultipartFile.fromPath('media', filePath));
+      final res = await request.send();
+      await res.stream.bytesToString();
+      if (res.statusCode >= 200 && res.statusCode < 300) {
+        if (mounted) { AppSnackbar.success(context, 'Voice clip uploaded'); _loadIntroMedia(); }
+      } else if (mounted) {
+        AppSnackbar.error(context, 'Failed to upload voice clip');
+      }
+    } catch (_) {
+      if (mounted) AppSnackbar.error(context, 'Failed to upload voice clip');
     } finally {
       if (mounted) setState(() => _uploadingMedia = false);
     }
@@ -294,7 +389,9 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
       request.fields['title'] = _titleCtrl.text.trim();
       request.fields['description'] = _descCtrl.text.trim();
       request.fields['status'] = _status;
-      request.fields['availability'] = _availability;
+      // Mirror the simple Active/Paused toggle onto the availability field
+      // so legacy clients/back-office stay in sync.
+      request.fields['availability'] = _status == 'paused' ? 'unavailable' : 'available';
       request.fields['location'] = _locationCtrl.text.trim();
 
       if (minNum != null) request.fields['min_price'] = '$minNum';
@@ -476,9 +573,14 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
   ]);
 
   Widget _pricingLocationCard() => _sectionCard('Pricing & Location', [
+    Builder(builder: (ctx) {
+      String currency = 'TZS';
+      try { currency = ctx.watch<WalletProvider>().currency; } catch (_) {}
+      if (currency.isEmpty) currency = 'TZS';
+      return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Row(children: [
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _fieldLabel('Min Price (TZS) *'),
+        _fieldLabel('Min Price ($currency) *'),
         _textField(_minPriceCtrl, 'e.g., 300,000', keyboardType: TextInputType.number, onChanged: (v) {
           final f = _formatPrice(v);
           if (f != v) _minPriceCtrl.value = TextEditingValue(text: f, selection: TextSelection.collapsed(offset: f.length));
@@ -486,7 +588,7 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
       ])),
       const SizedBox(width: 12),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _fieldLabel('Max Price (TZS) *'),
+        _fieldLabel('Max Price ($currency) *'),
         _textField(_maxPriceCtrl, 'e.g., 2,500,000', keyboardType: TextInputType.number, onChanged: (v) {
           final f = _formatPrice(v);
           if (f != v) _maxPriceCtrl.value = TextEditingValue(text: f, selection: TextSelection.collapsed(offset: f.length));
@@ -495,39 +597,48 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
     ]),
     const SizedBox(height: 14),
     _fieldLabel('Service Location'),
-    _textField(_locationCtrl, 'e.g., Dar es Salaam, Mikocheni'),
+    _textField(_locationCtrl, 'e.g., Mikocheni, Dar es Salaam'),
+      ]);
+    }),
   ]);
 
-  Widget _statusCard() => _sectionCard('Status & Availability', [
-    Row(children: [
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _fieldLabel('Status'),
-        _dropdown(
-          value: _status,
-          hint: 'Select status',
-          items: const [
-            DropdownMenuItem(value: 'active', child: Text('Active')),
-            DropdownMenuItem(value: 'inactive', child: Text('Inactive')),
-          ],
-          onChanged: (v) => setState(() => _status = v ?? 'active'),
+  Widget _statusCard() {
+    Widget pill(String value, String label, IconData icon) {
+      final selected = _status == value;
+      return Expanded(
+        child: GestureDetector(
+          onTap: () => setState(() => _status = value),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: selected ? AppColors.primary : Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: selected ? AppColors.primary : const Color(0xFFE5E7EB),
+              ),
+            ),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+              Icon(icon, size: 16, color: selected ? AppColors.textPrimary : AppColors.textSecondary),
+              const SizedBox(width: 6),
+              Text(label, style: _f(size: 13, weight: FontWeight.w600,
+                color: selected ? AppColors.textPrimary : AppColors.textSecondary)),
+            ]),
+          ),
         ),
-      ])),
-      const SizedBox(width: 12),
-      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _fieldLabel('Availability'),
-        _dropdown(
-          value: _availability,
-          hint: 'Select availability',
-          items: const [
-            DropdownMenuItem(value: 'available', child: Text('Available')),
-            DropdownMenuItem(value: 'busy', child: Text('Busy')),
-            DropdownMenuItem(value: 'unavailable', child: Text('Unavailable')),
-          ],
-          onChanged: (v) => setState(() => _availability = v ?? 'available'),
-        ),
-      ])),
-    ]),
-  ]);
+      );
+    }
+    return _sectionCard('Service Status', [
+      Text('Pause your service to stop receiving new bookings. Existing bookings are unaffected.',
+          style: _f(size: 12, color: AppColors.textSecondary)),
+      const SizedBox(height: 12),
+      Row(children: [
+        pill('active', 'Active', Icons.check_circle_rounded),
+        const SizedBox(width: 10),
+        pill('paused', 'Paused', Icons.pause_circle_filled_rounded),
+      ]),
+    ]);
+  }
 
   Widget _imagesCard() => _sectionCard('Service Images', [
     Row(children: [
@@ -558,7 +669,7 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
       SvgPicture.asset('assets/icons/video-icon.svg', width: 16, height: 16,
         colorFilter: const ColorFilter.mode(AppColors.textSecondary, BlendMode.srcIn)),
       const SizedBox(width: 8),
-      Text('A short video shown on your service page', style: _f(size: 12, color: AppColors.textSecondary)),
+      Expanded(child: Text('A short video or voice intro shown on your service page', style: _f(size: 12, color: AppColors.textSecondary))),
     ]),
     const SizedBox(height: 12),
     if (_introMedia.isNotEmpty)
@@ -578,12 +689,12 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
             Container(
               width: 40, height: 40,
               decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.10), borderRadius: BorderRadius.circular(10)),
-              child: Center(child: SvgPicture.asset('assets/icons/video-icon.svg', width: 18, height: 18,
+              child: Center(child: SvgPicture.asset(mediaType == 'audio' ? 'assets/icons/headset-icon.svg' : 'assets/icons/video-icon.svg', width: 18, height: 18,
                 colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn))),
             ),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(mediaType == 'video' ? 'Video Clip' : 'Audio Clip', style: _f(size: 13, weight: FontWeight.w700)),
+              Text(mediaType == 'video' ? 'Video Clip' : 'Audio Clip', style: _f(size: 13, weight: FontWeight.w600)),
               if (mediaUrl.isNotEmpty)
                 Text(mediaUrl.split('/').last, style: _f(size: 11, color: AppColors.textTertiary), maxLines: 1, overflow: TextOverflow.ellipsis),
             ])),
@@ -598,27 +709,66 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
           ]),
         );
       }),
-    GestureDetector(
-      onTap: _uploadingMedia ? null : _uploadIntroMedia,
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.borderLight),
-        ),
-        child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          if (_uploadingMedia)
-            const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))
-          else
-            SvgPicture.asset('assets/icons/upload-icon.svg', width: 18, height: 18,
-              colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn)),
-          const SizedBox(width: 8),
-          Text(_uploadingMedia ? 'Uploading...' : 'Upload Intro Clip', style: _f(size: 13, weight: FontWeight.w700, color: AppColors.primary)),
-        ]),
-      ),
-    ),
+    if (_isRecording) _recordingBar() else _introUploadActions(),
   ]);
+
+  Widget _introUploadActions() {
+    Widget btn(String label, IconData icon, VoidCallback? onTap) => Expanded(
+      child: OutlinedButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon, size: 16, color: AppColors.primary),
+        label: Text(label, style: _f(size: 12, weight: FontWeight.w600, color: AppColors.primary)),
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: AppColors.primary.withOpacity(0.45)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+        ),
+      ),
+    );
+    return Row(children: [
+      btn('Video', Icons.videocam_rounded, _uploadingMedia ? null : () => _uploadIntroMedia(source: 'video')),
+      const SizedBox(width: 8),
+      btn('Audio file', Icons.audiotrack_rounded, _uploadingMedia ? null : () => _uploadIntroMedia(source: 'audio')),
+      const SizedBox(width: 8),
+      btn('Record', Icons.mic_rounded, _uploadingMedia ? null : _startVoiceRecording),
+    ]);
+  }
+
+  Widget _recordingBar() {
+    String two(int n) => n.toString().padLeft(2, '0');
+    final m = two(_recordDuration.inMinutes.remainder(60));
+    final s = two(_recordDuration.inSeconds.remainder(60));
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.error.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.error.withOpacity(0.30)),
+      ),
+      child: Row(children: [
+        const Icon(Icons.fiber_manual_record_rounded, size: 14, color: AppColors.error),
+        const SizedBox(width: 8),
+        Text('Recording  $m:$s', style: _f(size: 13, weight: FontWeight.w600, color: AppColors.error)),
+        const Spacer(),
+        TextButton(
+          onPressed: _cancelVoiceRecording,
+          child: Text('Cancel', style: _f(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
+        ),
+        const SizedBox(width: 4),
+        ElevatedButton(
+          onPressed: _stopAndUploadVoiceRecording,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: AppColors.textPrimary,
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          ),
+          child: Text('Stop & upload', style: _f(size: 12, weight: FontWeight.w700)),
+        ),
+      ]),
+    );
+  }
 
   // ── UI Helpers (mirrors add_service_screen) ────────────────────────
 
@@ -631,7 +781,7 @@ class _EditServiceScreenState extends State<EditServiceScreen> {
         border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: _f(size: 15, weight: FontWeight.w700)),
+        Text(title, style: _f(size: 15, weight: FontWeight.w600)),
         const SizedBox(height: 14),
         ...children,
       ]),

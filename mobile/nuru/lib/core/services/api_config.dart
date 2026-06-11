@@ -15,7 +15,7 @@ class ApiConfig {
   static String get baseUrl => '$_p$_h1.$_h2.$_h3$_v';
 
   // FOR LOCAL TESTING ONLY - REPLACE WITH ABOVE IN PRODUCTION
-  // static String get baseUrl => 'http://192.168.100.10:8000/api/v1';
+  // static String get baseUrl => 'http://192.168.100.8:8000/api/v1';
 
   /// Request timeout
   static const Duration timeout = Duration(seconds: 30);

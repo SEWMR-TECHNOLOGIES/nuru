@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
+import '../../../core/widgets/nuru_search_bar.dart';
 import 'package:nuru/core/utils/money_format.dart' show getActiveCurrency, formatMoney;
 import '../../../core/services/event_contributors_service.dart';
 import '../../../core/theme/app_colors.dart';
@@ -308,38 +309,11 @@ class MyContributionsTabState extends State<MyContributionsTab>
 
   // ── Search ──────────────────────────────────────────────────────
   Widget _searchBar() {
-    return TextField(
+    return NuruSearchBar(
       controller: _searchCtrl,
+      hintText: 'Search my contributions',
+      debounce: const Duration(milliseconds: 300),
       onChanged: _onSearchChanged,
-      style: GoogleFonts.inter(fontSize: 13),
-      decoration: InputDecoration(
-        isDense: true,
-        hintText: 'Search my contributions',
-        hintStyle: GoogleFonts.inter(fontSize: 13, color: AppColors.textTertiary),
-        prefixIcon: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: SvgPicture.asset(
-            'assets/icons/search-icon.svg', width: 16, height: 16,
-            colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn),
-          ),
-        ),
-        prefixIconConstraints: const BoxConstraints(minWidth: 40, minHeight: 16),
-        filled: true,
-        fillColor: AppColors.surface,
-        contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: AppColors.borderLight),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: AppColors.borderLight),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: AppColors.primary.withOpacity(0.6)),
-        ),
-      ),
     );
   }
 

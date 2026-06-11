@@ -691,6 +691,7 @@ class _CardDesignerScreenState extends State<CardDesignerScreen> {
       context: context,
       backgroundColor: const Color(0xFF1A1A1A),
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (_) => StatefulBuilder(builder: (ctx, setSheet) {
         return SafeArea(
           child: SizedBox(
@@ -791,6 +792,7 @@ class _CardDesignerScreenState extends State<CardDesignerScreen> {
       context: context,
       backgroundColor: const Color(0xFF1A1A1A),
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (_) {
         if (l is TextLayer) {
           return _TextStyleSheet(

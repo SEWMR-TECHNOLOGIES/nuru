@@ -47,6 +47,7 @@ class _EventCheckinTabState extends State<EventCheckinTab>
   late final MobileScannerController _controller;
   late final AnimationController _scanLineController;
   bool _torchOn = false;
+  CameraFacing _facing = CameraFacing.back;
   bool _processing = false;
   String? _lastCode;
   DateTime? _lastAt;
@@ -170,6 +171,7 @@ class _EventCheckinTabState extends State<EventCheckinTab>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
@@ -235,6 +237,8 @@ class _EventCheckinTabState extends State<EventCheckinTab>
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    if (_loadingStats && _event == null) return _skeleton();
+
     final cover = (_event?['cover_image'] ?? _event?['image'])?.toString();
     final eventName = (_event?['name'] ?? widget.eventTitle ?? 'Event').toString();
     final eventDate = _formatEventDate(_event?['start_date']?.toString() ?? widget.eventDate);
@@ -368,15 +372,24 @@ class _EventCheckinTabState extends State<EventCheckinTab>
                   Positioned(
                     top: 14, right: 14,
                     child: GestureDetector(
-                      onTap: () => _controller.switchCamera(),
+                      onTap: () {
+                        _controller.switchCamera();
+                        setState(() {
+                          _facing = _facing == CameraFacing.back
+                              ? CameraFacing.front
+                              : CameraFacing.back;
+                        });
+                      },
                       child: Container(
                         width: 38, height: 38,
                         decoration: BoxDecoration(color: Colors.black.withOpacity(0.55), shape: BoxShape.circle),
                         child: Center(
-                          child: SvgPicture.asset(
-                            'assets/icons/camera-icon.svg',
-                            width: 18, height: 18,
-                            colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+                          child: Icon(
+                            _facing == CameraFacing.front
+                                ? Icons.camera_front_rounded
+                                : Icons.camera_rear_rounded,
+                            size: 20,
+                            color: Colors.white,
                           ),
                         ),
                       ),
@@ -447,45 +460,50 @@ class _EventCheckinTabState extends State<EventCheckinTab>
             ),
           ]),
           const SizedBox(height: 10),
-          if (_loadingStats)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))),
-            )
-          else if (_recent.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.borderLight),
-              ),
-              child: Column(children: [
-                SvgPicture.asset('assets/icons/ticket-icon.svg',
-                    width: 28, height: 28,
-                    colorFilter: ColorFilter.mode(AppColors.textTertiary.withOpacity(0.5), BlendMode.srcIn)),
-                const SizedBox(height: 6),
-                Text('No check-ins yet', style: appText(size: 13, weight: FontWeight.w700, color: AppColors.textSecondary)),
-                const SizedBox(height: 2),
-                Text(isTickets ? 'Scan a ticket QR to begin.' : 'Scan a guest QR to begin.',
-                    style: appText(size: 11.5, color: AppColors.textTertiary)),
-              ]),
-            )
-          else
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.borderLight),
-              ),
-              child: Column(
-                children: List.generate(_recent.length, (i) {
-                  final r = _recent[i];
-                  final isLast = i == _recent.length - 1;
-                  return _recentTile(r, isLast: isLast);
-                }),
-              ),
-            ),
+          Builder(builder: (_) {
+            // Show only actual check-in scans — pending RSVPs from the
+            // backend feed are not real scans and must be hidden here.
+            final scans = _recent.where((r) =>
+                (r['status'] ?? '').toString() == 'checked_in').toList();
+            if (_loadingStats) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))),
+              );
+            }
+            if (scans.isEmpty) {
+              return Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.borderLight),
+                ),
+                child: Column(children: [
+                  Container(
+                    width: 44, height: 44,
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withOpacity(0.08),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.qr_code_scanner_rounded,
+                        size: 22, color: AppColors.primary),
+                  ),
+                  const SizedBox(height: 10),
+                  Text('No scans yet',
+                      style: appText(size: 13.5, weight: FontWeight.w800, color: AppColors.textPrimary)),
+                  const SizedBox(height: 2),
+                  Text(isTickets ? 'Scan a ticket QR to begin.' : 'Scan a guest QR to begin.',
+                      style: appText(size: 12, color: AppColors.textTertiary)),
+                ]),
+              );
+            }
+            return Column(
+              children: List.generate(scans.length, (i) {
+                return _recentTile(scans[i], isLast: i == scans.length - 1);
+              }),
+            );
+          }),
           const SizedBox(height: 24),
         ],
       ),
@@ -531,19 +549,19 @@ class _EventCheckinTabState extends State<EventCheckinTab>
     BoxDecoration corner({bool top = false, bool bottom = false, bool left = false, bool right = false}) {
       return BoxDecoration(
         border: Border(
-          top: top ? const BorderSide(color: c, width: 4) : BorderSide.none,
-          bottom: bottom ? const BorderSide(color: c, width: 4) : BorderSide.none,
-          left: left ? const BorderSide(color: c, width: 4) : BorderSide.none,
-          right: right ? const BorderSide(color: c, width: 4) : BorderSide.none,
+          top: top ? const BorderSide(color: c, width: 3.5) : BorderSide.none,
+          bottom: bottom ? const BorderSide(color: c, width: 3.5) : BorderSide.none,
+          left: left ? const BorderSide(color: c, width: 3.5) : BorderSide.none,
+          right: right ? const BorderSide(color: c, width: 3.5) : BorderSide.none,
         ),
       );
     }
 
     Widget cornerW(BoxDecoration d, {Alignment align = Alignment.topLeft}) =>
-        Align(alignment: align, child: Container(width: 40, height: 40, decoration: d));
+        Align(alignment: align, child: Container(width: 32, height: 32, decoration: d));
 
     return Padding(
-      padding: const EdgeInsets.all(36),
+      padding: const EdgeInsets.all(64),
       child: Stack(children: [
         cornerW(corner(top: true, left: true), align: Alignment.topLeft),
         cornerW(corner(top: true, right: true), align: Alignment.topRight),
@@ -555,7 +573,7 @@ class _EventCheckinTabState extends State<EventCheckinTab>
 
   Widget _scannerLine() {
     return Padding(
-      padding: const EdgeInsets.all(46),
+      padding: const EdgeInsets.all(72),
       child: AnimatedBuilder(
         animation: _scanLineController,
         builder: (context, child) {
@@ -595,62 +613,66 @@ class _EventCheckinTabState extends State<EventCheckinTab>
     final ref = (r['ref'] ?? '').toString();
     final at = r['checked_in_at']?.toString();
     final isTicket = r['kind'] == 'ticket';
-    final status = (r['status'] ?? '').toString();
-    final isCheckedIn = status == 'checked_in';
     final initials = _initials(name);
     final time = _formatTime(at);
-
-    final pillBg = isCheckedIn ? AppColors.success.withOpacity(0.14) : AppColors.warning.withOpacity(0.18);
-    final pillFg = isCheckedIn ? AppColors.success : const Color(0xFFD97706);
-    final pillText = isCheckedIn ? 'Checked In' : 'Pending';
-    final avatarBg = isCheckedIn ? AppColors.primary.withOpacity(0.12) : AppColors.warning.withOpacity(0.18);
-    final avatarFg = isCheckedIn ? AppColors.primary : const Color(0xFFD97706);
+    final av = (r['avatar'] ?? '').toString();
 
     return Container(
+      margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        border: isLast ? null : Border(bottom: BorderSide(color: AppColors.borderLight.withOpacity(0.7))),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.borderLight),
       ),
       child: Row(children: [
-        Builder(builder: (_) {
-          final av = (r['avatar'] ?? '').toString();
-          if (av.isNotEmpty) {
-            return CircleAvatar(
-              radius: 20,
-              backgroundColor: avatarBg,
-              backgroundImage: NetworkImage(av),
-            );
-          }
-          return CircleAvatar(
-            radius: 20,
-            backgroundColor: avatarBg,
-            child: Text(initials,
-                style: appText(size: 12, weight: FontWeight.w800, color: avatarFg)),
-          );
-        }),
+        Stack(clipBehavior: Clip.none, children: [
+          av.isNotEmpty
+              ? CircleAvatar(
+                  radius: 22,
+                  backgroundColor: AppColors.primary.withOpacity(0.10),
+                  backgroundImage: NetworkImage(av),
+                )
+              : CircleAvatar(
+                  radius: 22,
+                  backgroundColor: AppColors.primary.withOpacity(0.10),
+                  child: Text(initials,
+                      style: appText(size: 13, weight: FontWeight.w800, color: AppColors.primary)),
+                ),
+          Positioned(
+            right: -2, bottom: -2,
+            child: Container(
+              width: 18, height: 18,
+              decoration: BoxDecoration(
+                color: AppColors.success,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child: const Icon(Icons.check_rounded, size: 11, color: Colors.white),
+            ),
+          ),
+        ]),
         const SizedBox(width: 12),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(name, style: appText(size: 13.5, weight: FontWeight.w800)),
-            const SizedBox(height: 2),
-            Text(isTicket ? 'Ticket # $ref' : 'Invite # $ref',
-                style: appText(size: 11.5, color: AppColors.textTertiary)),
+            Text(name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: appText(size: 14, weight: FontWeight.w800, color: AppColors.textPrimary)),
+            const SizedBox(height: 3),
+            Row(children: [
+              Icon(isTicket ? Icons.confirmation_number_rounded : Icons.mail_outline_rounded,
+                  size: 12, color: AppColors.textTertiary),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(ref.isEmpty ? (isTicket ? 'Ticket' : 'Invitation') : '#$ref',
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: appText(size: 11.5, color: AppColors.textTertiary, weight: FontWeight.w600)),
+              ),
+            ]),
           ]),
         ),
-        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-            decoration: BoxDecoration(
-              color: pillBg,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(pillText,
-                style: appText(size: 10, weight: FontWeight.w800, color: pillFg)),
-          ),
-          const SizedBox(height: 4),
-          if (time.isNotEmpty)
-            Text(time, style: appText(size: 11, color: AppColors.textTertiary)),
-        ]),
+        if (time.isNotEmpty)
+          Text(time,
+              style: appText(size: 12, weight: FontWeight.w700, color: AppColors.textSecondary)),
       ]),
     );
   }
@@ -671,6 +693,64 @@ class _EventCheckinTabState extends State<EventCheckinTab>
     final m = dt.minute.toString().padLeft(2, '0');
     final ampm = dt.hour >= 12 ? 'PM' : 'AM';
     return '$h:$m $ampm';
+  }
+
+  Widget _skeleton() {
+    Widget box({double? w, required double h, double r = 12, Color? c}) => Container(
+      width: w,
+      height: h,
+      decoration: BoxDecoration(
+        color: c ?? const Color(0xFFF1F1F4),
+        borderRadius: BorderRadius.circular(r),
+      ),
+    );
+
+    return Container(
+      color: Colors.white,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: AppColors.borderLight),
+            ),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              box(w: 76, h: 92, r: 12),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                box(w: 180, h: 15, r: 4),
+                const SizedBox(height: 10),
+                box(w: 120, h: 11, r: 4),
+                const SizedBox(height: 16),
+                Row(children: [
+                  Expanded(child: box(h: 42, r: 10)),
+                  const SizedBox(width: 8),
+                  Expanded(child: box(h: 42, r: 10)),
+                  const SizedBox(width: 8),
+                  Expanded(child: box(h: 42, r: 10)),
+                ]),
+              ])),
+            ]),
+          ),
+          const SizedBox(height: 14),
+          AspectRatio(aspectRatio: 1, child: box(h: 1, r: 20, c: Colors.black)),
+          const SizedBox(height: 16),
+          Row(children: [Expanded(child: Divider(color: AppColors.borderLight)), const SizedBox(width: 10), box(w: 18, h: 10, r: 4), const SizedBox(width: 10), Expanded(child: Divider(color: AppColors.borderLight))]),
+          const SizedBox(height: 12),
+          box(h: 50, r: 14),
+          const SizedBox(height: 22),
+          Row(children: [box(w: 110, h: 15, r: 4), const Spacer(), box(w: 58, h: 12, r: 4)]),
+          const SizedBox(height: 10),
+          for (int i = 0; i < 3; i++) ...[
+            box(h: 72, r: 16),
+            const SizedBox(height: 10),
+          ],
+        ],
+      ),
+    );
   }
 
   String _formatEventDate(String? iso) {

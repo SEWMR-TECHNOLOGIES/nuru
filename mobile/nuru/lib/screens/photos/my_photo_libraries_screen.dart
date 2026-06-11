@@ -13,6 +13,7 @@ import '../../core/widgets/app_snackbar.dart';
 import '../home/widgets/home_notifications_tab.dart';
 import 'photo_library_screen.dart';
 import '../../core/widgets/video_thumbnail_image.dart';
+import '../../core/widgets/nuru_search_bar.dart';
 
 /// Photo Libraries — list (aggregate, per-service, or per-event).
 ///
@@ -585,49 +586,9 @@ class _MyPhotoLibrariesScreenState extends State<MyPhotoLibrariesScreen> {
     return Row(
       children: [
         Expanded(
-          child: Container(
-            height: 46,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: const Color(0xFFEDEDEF), width: 1),
-            ),
-            child: Row(
-              children: [
-                SvgPicture.asset(
-                  'assets/icons/search-icon.svg',
-                  width: 18,
-                  height: 18,
-                  colorFilter: const ColorFilter.mode(
-                    Color(0xFF8E8E93),
-                    BlendMode.srcIn,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    onChanged: _onSearchChanged,
-                    cursorColor: Colors.black,
-                    textAlignVertical: TextAlignVertical.center,
-                    style: GoogleFonts.inter(fontSize: 14, color: Colors.black),
-                    decoration: InputDecoration(
-                      isDense: true,
-                      filled: false,
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                      hintText: 'Search libraries...',
-                      hintStyle: GoogleFonts.inter(
-                        fontSize: 14,
-                        color: const Color(0xFF9E9E9E),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+          child: NuruSearchBar(
+            hintText: 'Search libraries...',
+            onChanged: _onSearchChanged,
           ),
         ),
         const SizedBox(width: 10),

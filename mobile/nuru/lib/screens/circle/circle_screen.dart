@@ -684,6 +684,7 @@ class _CircleScreenState extends State<CircleScreen> {
       context: context,
       backgroundColor: Colors.white,
       isScrollControlled: true,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => _InviteToCircleSheet(onInvited: _load),
     );
@@ -698,6 +699,7 @@ class _CircleScreenState extends State<CircleScreen> {
       context: context,
       backgroundColor: Colors.white,
       isScrollControlled: true,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => SafeArea(

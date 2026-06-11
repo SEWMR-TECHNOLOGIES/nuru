@@ -10,6 +10,7 @@ import '../../core/utils/event_groups_cache.dart';
 import '../../core/widgets/event_cover_image.dart';
 import '../home/widgets/pill_tabs.dart';
 import 'event_group_workspace_screen.dart';
+import '../../core/widgets/nuru_search_bar.dart';
 
 class MyGroupsScreen extends StatefulWidget {
   const MyGroupsScreen({super.key});
@@ -153,45 +154,12 @@ class _MyGroupsScreenState extends State<MyGroupsScreen> {
           const SizedBox(height: 4),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 4, 20, 12),
-            child: Container(
-              height: 48,
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: const Color(0xFFEDEDEF), width: 1),
-              ),
-              child: Row(children: [
-                const Icon(Icons.search_rounded, size: 20, color: Color(0xFF8E8E93)),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: TextField(
-                    onChanged: (v) {
-                      _search = v;
-                      _searchDebounce?.cancel();
-                      _searchDebounce = Timer(const Duration(milliseconds: 300), () => _load(silent: true));
-                    },
-                    autocorrect: false,
-                    cursorColor: Colors.black,
-                    textAlignVertical: TextAlignVertical.center,
-                    style: GoogleFonts.inter(fontSize: 14, color: Colors.black),
-                    decoration: InputDecoration(
-                      isDense: true,
-                      filled: false,
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                      hintText: 'Search groups',
-                      hintStyle: GoogleFonts.inter(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w400,
-                        color: const Color(0xFF9E9E9E),
-                      ),
-                    ),
-                  ),
-                ),
-              ]),
+            child: NuruSearchBar(
+              hintText: 'Search groups',
+              onChanged: (v) {
+                _search = v;
+                _load(silent: true);
+              },
             ),
           ),
           Padding(

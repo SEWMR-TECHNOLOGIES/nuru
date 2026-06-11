@@ -330,7 +330,7 @@ Social features may include:
 
 - Event posts.
 - Moments.
-- Reels or short videos.
+- Glimpses or short videos.
 - Public and private event updates.
 - Circles for personal connections.
 - Communities around interests, locations, or event types.

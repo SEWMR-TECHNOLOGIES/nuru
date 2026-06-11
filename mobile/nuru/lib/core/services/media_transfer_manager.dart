@@ -328,7 +328,7 @@ class MediaTransferManager extends ChangeNotifier {
       print('[LibraryUpload] file=${task.name} size=$totalBytes isVideo=$isVideo endpoint=/photo-libraries/${task.libraryId}/upload');
 
       // Hard client-side cap: photos stay small, videos may use the full
-      // photo-library allowance like reels do instead of being blocked locally.
+      // photo-library allowance like glimpses do instead of being blocked locally.
       final maxBytes = 10 * 1024 * 1024;
       if (totalBytes > maxBytes) {
         print('[LibraryUpload] blocked locally: size $totalBytes exceeds $maxBytes');
@@ -343,7 +343,7 @@ class MediaTransferManager extends ChangeNotifier {
       if (isHighlight) fields['is_highlight'] = 'true';
       print('[LibraryUpload] calling multipart API with fields=${fields.keys.toList()}');
 
-      // Use the same multipart path as reels/moments. That path is already
+      // Use the same multipart path as glimpses/moments. That path is already
       // proven on mobile networks and avoids the SocketBroken pipe failures
       // caused by the custom streaming request here.
       final decoded = await ApiBase.postMultipart(

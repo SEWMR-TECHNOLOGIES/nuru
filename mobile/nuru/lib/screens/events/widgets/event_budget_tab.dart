@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
 import '../../../core/widgets/nuru_refresh_indicator.dart';
 import '../../../core/widgets/app_icon.dart';
-import '../../../core/widgets/self_scrolling_pills.dart';
 import '../../../core/utils/money_format.dart';
 import '../../../core/services/events_service.dart';
 import '../../../core/services/report_generator.dart';
@@ -143,10 +142,100 @@ class _EventBudgetTabState extends State<EventBudgetTab>
 
   // ---------- Skeleton ----------
   Widget _skeleton() {
+    Widget summaryHeader() => Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.borderLight),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              SizedBox(
+                width: 76,
+                height: 76,
+                child: Stack(alignment: Alignment.center, children: [
+                  Container(
+                    width: 76,
+                    height: 76,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.borderLight, width: 7),
+                    ),
+                  ),
+                  Column(mainAxisSize: MainAxisSize.min, children: [
+                    _skel(height: 16, width: 34, radius: 4),
+                    const SizedBox(height: 6),
+                    _skel(height: 8, width: 28, radius: 4),
+                  ]),
+                ]),
+              ),
+              const SizedBox(width: 18),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  _skel(height: 10, width: 70, radius: 4),
+                  const SizedBox(height: 8),
+                  _skel(height: 20, width: 150, radius: 5),
+                  const SizedBox(height: 12),
+                  Row(children: [
+                    _skel(height: 12, width: 12, radius: 4),
+                    const SizedBox(width: 6),
+                    _skel(height: 12, width: 118, radius: 4),
+                  ]),
+                ]),
+              ),
+            ]),
+            const SizedBox(height: 16),
+            Container(height: 1, color: AppColors.borderLight),
+            const SizedBox(height: 14),
+            Row(children: [
+              Expanded(child: _metricSkeleton()),
+              Container(width: 1, height: 34, color: AppColors.borderLight),
+              Expanded(child: _metricSkeleton()),
+            ]),
+          ]),
+        );
+
+    Widget itemCard() => Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.borderLight),
+          ),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _skel(height: 56, width: 56, radius: 14),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                _skel(height: 11, width: 72, radius: 4),
+                const SizedBox(height: 8),
+                _skel(height: 14, width: 170, radius: 4),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(child: _skel(height: 4, radius: 999)),
+                  const SizedBox(width: 8),
+                  _skel(height: 10, width: 48, radius: 4),
+                ]),
+              ]),
+            ),
+            const SizedBox(width: 10),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              _skel(height: 28, width: 92, radius: 10),
+              const SizedBox(height: 8),
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                _skel(height: 22, width: 74, radius: 999),
+                const SizedBox(width: 4),
+                _skel(height: 14, width: 14, radius: 4),
+              ]),
+            ]),
+          ]),
+        );
+
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
       children: [
-        _skel(height: 152, radius: 20),
+        summaryHeader(),
         const SizedBox(height: 14),
         Row(children: [
           Expanded(child: _skel(height: 46, radius: 14)),
@@ -154,20 +243,33 @@ class _EventBudgetTabState extends State<EventBudgetTab>
           Expanded(child: _skel(height: 46, radius: 14)),
         ]),
         const SizedBox(height: 18),
-        Row(children: [
-          for (int i = 0; i < 4; i++) ...[
-            _skel(height: 32, width: 72, radius: 999),
-            const SizedBox(width: 8),
-          ],
-        ]),
+        // Underline tabs skeleton
+        Container(
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: AppColors.borderLight)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 10),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const NeverScrollableScrollPhysics(),
+            child: Row(children: [
+              for (int i = 0; i < 4; i++) ...[
+                _skel(height: 14, width: 56 + (i * 6).toDouble(), radius: 4),
+                const SizedBox(width: 16),
+              ],
+            ]),
+          ),
+        ),
         const SizedBox(height: 14),
         for (int i = 0; i < 4; i++) ...[
-          _skel(height: 84, radius: 16),
-          const SizedBox(height: 8),
+          itemCard(),
+          const SizedBox(height: 10),
         ],
+        _skel(height: 50, radius: 14),
       ],
     );
   }
+
 
   Widget _skel({double? width, required double height, double radius = 12}) =>
       Container(
@@ -176,6 +278,19 @@ class _EventBudgetTabState extends State<EventBudgetTab>
         decoration: BoxDecoration(
             color: AppColors.borderLight,
             borderRadius: BorderRadius.circular(radius)),
+      );
+
+  Widget _metricSkeleton() => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            _skel(height: 12, width: 12, radius: 4),
+            const SizedBox(width: 5),
+            _skel(height: 10, width: 58, radius: 4),
+          ]),
+          const SizedBox(height: 6),
+          _skel(height: 14, width: 86, radius: 4),
+        ]),
       );
 
   // ---------- Header summary ----------
@@ -316,7 +431,7 @@ class _EventBudgetTabState extends State<EventBudgetTab>
     );
   }
 
-  // ---------- Filter pills ----------
+  // ---------- Filter underline tabs ----------
   Widget _filterRow(int total, int pend, int dep, int paid) {
     final opts = [
       ['all', 'All', total],
@@ -324,49 +439,80 @@ class _EventBudgetTabState extends State<EventBudgetTab>
       ['deposit_paid', 'Deposit', dep],
       ['paid', 'Paid', paid],
     ];
-    final activeIndex = opts.indexWhere((o) => o[0] == _filter);
-    return SelfScrollingPills(
-      activeIndex: activeIndex < 0 ? 0 : activeIndex,
-      height: 38,
-      children: opts.map((o) {
-        final active = _filter == o[0];
-        return GestureDetector(
-          onTap: () => setState(() => _filter = o[0] as String),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: active ? AppColors.primary : Colors.white,
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(
-                  color: active ? AppColors.primary : AppColors.borderLight),
-            ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Text(o[1] as String,
-                  style: appText(
-                      size: 12,
-                      weight: FontWeight.w700,
-                      color: active ? Colors.white : AppColors.textPrimary)),
-              const SizedBox(width: 6),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(
-                  color: active
-                      ? Colors.white.withOpacity(0.22)
-                      : AppColors.primarySoft,
-                  borderRadius: BorderRadius.circular(999),
+    return Container(
+      decoration: const BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: AppColors.borderLight, width: 1),
+        ),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Row(
+          children: opts.map((o) {
+            final active = _filter == o[0];
+            return GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => setState(() => _filter = o[0] as String),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                child: IntrinsicWidth(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(mainAxisSize: MainAxisSize.min, children: [
+                        Text(o[1] as String,
+                            style: appText(
+                                size: 13,
+                                weight: active
+                                    ? FontWeight.w700
+                                    : FontWeight.w500,
+                                color: active
+                                    ? AppColors.textPrimary
+                                    : AppColors.textTertiary)),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: active
+                                ? AppColors.primarySoft
+                                : AppColors.borderLight.withOpacity(0.6),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text('${o[2]}',
+                              style: appText(
+                                  size: 10,
+                                  weight: FontWeight.w800,
+                                  color: active
+                                      ? AppColors.primaryDark
+                                      : AppColors.textTertiary)),
+                        ),
+                      ]),
+                      const SizedBox(height: 6),
+                      Container(
+                        height: 3,
+                        decoration: BoxDecoration(
+                          color: active
+                              ? AppColors.primary
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                child: Text('${o[2]}',
-                    style: appText(
-                        size: 10,
-                        weight: FontWeight.w800,
-                        color: active ? Colors.white : AppColors.primaryDark)),
               ),
-            ]),
-          ),
-        );
-      }).toList(),
+            );
+          }).toList(),
+        ),
+      ),
     );
   }
+
 
 
   Widget _emptyState() {
@@ -398,131 +544,518 @@ class _EventBudgetTabState extends State<EventBudgetTab>
     );
   }
 
-  // ---------- Item card ----------
+  // ---------- Item card (matches mockup) ----------
   Widget _itemCard(Map<String, dynamic> item) {
     final actualNum = _asNum(item['actual_cost']);
     final estNum = _asNum(item['estimated_cost']);
     final isEstimate = actualNum == 0;
     final effective = isEstimate ? estNum : actualNum;
     final status = (item['status'] ?? 'pending').toString();
-    final s = _kStatusOptions
-        .firstWhere((x) => x['value'] == status, orElse: () => _kStatusOptions.first);
-    final category = item['category']?.toString();
+    final s = _kStatusOptions.firstWhere(
+        (x) => x['value'] == status,
+        orElse: () => _kStatusOptions.first);
+    final category = item['category']?.toString() ?? '';
     final name = item['description']?.toString() ??
         item['item_name']?.toString() ??
         'Item';
-    final vendor = item['vendor_name']?.toString();
+    final tone = _categoryTone(category);
+    final usedPct = estNum > 0 ? (actualNum / estNum).clamp(0.0, 1.0) : 0.0;
+    final statusIcon = status == 'paid'
+        ? 'check'
+        : status == 'deposit_paid'
+            ? 'credit-card'
+            : 'clock';
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderLight),
-      ),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          width: 42,
-          height: 42,
-          decoration: BoxDecoration(
-              color: AppColors.primarySoft,
-              borderRadius: BorderRadius.circular(12)),
-          child:
-              const Center(child: AppIcon('package', size: 18, color: AppColors.primary)),
+    return Dismissible(
+      key: ValueKey('budget-${item['id']}'),
+      direction: _canManage
+          ? DismissDirection.endToStart
+          : DismissDirection.none,
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        alignment: Alignment.centerRight,
+        decoration: BoxDecoration(
+          color: AppColors.error.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(18),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              if (category != null && category.isNotEmpty)
-                Flexible(
-                  child: Text(category.toUpperCase(),
-                      style: appText(
-                          size: 10,
-                          weight: FontWeight.w800,
-                          color: AppColors.primary),
-                      overflow: TextOverflow.ellipsis),
-                ),
-              const Spacer(),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                    color: (s['color'] as Color).withOpacity(0.12),
-                    borderRadius: BorderRadius.circular(999)),
-                child: Text(s['label'] as String,
-                    style: appText(
-                        size: 10,
-                        weight: FontWeight.w800,
-                        color: s['color'] as Color)),
+        child: const AppIcon('delete', size: 18, color: AppColors.error),
+      ),
+      onDismissed: (_) => _deleteItem(item['id']?.toString() ?? ''),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => _showItemDetail(item),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.borderLight),
+          ),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // Tinted category thumbnail (list icon, colored per category)
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: tone.bg,
+                borderRadius: BorderRadius.circular(14),
               ),
-            ]),
-            const SizedBox(height: 4),
-            Text(name,
-                style: appText(size: 14, weight: FontWeight.w700),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis),
-            const SizedBox(height: 6),
-            Row(children: [
-              Text(_money(effective),
-                  style: appText(
-                      size: 14,
-                      weight: FontWeight.w800,
-                      color: AppColors.textPrimary)),
-              if (isEstimate) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 6, vertical: 1),
-                  decoration: BoxDecoration(
-                      color: AppColors.warningSoft,
-                      borderRadius: BorderRadius.circular(6)),
-                  child: Text('estimate',
+              alignment: Alignment.center,
+              child: AppIcon('list', size: 24, color: tone.fg),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (category.isNotEmpty)
+                    Text(category.toUpperCase(),
+                        style: appText(
+                            size: 11,
+                            weight: FontWeight.w700,
+                            color: tone.fg,
+                            height: 1.1)),
+                  const SizedBox(height: 4),
+                  Text(name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                       style: appText(
-                          size: 9,
-                          weight: FontWeight.w800,
-                          color: AppColors.warning)),
-                ),
-              ],
-              if (vendor != null && vendor.isNotEmpty) ...[
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    const AppIcon('user',
-                        size: 11, color: AppColors.textTertiary),
-                    const SizedBox(width: 3),
-                    Flexible(
-                        child: Text(vendor,
-                            style: appText(
-                                size: 11,
-                                color: AppColors.textTertiary),
-                            overflow: TextOverflow.ellipsis)),
+                          size: 13.5,
+                          weight: FontWeight.w500,
+                          height: 1.35,
+                          color: AppColors.textPrimary)),
+                  const SizedBox(height: 8),
+                  // % used bar
+                  Row(children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                          value: usedPct,
+                          minHeight: 4,
+                          backgroundColor: AppColors.borderLight,
+                          valueColor: AlwaysStoppedAnimation(tone.fg),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text('${(usedPct * 100).round()}% used',
+                        style: appText(
+                            size: 10,
+                            weight: FontWeight.w500,
+                            color: AppColors.textTertiary)),
                   ]),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            // Amount + status pill + chevron
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: tone.bg,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(_money(effective),
+                      style: appText(
+                          size: 12.5,
+                          weight: FontWeight.w700,
+                          color: AppColors.textPrimary)),
                 ),
+                const SizedBox(height: 8),
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: (s['color'] as Color).withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child:
+                        Row(mainAxisSize: MainAxisSize.min, children: [
+                      AppIcon(statusIcon,
+                          size: 10, color: s['color'] as Color),
+                      const SizedBox(width: 4),
+                      Text(s['label'] as String,
+                          style: appText(
+                              size: 10,
+                              weight: FontWeight.w700,
+                              color: s['color'] as Color)),
+                    ]),
+                  ),
+                  const SizedBox(width: 4),
+                  const AppIcon('chevron-right',
+                      size: 14, color: AppColors.textHint),
+                ]),
               ],
-            ]),
-            if (item['notes'] != null &&
-                item['notes'].toString().isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(item['notes'].toString(),
-                  style: appText(size: 11, color: AppColors.textTertiary),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis),
-            ],
+            ),
           ]),
         ),
-        if (_canManage)
-          GestureDetector(
-            onTap: () => _deleteItem(item['id']?.toString() ?? ''),
-            child: const Padding(
-              padding: EdgeInsets.only(left: 8, top: 2),
-              child: AppIcon('delete', size: 16, color: AppColors.textHint),
+      ),
+    );
+  }
+
+  // ---------- Item detail sheet ----------
+  void _showItemDetail(Map<String, dynamic> item) {
+    final id = item['id']?.toString() ?? '';
+    final category = item['category']?.toString() ?? '';
+    final name = item['description']?.toString() ??
+        item['item_name']?.toString() ??
+        'Item';
+    final vendor = item['vendor_name']?.toString() ?? '';
+    final notes = item['notes']?.toString() ?? '';
+    final est = _asNum(item['estimated_cost']);
+    final act = _asNum(item['actual_cost']);
+    final pct = est > 0 ? (act / est).clamp(0.0, 1.0) : 0.0;
+    final variance = est - act;
+    final tone = _categoryTone(category);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          final status = (item['status'] ?? 'pending').toString();
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+                20, 14, 20, MediaQuery.of(ctx).viewInsets.bottom + 22),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                          color: AppColors.border,
+                          borderRadius: BorderRadius.circular(2)),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                          color: tone.bg,
+                          borderRadius: BorderRadius.circular(14)),
+                      alignment: Alignment.center,
+                      child: AppIcon('list', size: 26, color: tone.fg),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (category.isNotEmpty)
+                            Text(category.toUpperCase(),
+                                style: appText(
+                                    size: 11,
+                                    weight: FontWeight.w700,
+                                    color: tone.fg)),
+                          const SizedBox(height: 4),
+                          Text(name,
+                              style: appText(
+                                  size: 17,
+                                  weight: FontWeight.w600,
+                                  height: 1.3)),
+                        ],
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 20),
+                  // Spend stats row
+                  Row(children: [
+                    Expanded(
+                      child: _spendStat('Estimated', _money(est),
+                          AppColors.textSecondary),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _spendStat('Actual', _money(act), tone.fg),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _spendStat(
+                          variance >= 0 ? 'Under' : 'Over',
+                          _money(variance.abs()),
+                          variance >= 0
+                              ? const Color(0xFF16A34A)
+                              : const Color(0xFFDC2626)),
+                    ),
+                  ]),
+                  const SizedBox(height: 14),
+                  // Progress
+                  Row(children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                          value: pct,
+                          minHeight: 6,
+                          backgroundColor: AppColors.borderLight,
+                          valueColor: AlwaysStoppedAnimation(tone.fg),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Text('${(pct * 100).round()}% of estimate',
+                        style: appText(
+                            size: 11,
+                            weight: FontWeight.w600,
+                            color: AppColors.textTertiary)),
+                  ]),
+                  const SizedBox(height: 22),
+                  Text('Payment status',
+                      style: appText(
+                          size: 12,
+                          weight: FontWeight.w700,
+                          color: AppColors.textSecondary)),
+                  const SizedBox(height: 4),
+                  Text(
+                      'A manual tag for tracking. Update it as you pay this vendor.',
+                      style: appText(
+                          size: 11,
+                          color: AppColors.textTertiary,
+                          height: 1.4)),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF1F5F9),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: _kStatusOptions.map((o) {
+                        final v = o['value'] as String;
+                        final label = o['label'] as String;
+                        final active = status == v;
+                        return Expanded(
+                          child: GestureDetector(
+                            onTap: () async {
+                              if (id.isEmpty || active) return;
+                              setSheetState(() => item['status'] = v);
+                              final res =
+                                  await EventsService.updateBudgetItem(
+                                      widget.eventId, id, {'status': v});
+                              if (!mounted) return;
+                              if (res['success'] != true) {
+                                setSheetState(() => item['status'] = status);
+                                AppSnackbar.error(context,
+                                    res['message'] ?? 'Failed to update');
+                              } else {
+                                _load(background: true);
+                              }
+                            },
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 160),
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: active ? Colors.white : Colors.transparent,
+                                borderRadius: BorderRadius.circular(10),
+                                boxShadow: active
+                                    ? [
+                                        BoxShadow(
+                                            color: Colors.black.withOpacity(0.05),
+                                            blurRadius: 6,
+                                            offset: const Offset(0, 2))
+                                      ]
+                                    : null,
+                              ),
+                              child: Text(label,
+                                  style: appText(
+                                      size: 12.5,
+                                      weight: active
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                      color: active
+                                          ? (o['color'] as Color)
+                                          : AppColors.textTertiary)),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                  if (vendor.isNotEmpty) ...[
+                    const SizedBox(height: 20),
+                    _detailRow('user', 'Vendor / supplier', vendor),
+                  ],
+                  if (notes.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    Text('Notes',
+                        style: appText(
+                            size: 12,
+                            weight: FontWeight.w700,
+                            color: AppColors.textSecondary)),
+                    const SizedBox(height: 6),
+                    Text(notes,
+                        style: appText(
+                            size: 14,
+                            weight: FontWeight.w400,
+                            height: 1.45,
+                            color: AppColors.textPrimary)),
+                  ],
+                  const SizedBox(height: 24),
+                  if (_canManage)
+                    Row(children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _deleteItem(id);
+                          },
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            side: BorderSide(
+                                color: AppColors.error.withOpacity(0.4)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999)),
+                          ),
+                          icon: const AppIcon('delete',
+                              size: 16, color: AppColors.error),
+                          label: Text('Delete',
+                              style: appText(
+                                  size: 13,
+                                  weight: FontWeight.w700,
+                                  color: AppColors.error)),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(999)),
+                          ),
+                          child: Text('Done',
+                              style: appText(
+                                  size: 13,
+                                  weight: FontWeight.w700,
+                                  color: Colors.white)),
+                        ),
+                      ),
+                    ]),
+                ],
+              ),
             ),
-          ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _spendStat(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(label,
+            style: appText(
+                size: 10.5,
+                weight: FontWeight.w600,
+                color: AppColors.textTertiary)),
+        const SizedBox(height: 3),
+        Text(value,
+            style: appText(size: 13, weight: FontWeight.w700, color: color)),
       ]),
     );
   }
+
+  Widget _detailRow(String icon, String label, String value) {
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+            color: const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(10)),
+        alignment: Alignment.center,
+        child: AppIcon(icon, size: 16, color: AppColors.textSecondary),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(label,
+              style: appText(
+                  size: 11,
+                  weight: FontWeight.w600,
+                  color: AppColors.textTertiary)),
+          const SizedBox(height: 2),
+          Text(value,
+              style: appText(
+                  size: 14,
+                  weight: FontWeight.w500,
+                  color: AppColors.textPrimary)),
+        ]),
+      ),
+    ]);
+  }
+
+
+  // Category color tones (mirrors checklist tab palette)
+  _CategoryTone _categoryTone(String? category) {
+    final c = (category ?? '').toLowerCase();
+    if (c.contains('decor') || c.contains('flower')) {
+      return const _CategoryTone(Color(0xFFEDE9FE), Color(0xFF7C3AED));
+    }
+    if (c.contains('transport')) {
+      return const _CategoryTone(Color(0xFFDCFCE7), Color(0xFF16A34A));
+    }
+    if (c.contains('attire') || c.contains('dress')) {
+      return const _CategoryTone(Color(0xFFFEF3C7), Color(0xFFD97706));
+    }
+    if (c.contains('contingency') || c.contains('misc')) {
+      return const _CategoryTone(Color(0xFFD1FAE5), Color(0xFF059669));
+    }
+    if (c.contains('cater') || c.contains('food')) {
+      return const _CategoryTone(Color(0xFFFEE2E2), Color(0xFFDC2626));
+    }
+    if (c.contains('photo') || c.contains('video') || c.contains('audio')) {
+      return const _CategoryTone(Color(0xFFDBEAFE), Color(0xFF2563EB));
+    }
+    if (c.contains('music') || c.contains('entertain')) {
+      return const _CategoryTone(Color(0xFFFCE7F3), Color(0xFFDB2777));
+    }
+    if (c.contains('venue')) {
+      return const _CategoryTone(Color(0xFFCFFAFE), Color(0xFF0891B2));
+    }
+    if (c.contains('invit') || c.contains('print') || c.contains('market')) {
+      return const _CategoryTone(Color(0xFFE0E7FF), Color(0xFF4F46E5));
+    }
+    if (c.contains('gift') || c.contains('favor')) {
+      return const _CategoryTone(Color(0xFFFFE4E6), Color(0xFFE11D48));
+    }
+    if (c.contains('equipment') || c.contains('rental')) {
+      return const _CategoryTone(Color(0xFFE0F2FE), Color(0xFF0369A1));
+    }
+    if (c.contains('staff') || c.contains('security')) {
+      return const _CategoryTone(Color(0xFFFEF3C7), Color(0xFFCA8A04));
+    }
+    return _CategoryTone(AppColors.primarySoft, AppColors.primary);
+  }
+
 
   Widget _addButton() {
     return GestureDetector(
@@ -626,6 +1159,7 @@ class _EventBudgetTabState extends State<EventBudgetTab>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
@@ -877,3 +1411,11 @@ class _EventBudgetTabState extends State<EventBudgetTab>
     );
   }
 }
+
+
+class _CategoryTone {
+  final Color bg;
+  final Color fg;
+  const _CategoryTone(this.bg, this.fg);
+}
+

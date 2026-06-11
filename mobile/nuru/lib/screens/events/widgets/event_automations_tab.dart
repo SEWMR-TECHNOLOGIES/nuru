@@ -104,6 +104,7 @@ class _EventAutomationsTabState extends State<EventAutomationsTab>
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _AutomationEditorSheet(
         eventId: widget.eventId,
@@ -124,6 +125,7 @@ class _EventAutomationsTabState extends State<EventAutomationsTab>
     final changed = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _AutomationDetailSheet(eventId: widget.eventId, automation: a),
     );
@@ -254,13 +256,92 @@ class _EventAutomationsTabState extends State<EventAutomationsTab>
         ),
       );
 
-  Widget _skeleton() => const NuruSkeletonList(
-        itemCount: 4,
-        padding: EdgeInsets.fromLTRB(16, 16, 16, 16),
-        showAvatar: false,
-        showTrailing: true,
-      );
+  Widget _skeleton() {
+    Widget box({double? w, required double h, double r = 12}) => Container(
+          width: w,
+          height: h,
+          decoration: BoxDecoration(
+            color: AppColors.borderLight,
+            borderRadius: BorderRadius.circular(r),
+          ),
+        );
+    Widget card() => Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.borderLight),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                box(h: 40, w: 40, r: 12),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      box(h: 13, w: 160, r: 4),
+                      const SizedBox(height: 8),
+                      box(h: 10, w: 100, r: 4),
+                    ],
+                  ),
+                ),
+                box(h: 28, w: 44, r: 999), // toggle switch
+              ]),
+              const SizedBox(height: 14),
+              box(h: 10, w: double.infinity, r: 4),
+              const SizedBox(height: 6),
+              box(h: 10, w: 220, r: 4),
+              const SizedBox(height: 14),
+              Row(children: [
+                box(h: 22, w: 90, r: 999),
+                const SizedBox(width: 8),
+                box(h: 22, w: 70, r: 999),
+              ]),
+            ],
+          ),
+        );
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
+      children: [
+        // Intro banner skeleton
+        Container(
+          margin: const EdgeInsets.fromLTRB(0, 8, 0, 12),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.primarySoft,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.primary.withOpacity(0.18)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              box(h: 20, w: 20, r: 6),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    box(h: 13, w: 180, r: 4),
+                    const SizedBox(height: 8),
+                    box(h: 10, w: double.infinity, r: 4),
+                    const SizedBox(height: 4),
+                    box(h: 10, w: 240, r: 4),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        for (int i = 0; i < 3; i++) card(),
+      ],
+    );
+  }
 }
+
 
 // ─── Automation card ───────────────────────────────────────────────────────
 
@@ -1939,8 +2020,8 @@ Widget _statusPill(String status) {
     case 'skipped':
     case 'cancelled':
     default:
-      bg = const Color(0x14999999);
-      fg = AppColors.textTertiary;
+      bg = const Color(0x146D28D9);
+      fg = const Color(0xFF6D28D9);
   }
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),

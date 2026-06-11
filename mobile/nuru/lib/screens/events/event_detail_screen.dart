@@ -13,6 +13,7 @@ import '../../core/services/ticketing_service.dart';
 import '../../core/services/report_generator.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/event_cover_image.dart';
+import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/nuru_skeleton.dart';
 import '../../providers/auth_provider.dart';
 import '../photos/my_photo_libraries_screen.dart';
@@ -32,6 +33,7 @@ import 'widgets/event_sponsors_tab.dart';
 import 'widgets/event_meetings_tab.dart';
 
 import 'widgets/event_automations_tab.dart';
+import 'widgets/event_activity_screen.dart';
 import 'create_event_screen.dart';
 import 'widgets/share_event_to_feed_sheet.dart';
 import 'widgets/venue_map_preview.dart';
@@ -102,6 +104,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
   Map<String, dynamic>?
   _overview; // unified backend KPIs (ticket sales, revenue, contribution status, sponsors)
   List<Map<String, dynamic>> _recentActivity = const [];
+  String _activityFilter = 'all';
 
   List<String> _visibleTabs = const ['Overview'];
   static const Set<String> _creatorRoles = {'creator', 'organizer', 'owner'};
@@ -496,6 +499,29 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       };
     }
 
+    // Compute clamped outstanding per-contributor (matches Contributors
+    // Report logic) so the Financial Overview never understates the
+    // amount owed when some pledgers overpay.
+    try {
+      final ecRes = await EventsService.getEventContributors(eid, limit: 5000);
+      if (ecRes['success'] == true && ecRes['data'] is Map) {
+        final list = ((ecRes['data'] as Map)['event_contributors'] as List?) ??
+            ((ecRes['data'] as Map)['items'] as List?) ??
+            const [];
+        double clamped = 0;
+        for (final entry in list) {
+          if (entry is! Map) continue;
+          final ec = entry.cast<String, dynamic>();
+          final pledged = _asDouble(ec['pledge_amount']);
+          final paid = _asDouble(ec['total_paid'] ?? ec['amount']);
+          final fallback = (pledged - paid).clamp(0, double.infinity).toDouble();
+          final bal = ec['balance'] != null ? _asDouble(ec['balance']) : fallback;
+          clamped += bal < 0 ? 0 : bal;
+        }
+        contributionSummary['outstanding_clamped'] = clamped;
+      }
+    } catch (_) {/* best-effort */}
+
     setState(() {
       _contributionSummary = contributionSummary;
       _budgetSummary = budgetSummary;
@@ -845,7 +871,12 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     final unpledged = budgetNum > 0
         ? (budgetNum - totalPledged).clamp(0, double.infinity)
         : 0.0;
-    final outstanding = (totalPledged - totalPaid).clamp(0, double.infinity);
+    // Prefer the per-contributor clamped outstanding (matches Contributors
+    // Report). Falls back to summary subtraction only when unavailable.
+    final outstandingClamped = _contributionSummary['outstanding_clamped'];
+    final outstanding = outstandingClamped != null
+        ? _asDouble(outstandingClamped)
+        : (totalPledged - totalPaid).clamp(0, double.infinity).toDouble();
     final collectionRate = totalPledged > 0
         ? ((totalPaid / totalPledged) * 100).round()
         : 0;
@@ -915,6 +946,74 @@ class _EventDetailScreenState extends State<EventDetailScreen>
       child: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: [
+          // ─── Section: Financial Overview ───
+          Text(
+            'Financial Overview',
+            style: appText(size: 15, weight: FontWeight.w700),
+          ),
+          const SizedBox(height: 10),
+          _cashInHandCard(
+            totalPaid,
+            paidCount,
+            outstanding.toDouble(),
+            collectionRate,
+          ),
+          const SizedBox(height: 12),
+          _financialCard(
+            label: 'Budget',
+            value: budgetNum > 0 ? formatTZS(budgetNum) : 'Not set',
+            subtitle: 'Total budget allocated',
+            iconBg: const Color(0xFFDBEAFE),
+            iconColor: const Color(0xFF2563EB),
+            icon: Icons.account_balance_wallet_rounded,
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _financialCard(
+                  label: 'Pledged',
+                  value: formatTZS(totalPledged),
+                  subtitle: '$pledgedCount contributors',
+                  iconBg: const Color(0xFFF3E8FF),
+                  iconColor: const Color(0xFF9333EA),
+                  icon: Icons.people_alt_rounded,
+                ),
+              ),
+              if (budgetNum > 0) ...[
+                const SizedBox(width: 8),
+                Expanded(
+                  child: _financialCard(
+                    label: 'Unpledged',
+                    value: formatTZS(unpledged.toDouble()),
+                    subtitle: 'Budget − pledged',
+                    iconBg: const Color(0xFFFEE2E2),
+                    iconColor: const Color(0xFFDC2626),
+                    icon: Icons.money_off_rounded,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(child: _progressCard()),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _financialCard(
+                  label: 'Guests',
+                  value: '$guestCount',
+                  subtitle: 'of $expectedGuests expected',
+                  iconBg: const Color(0xFFDCFCE7),
+                  iconColor: const Color(0xFF16A34A),
+                  icon: Icons.people_rounded,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
           // ─── Section: Event Overview ───
           Text(
             'Event Overview',
@@ -1048,37 +1147,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
           ),
           const SizedBox(height: 18),
 
-          // ─── Recent Activity ───
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Recent Activity',
-                  style: appText(size: 15, weight: FontWeight.w700),
-                ),
-              ),
-              GestureDetector(
-                onTap: () => _tabCtrl?.animateTo(
-                  _visibleTabs
-                      .indexOf('contributions')
-                      .clamp(0, _visibleTabs.length - 1),
-                ),
-                child: Text(
-                  'View All',
-                  style: appText(
-                    size: 12,
-                    weight: FontWeight.w700,
-                    color: AppColors.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          _recentActivityCard(),
-
           if (description.isNotEmpty) ...[
-            const SizedBox(height: 18),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -1111,73 +1180,6 @@ class _EventDetailScreenState extends State<EventDetailScreen>
             ),
           ],
 
-          // Hidden secondary insights still available below for power users
-          const SizedBox(height: 20),
-          Text(
-            'Financial Overview',
-            style: appText(size: 15, weight: FontWeight.w700),
-          ),
-          const SizedBox(height: 10),
-          _cashInHandCard(
-            totalPaid,
-            paidCount,
-            outstanding.toDouble(),
-            collectionRate,
-          ),
-          const SizedBox(height: 12),
-          _financialCard(
-            label: 'Budget',
-            value: budgetNum > 0 ? formatTZS(budgetNum) : 'Not set',
-            subtitle: 'Total budget allocated',
-            iconBg: const Color(0xFFDBEAFE),
-            iconColor: const Color(0xFF2563EB),
-            icon: Icons.account_balance_wallet_rounded,
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: _financialCard(
-                  label: 'Pledged',
-                  value: formatTZS(totalPledged),
-                  subtitle: '$pledgedCount contributors',
-                  iconBg: const Color(0xFFF3E8FF),
-                  iconColor: const Color(0xFF9333EA),
-                  icon: Icons.people_alt_rounded,
-                ),
-              ),
-              if (budgetNum > 0) ...[
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _financialCard(
-                    label: 'Unpledged',
-                    value: formatTZS(unpledged.toDouble()),
-                    subtitle: 'Budget − pledged',
-                    iconBg: const Color(0xFFFEE2E2),
-                    iconColor: const Color(0xFFDC2626),
-                    icon: Icons.money_off_rounded,
-                  ),
-                ),
-              ],
-            ],
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(child: _progressCard()),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _financialCard(
-                  label: 'Guests',
-                  value: '$guestCount',
-                  subtitle: 'of $expectedGuests expected',
-                  iconBg: const Color(0xFFDCFCE7),
-                  iconColor: const Color(0xFF16A34A),
-                  icon: Icons.people_rounded,
-                ),
-              ),
-            ],
-          ),
           if (_hasVenueCoordinates()) ...[
             const SizedBox(height: 16),
             VenueMapPreview(
@@ -1197,6 +1199,49 @@ class _EventDetailScreenState extends State<EventDetailScreen>
                   : null,
             ),
           ],
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Recent Activity',
+                  style: appText(size: 15, weight: FontWeight.w800),
+                ),
+              ),
+              GestureDetector(
+                onTap: () {
+                  Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => EventActivityScreen(
+                      eventId: widget.eventId,
+                      eventTitle: _event?['title']?.toString(),
+                      eventCover: _event?['cover_image']?.toString(),
+                      eventStatus: _event?['status']?.toString(),
+                    ),
+                  ));
+                },
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'View all',
+                      style: appText(
+                        size: 12,
+                        weight: FontWeight.w800,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    const Icon(Icons.chevron_right_rounded,
+                        size: 18, color: AppColors.primary),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _activityFilterPills(),
+          const SizedBox(height: 12),
+          _recentActivityCard(),
         ],
       ),
     );
@@ -1765,41 +1810,103 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     }
   }
 
+  List<Map<String, dynamic>> get _filteredRecentActivity {
+    if (_activityFilter == 'all') return _recentActivity;
+    return _recentActivity
+        .where((a) => (a['type'] ?? '').toString() == _activityFilter)
+        .toList();
+  }
+
+  Widget _activityFilterPills() {
+    final tabs = const [
+      ('all', 'All', Icons.apps_rounded, null),
+      ('rsvp', 'RSVP', null, 'double-check'),
+      ('ticket', 'Tickets', null, 'ticket'),
+      ('expense', 'Expenses', null, 'report'),
+    ];
+    return SizedBox(
+      height: 36,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: tabs.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final t = tabs[i];
+          final active = _activityFilter == t.$1;
+          return GestureDetector(
+            onTap: () => setState(() => _activityFilter = t.$1),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                color: active ? AppColors.primary.withOpacity(0.10) : Colors.white,
+                borderRadius: BorderRadius.circular(99),
+                border: Border.all(
+                  color: active ? AppColors.primary : AppColors.borderLight,
+                  width: active ? 1.5 : 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (t.$3 != null)
+                    Icon(t.$3, size: 14,
+                        color: active ? AppColors.primary : AppColors.textSecondary)
+                  else
+                    AppIcon(t.$4!, size: 13,
+                        color: active ? AppColors.primary : AppColors.textSecondary),
+                  const SizedBox(width: 6),
+                  Text(t.$2,
+                      style: appText(size: 12, weight: FontWeight.w700,
+                          color: active ? AppColors.primary : AppColors.textPrimary)),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   Widget _recentActivityCard() {
-    if (_recentActivity.isEmpty) {
+    final items = _filteredRecentActivity;
+    if (items.isEmpty) {
       return Container(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 28),
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(color: AppColors.borderLight),
         ),
-        child: Center(
-          child: Text(
-            'No recent activity yet',
-            style: appText(
-              size: 12,
-              color: AppColors.textTertiary,
-              weight: FontWeight.w600,
+        child: Column(
+          children: [
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(
+                color: AppColors.primary.withOpacity(0.10),
+                shape: BoxShape.circle,
+              ),
+              child: const Center(
+                child: AppIcon('thunder', size: 19, color: AppColors.primary),
+              ),
             ),
-          ),
+            const SizedBox(height: 10),
+            Text(
+              _recentActivity.isEmpty
+                  ? 'No recent activity yet'
+                  : 'No activity in this category',
+              style: appText(size: 13, color: AppColors.textPrimary, weight: FontWeight.w700),
+            ),
+          ],
         ),
       );
     }
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.borderLight),
-      ),
-      child: Column(
-        children: [
-          for (int i = 0; i < _recentActivity.length; i++) ...[
-            if (i > 0) Divider(height: 1, color: AppColors.borderLight),
-            _activityRow(_recentActivity[i]),
-          ],
+    return Column(
+      children: [
+        for (final a in items.take(5)) ...[
+          _activityRow(a),
+          const SizedBox(height: 10),
         ],
-      ),
+      ],
     );
   }
 
@@ -1807,64 +1914,120 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     final amount = a['amount'];
     final type = (a['type'] ?? '').toString();
     final subtype = (a['subtype'] ?? '').toString();
-    IconData icon = Icons.bolt_outlined;
+    String icon = 'thunder';
     Color tint = AppColors.primary;
-    if (type == 'contribution') {
-      icon = subtype == 'payment'
-          ? Icons.payments_outlined
-          : Icons.handshake_outlined;
-      tint = subtype == 'payment' ? const Color(0xFF16A34A) : AppColors.primary;
+    Color tintBg = AppColors.primary.withOpacity(0.10);
+    String? badgeText;
+    Color? badgeTint;
+    Color? badgeBg;
+    if (type == 'rsvp') {
+      icon = 'double-check';
+      tint = const Color(0xFF16A34A);
+      tintBg = const Color(0xFFE7F8EE);
+      badgeText = 'RSVP';
+      badgeTint = const Color(0xFF16A34A);
+      badgeBg = const Color(0xFFE7F8EE);
     } else if (type == 'ticket') {
-      icon = Icons.confirmation_number_outlined;
-      tint = AppColors.primary;
+      icon = 'ticket';
+      tint = const Color(0xFFD97706);
+      tintBg = const Color(0xFFFFF7E6);
     } else if (type == 'expense') {
-      icon = Icons.receipt_long_outlined;
+      icon = 'report';
       tint = const Color(0xFFDC2626);
-    } else if (type == 'rsvp') {
-      icon = Icons.check_circle_outline;
-      tint = const Color(0xFF2471E7);
+      tintBg = const Color(0xFFFEF2F2);
+    } else if (type == 'contribution') {
+      icon = subtype == 'payment' ? 'money' : 'donation';
+      tint = const Color(0xFF7C3AED);
+      tintBg = const Color(0xFFF3EBFF);
     }
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+    final time = _shortTime(a['time']?.toString());
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.borderLight),
+      ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 34,
-            height: 34,
-            decoration: BoxDecoration(
-              color: tint.withOpacity(0.10),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, size: 16, color: tint),
+            width: 40, height: 40,
+            decoration: BoxDecoration(color: tintBg, borderRadius: BorderRadius.circular(12)),
+            child: Center(child: AppIcon(icon, size: 18, color: tint)),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   a['title']?.toString() ?? 'Activity',
-                  style: appText(size: 13, weight: FontWeight.w700),
-                  maxLines: 1,
+                  style: appText(size: 13.5, weight: FontWeight.w800, color: AppColors.textPrimary),
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
-                  _relativeTime(a['time']?.toString()),
-                  style: appText(size: 10, color: AppColors.textTertiary),
+                  (a['subtitle']?.toString().isNotEmpty == true)
+                      ? a['subtitle'].toString()
+                      : _relativeTime(a['time']?.toString()),
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: appText(size: 11.5, color: AppColors.textTertiary, weight: FontWeight.w500),
                 ),
               ],
             ),
           ),
-          if (amount != null)
-            Text(
-              '${getActiveCurrency()} ${_compactMoney((amount is num) ? amount.toDouble() : double.tryParse(amount.toString()) ?? 0)}',
-              style: appText(size: 12, weight: FontWeight.w800, color: tint),
-            ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              if (amount != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(color: tintBg, borderRadius: BorderRadius.circular(99)),
+                  child: Text(
+                    '${getActiveCurrency()} ${_compactMoney((amount is num) ? amount.toDouble() : double.tryParse(amount.toString()) ?? 0)}',
+                    style: appText(size: 11, weight: FontWeight.w800, color: tint),
+                  ),
+                )
+              else if (badgeText != null)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(99)),
+                  child: Text(badgeText,
+                      style: appText(size: 11, weight: FontWeight.w800, color: badgeTint!)),
+                ),
+              const SizedBox(height: 6),
+              Text(time,
+                  style: appText(size: 10.5, color: AppColors.textTertiary, weight: FontWeight.w600)),
+            ],
+          ),
         ],
       ),
     );
   }
+
+  String _shortTime(String? iso) {
+    if (iso == null || iso.isEmpty) return '';
+    var s = iso.trim();
+    final hasTz = s.endsWith('Z') || RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(s);
+    if (!hasTz) s = '${s}Z';
+    final dt = DateTime.tryParse(s)?.toLocal();
+    if (dt == null) return '';
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final d = DateTime(dt.year, dt.month, dt.day);
+    final hh = dt.hour.toString().padLeft(2, '0');
+    final mm = dt.minute.toString().padLeft(2, '0');
+    if (d == today) return '$hh:$mm';
+    final diff = today.difference(d).inDays;
+    if (diff == 1) return 'Yesterday';
+    if (diff < 7) return '${diff}d ago';
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${months[dt.month-1]} ${dt.day} • $hh:$mm';
+  }
+
 
   String _relativeTime(String? iso) {
     if (iso == null || iso.isEmpty) return 'Just now';
@@ -1965,7 +2128,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
                 Container(width: 1, height: 36, color: AppColors.border),
                 Expanded(
                   child: _cashStat(
-                    formatTZS(outstanding),
+                    '${getActiveCurrency()} ${_compactMoney(outstanding)}',
                     context.trw('outstanding'),
                   ),
                 ),
@@ -2073,14 +2236,25 @@ class _EventDetailScreenState extends State<EventDetailScreen>
 
   Widget _cashStat(String value, String label) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 6),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Text(value, style: appText(size: 14, weight: FontWeight.w700)),
-          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              maxLines: 1,
+              softWrap: false,
+              style: appText(size: 14, weight: FontWeight.w700),
+            ),
+          ),
+          const SizedBox(height: 4),
           Text(
             label,
-            style: appText(size: 9, color: AppColors.textTertiary),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: appText(size: 9.5, color: AppColors.textTertiary),
             textAlign: TextAlign.center,
           ),
         ],
@@ -2092,8 +2266,9 @@ class _EventDetailScreenState extends State<EventDetailScreen>
     final isPublished = status == 'published' || status == 'confirmed';
     final isCompleted = status == 'completed';
     final isCancelled = status == 'cancelled';
-    Color c = AppColors.textTertiary;
-    Color bg = const Color(0xFFF1F5F9);
+    // Draft / default status uses amber instead of gray so badges stay vibrant.
+    Color c = const Color(0xFFB45309);
+    Color bg = const Color(0xFFFEF3C7);
     if (isPublished) {
       c = const Color(0xFF15803D);
       bg = const Color(0xFFDCFCE7);
@@ -2178,6 +2353,7 @@ class _EventDetailScreenState extends State<EventDetailScreen>
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (ctx) => SafeArea(
         child: SingleChildScrollView(
           child: Column(

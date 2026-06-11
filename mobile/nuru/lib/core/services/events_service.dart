@@ -544,6 +544,11 @@ class EventsService {
     String eventId,
     Map<String, dynamic> data,
   ) => EventFinanceService.addBudgetItem(eventId, data);
+  static Future<Map<String, dynamic>> updateBudgetItem(
+    String eventId,
+    String itemId,
+    Map<String, dynamic> data,
+  ) => EventFinanceService.updateBudgetItem(eventId, itemId, data);
   static Future<Map<String, dynamic>> deleteBudgetItem(
     String eventId,
     String itemId,

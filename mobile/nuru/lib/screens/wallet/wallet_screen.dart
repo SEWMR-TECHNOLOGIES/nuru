@@ -96,26 +96,35 @@ class _WalletScreenState extends State<WalletScreen>
         builder: (context, p, _) {
           return NuruRefreshIndicator(
             onRefresh: p.refresh,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const MigrationBanner(
-                  surface: MigrationSurface.wallet,
-                  margin: EdgeInsets.only(bottom: 12),
-                ),
-                _BalanceHero(
-                  provider: p,
-                  onTopUp: _openTopUp,
-                  onPay: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const BookingsScreen()),
+                // Static (non-scrolling) header — like event detail page.
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const MigrationBanner(
+                        surface: MigrationSurface.wallet,
+                        margin: EdgeInsets.only(bottom: 12),
+                      ),
+                      _BalanceHero(
+                        provider: p,
+                        onTopUp: _openTopUp,
+                        onPay: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const BookingsScreen()),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+                      _ActivityTabs(controller: _tabs),
+                      const SizedBox(height: 8),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 18),
-                _ActivityTabs(controller: _tabs),
-                const SizedBox(height: 8),
-                SizedBox(
-                  height: 480,
+                // Each tab scrolls itself, matching event detail behaviour.
+                Expanded(
                   child: TabBarView(
                     controller: _tabs,
                     children: [

@@ -87,14 +87,14 @@ class SocialService {
     }
   }
 
-  /// GET /moments/public/trending — trending reels for the rail.
+  /// GET /moments/public/trending — trending glimpses for the rail.
   static Future<Map<String, dynamic>> getTrendingMoments({int limit = 12}) async {
     try {
       final uri = Uri.parse('$_baseUrl/moments/public/trending?limit=$limit');
       final res = await http.get(uri, headers: await _headers());
       return jsonDecode(res.body);
     } catch (e) {
-      return {'success': false, 'message': 'Unable to fetch trending reels', 'data': null};
+      return {'success': false, 'message': 'Unable to fetch trending glimpses', 'data': null};
     }
   }
 

@@ -42,7 +42,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
     'accepted': AppColors.success,
     'rejected': AppColors.error,
     'completed': AppColors.blue,
-    'cancelled': AppColors.textTertiary,
+    'cancelled': AppColors.error,
   };
 
   @override
@@ -293,7 +293,7 @@ class _BookingDetailScreenState extends State<BookingDetailScreen> {
 
   Widget _statusBadge() {
     final status = (_booking?['status']?.toString() ?? 'pending').toLowerCase();
-    final color = _statusColor[status] ?? AppColors.textTertiary;
+    final color = _statusColor[status] ?? AppColors.blue;
     final id = _booking?['id']?.toString() ?? '';
     final shortId = id.length >= 8 ? id.substring(0, 8) : id;
     return Container(

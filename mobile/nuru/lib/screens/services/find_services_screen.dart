@@ -10,6 +10,7 @@ import 'public_service_screen.dart';
 import '../../core/widgets/nuru_refresh.dart';
 import '../../core/widgets/nuru_loader.dart';
 import '../../core/widgets/nuru_skeleton.dart';
+import '../../core/widgets/nuru_search_bar.dart';
 
 class FindServicesScreen extends StatefulWidget {
   /// When true, the screen opens already filtered to the user's saved vendors.
@@ -189,43 +190,13 @@ class _FindServicesScreenState extends State<FindServicesScreen> {
   Widget _searchBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-       child: Container(
-        height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: 18),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: const Color(0xFFEDEDEF), width: 1),
-        ),
-        child: Row(children: [
-          const Icon(Icons.search_rounded, size: 20, color: Color(0xFF8E8E93)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: TextField(
-              controller: _searchCtrl,
-              cursorColor: Colors.black,
-              textAlignVertical: TextAlignVertical.center,
-              style: _f(size: 14, color: Colors.black),
-              decoration: InputDecoration(
-                isDense: true,
-                filled: false,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                disabledBorder: InputBorder.none,
-                errorBorder: InputBorder.none,
-                focusedErrorBorder: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                hintText: 'Search vendors or services',
-                hintStyle: _f(size: 14, weight: FontWeight.w400, color: const Color(0xFF9E9E9E)),
-              ),
-              onSubmitted: (q) {
-                setState(() => _searchQuery = q);
-                _load();
-              },
-            ),
-          ),
-        ]),
+      child: NuruSearchBar(
+        controller: _searchCtrl,
+        hintText: 'Search vendors or services',
+        onChanged: (q) {
+          setState(() => _searchQuery = q);
+          _load();
+        },
       ),
     );
   }

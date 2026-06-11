@@ -1,4 +1,5 @@
 import '../../../core/widgets/nuru_refresh_indicator.dart';
+import '../../../core/widgets/nuru_search_bar.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -192,27 +193,10 @@ class _ScoreboardPanelState extends State<ScoreboardPanel> {
           // ─── Search + filter pills (one row, events-style search) ───
           Row(children: [
             Expanded(
-              child: TextField(
+              child: NuruSearchBar(
+                hintText: 'Search contributors...',
+                debounce: const Duration(milliseconds: 200),
                 onChanged: (v) => setState(() => _search = v),
-                style: GoogleFonts.inter(fontSize: 12, color: AppColors.textPrimary),
-                decoration: InputDecoration(
-                  isDense: true,
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide(color: AppColors.border, width: 1)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide(color: AppColors.border, width: 1)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(24), borderSide: BorderSide(color: AppColors.primary, width: 1)),
-                  hintText: 'Search contributors...',
-                  hintStyle: GoogleFonts.inter(color: AppColors.textHint, fontSize: 11.5),
-                  prefixIcon: Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: SvgPicture.asset('assets/icons/search-icon.svg',
-                        width: 14, height: 14,
-                        colorFilter: ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
-                  ),
-                  prefixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 14),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                ),
               ),
             ),
             const SizedBox(width: 6),

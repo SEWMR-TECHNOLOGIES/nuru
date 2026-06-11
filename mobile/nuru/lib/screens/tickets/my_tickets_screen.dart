@@ -14,6 +14,7 @@ import 'widgets/my_ticket_payments_tab.dart';
 import 'widgets/my_reservations_section.dart';
 import 'ticket_details_screen.dart';
 import 'browse_tickets_screen.dart';
+import '../../core/widgets/nuru_search_bar.dart';
 
 /// My Tickets — premium redesign matching the mobile mockup.
 /// App bar mirrors the home page (logo + bell). Tabs: Upcoming / Past / Cancelled / Payments.
@@ -335,48 +336,11 @@ class MyTicketsScreenState extends State<MyTicketsScreen> {
   Widget _buildSearchBar() {
     return Row(children: [
       Expanded(
-        child: Container(
-          height: 44,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(28),
-            border: Border.all(color: const Color(0xFFEDEDEF), width: 1),
-          ),
-          child: Row(children: [
-            const Icon(Icons.search_rounded, size: 18, color: Color(0xFF8E8E93)),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextField(
-                controller: _searchCtl,
-                cursorColor: Colors.black,
-                textAlignVertical: TextAlignVertical.center,
-                style: GoogleFonts.inter(fontSize: 14, color: Colors.black),
-                decoration: InputDecoration(
-                  isDense: true,
-                  filled: false,
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  disabledBorder: InputBorder.none,
-                  errorBorder: InputBorder.none,
-                  focusedErrorBorder: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                  hintText: 'Search tickets…',
-                  hintStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w400, color: const Color(0xFF9E9E9E)),
-                ),
-                onChanged: (v) => setState(() => _search = v),
-              ),
-            ),
-            if (_searchCtl.text.isNotEmpty)
-              GestureDetector(
-                onTap: () {
-                  _searchCtl.clear();
-                  setState(() => _search = '');
-                },
-                child: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF8E8E93)),
-              ),
-          ]),
+        child: NuruSearchBar(
+          controller: _searchCtl,
+          hintText: 'Search tickets…',
+          debounce: const Duration(milliseconds: 200),
+          onChanged: (v) => setState(() => _search = v),
         ),
       ),
       const SizedBox(width: 10),
@@ -408,7 +372,8 @@ class MyTicketsScreenState extends State<MyTicketsScreen> {
     final checkedIn = t['checked_in'] == true;
     final quantity = t['quantity'] ?? 1;
     final totalAmount = t['total_amount'];
-    final currency = t['currency']?.toString() ?? getActiveCurrency();
+    // Active currency wins so KE accounts never see a stale TZS on legacy rows.
+    final currency = getActiveCurrency();
     DateTime? d;
     try { d = DateTime.parse(event['start_date']?.toString() ?? ''); } catch (_) {}
     final time = (event['start_time']?.toString() ?? '');
@@ -539,7 +504,7 @@ class MyTicketsScreenState extends State<MyTicketsScreen> {
       case 'pending':   bg = const Color(0x1AFECA08); fg = const Color(0xFFB45309); break;
       case 'cancelled':
       case 'rejected':  bg = const Color(0x14DC2626); fg = AppColors.error; break;
-      default:          bg = const Color(0xFFF1F1F4); fg = AppColors.textTertiary;
+      default:          bg = const Color(0x142471E7); fg = AppColors.blue;
     }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -551,18 +516,18 @@ class MyTicketsScreenState extends State<MyTicketsScreen> {
   Widget _usedBadge() => Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          color: const Color(0xFFF1F1F4),
+          color: AppColors.successSoft,
           borderRadius: BorderRadius.circular(6),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           const Icon(Icons.check_circle_rounded,
-              size: 11, color: AppColors.textSecondary),
+              size: 11, color: AppColors.success),
           const SizedBox(width: 4),
           Text('USED',
               style: GoogleFonts.inter(
                   fontSize: 9.5,
                   fontWeight: FontWeight.w700,
-                  color: AppColors.textSecondary,
+                  color: AppColors.success,
                   letterSpacing: 0.6)),
         ]),
       );

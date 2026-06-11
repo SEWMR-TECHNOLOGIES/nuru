@@ -2,9 +2,11 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:open_filex/open_filex.dart';
 import '../../../core/widgets/nuru_refresh_indicator.dart';
 import '../../../core/widgets/app_icon.dart';
 import '../../../core/widgets/self_scrolling_pills.dart';
+import '../../../core/widgets/nuru_search_bar.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/text_styles.dart';
 import '../../../core/services/events_service.dart';
@@ -24,7 +26,9 @@ class EventRsvpTab extends StatefulWidget {
 }
 
 class _EventRsvpTabState extends State<EventRsvpTab> with AutomaticKeepAliveClientMixin {
-  List<dynamic> _guests = [];
+  /// Master list — fetched once. All filtering/search is client-side so the
+  /// tabs respond instantly without hitting the backend on every tap.
+  List<dynamic> _allGuests = [];
   Map<String, dynamic> _summary = {};
   bool _loading = true;
   bool _generating = false;
@@ -42,20 +46,48 @@ class _EventRsvpTabState extends State<EventRsvpTab> with AutomaticKeepAliveClie
 
   Future<void> _load({bool background = false}) async {
     if (!background) setState(() => _loading = true);
-    final res = await EventsService.getGuests(
-      widget.eventId,
-      rsvpStatus: _filter == 'all' ? null : _filter,
-      search: _searchCtrl.text.trim().isEmpty ? null : _searchCtrl.text.trim(),
-    );
+    // Fetch every guest in one shot (paginate server-side) — filtering &
+    // searching then happen instantly on the client.
+    final List<dynamic> all = [];
+    Map<String, dynamic> summary = {};
+    int page = 1;
+    while (true) {
+      final res = await EventsService.getGuests(widget.eventId,
+          page: page, limit: 200);
+      if (res['success'] != true) break;
+      final data = res['data'];
+      final list = (data?['guests'] as List?) ?? const [];
+      all.addAll(list);
+      if (page == 1) {
+        summary = (data?['summary'] as Map?)?.cast<String, dynamic>() ?? {};
+      }
+      final pagination = (data?['pagination'] as Map?) ?? const {};
+      final totalPages = (pagination['total_pages'] ?? pagination['totalPages'] ?? 1) as int;
+      if (list.isEmpty || page >= totalPages) break;
+      page++;
+      if (page > 200) break; // safety
+    }
     if (!mounted) return;
     setState(() {
       _loading = false;
-      if (res['success'] == true) {
-        final data = res['data'];
-        _guests = (data?['guests'] as List?) ?? [];
-        _summary = (data?['summary'] as Map?)?.cast<String, dynamic>() ?? {};
-      }
+      _allGuests = all;
+      if (summary.isNotEmpty) _summary = summary;
     });
+  }
+
+  /// Client-side filter + search applied to [_allGuests].
+  List<dynamic> get _guests {
+    final q = _searchCtrl.text.trim().toLowerCase();
+    return _allGuests.where((g) {
+      if (g is! Map) return false;
+      final status = (g['rsvp_status'] ?? 'pending').toString();
+      if (_filter != 'all' && status != _filter) return false;
+      if (q.isEmpty) return true;
+      final hay = [
+        g['name'], g['full_name'], g['phone'], g['phone_number'], g['email'],
+      ].whereType<Object>().map((e) => e.toString().toLowerCase()).join(' ');
+      return hay.contains(q);
+    }).toList();
   }
 
   @override
@@ -205,45 +237,12 @@ class _EventRsvpTabState extends State<EventRsvpTab> with AutomaticKeepAliveClie
   );
 
   // ─── search (matches conversations search style) ───────────────
-  Widget _searchField() => Container(
-    height: 48,
-    padding: const EdgeInsets.symmetric(horizontal: 18),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(28),
-      border: Border.all(color: const Color(0xFFEDEDEF), width: 1),
-    ),
-    child: Row(children: [
-      const Icon(Icons.search_rounded, size: 20, color: Color(0xFF8E8E93)),
-      const SizedBox(width: 12),
-      Expanded(
-        child: TextField(
-          controller: _searchCtrl,
-          onChanged: (_) => _load(background: true),
-          cursorColor: Colors.black,
-          textAlignVertical: TextAlignVertical.center,
-          style: GoogleFonts.inter(fontSize: 14, color: Colors.black),
-          decoration: InputDecoration(
-            isDense: true,
-            filled: false,
-            border: InputBorder.none,
-            enabledBorder: InputBorder.none,
-            focusedBorder: InputBorder.none,
-            disabledBorder: InputBorder.none,
-            errorBorder: InputBorder.none,
-            focusedErrorBorder: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(vertical: 14),
-            hintText: 'Search by name or phone',
-            hintStyle: GoogleFonts.inter(
-              fontSize: 14,
-              fontWeight: FontWeight.w400,
-              color: const Color(0xFF9E9E9E),
-            ),
-          ),
-        ),
-      ),
-    ]),
-  );
+      Widget _searchField() => NuruSearchBar(
+        controller: _searchCtrl,
+        hintText: 'Search by name or phone',
+        debounce: const Duration(milliseconds: 300),
+        onChanged: (_) => setState(() {}),
+      );
 
   // ─── filter pills — self-scrolls active into view ─────────────
   Widget _filterStrip() {
@@ -267,7 +266,7 @@ class _EventRsvpTabState extends State<EventRsvpTab> with AutomaticKeepAliveClie
   Widget _pill(String label, String value, Color? dot) {
     final active = _filter == value;
     return GestureDetector(
-      onTap: () { setState(() => _filter = value); _load(background: true); },
+      onTap: () => setState(() => _filter = value),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
@@ -404,7 +403,7 @@ class _EventRsvpTabState extends State<EventRsvpTab> with AutomaticKeepAliveClie
   );
 
   Widget _reportButton() => GestureDetector(
-    onTap: _generating ? null : _generateReport,
+    onTap: _generating ? null : _showReportOptions,
     child: Container(
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
       decoration: BoxDecoration(
@@ -422,7 +421,7 @@ class _EventRsvpTabState extends State<EventRsvpTab> with AutomaticKeepAliveClie
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
           Text('RSVP report', style: appText(size: 13, weight: FontWeight.w700)),
           const SizedBox(height: 2),
-          Text('Download a printable PDF of all responses',
+          Text('Download as PDF or Excel for sharing',
               style: appText(size: 11, color: AppColors.textTertiary)),
         ])),
         if (_generating)
@@ -440,6 +439,55 @@ class _EventRsvpTabState extends State<EventRsvpTab> with AutomaticKeepAliveClie
       width: w, height: h,
       decoration: BoxDecoration(color: const Color(0xFFF1F1F4), borderRadius: BorderRadius.circular(r)),
     );
+    Widget responseCard() => Container(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+            bar(96, 12, r: 4),
+            const SizedBox(height: 8),
+            Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              bar(58, 34, r: 6),
+              const SizedBox(width: 8),
+              Padding(padding: const EdgeInsets.only(bottom: 4), child: bar(58, 12, r: 4)),
+            ]),
+          ])),
+          SizedBox(
+            width: 64, height: 64,
+            child: Stack(alignment: Alignment.center, children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: const Color(0xFFF1F1F4), width: 6)),
+              ),
+              bar(22, 22, r: 6),
+            ]),
+          ),
+        ]),
+        const SizedBox(height: 18),
+        Row(children: List.generate(4, (i) => Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(right: i == 3 ? 0 : 8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+              decoration: BoxDecoration(color: const Color(0xFFF1F1F4), borderRadius: BorderRadius.circular(14)),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                bar(16, 16, r: 5),
+                const SizedBox(height: 6),
+                bar(24, 16, r: 4),
+                const SizedBox(height: 4),
+                bar(46, 10, r: 4),
+              ]),
+            ),
+          ),
+        ))),
+      ]),
+    );
     Widget tile() => Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(14),
@@ -453,35 +501,99 @@ class _EventRsvpTabState extends State<EventRsvpTab> with AutomaticKeepAliveClie
       ]),
     );
     return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 32), children: [
-      Container(height: 196, decoration: BoxDecoration(color: const Color(0xFFF1F1F4), borderRadius: BorderRadius.circular(22))),
+      responseCard(),
       const SizedBox(height: 14),
       Row(children: [Expanded(child: bar(double.infinity, 56, r: 14)), const SizedBox(width: 10), Expanded(child: bar(double.infinity, 56, r: 14))]),
       const SizedBox(height: 14),
       bar(double.infinity, 46, r: 14),
       const SizedBox(height: 12),
-      SizedBox(height: 34, child: Row(children: List.generate(5, (_) => Padding(padding: const EdgeInsets.only(right: 8), child: bar(80, 30, r: 999))))),
+      SizedBox(
+        height: 34,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const NeverScrollableScrollPhysics(),
+          child: Row(children: List.generate(5, (_) => Padding(padding: const EdgeInsets.only(right: 8), child: bar(80, 30, r: 999)))),
+        ),
+      ),
       const SizedBox(height: 14),
       ...List.generate(5, (_) => tile()),
     ]);
   }
 
-  Future<void> _generateReport() async {
+  void _showReportOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Center(child: Container(width: 40, height: 4,
+              decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
+          const SizedBox(height: 16),
+          Text('Download RSVP Report', style: appText(size: 18, weight: FontWeight.w700)),
+          const SizedBox(height: 16),
+          Row(children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () { Navigator.pop(ctx); _generateReport('pdf'); },
+                icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
+                label: Text('PDF', style: appText(size: 13, weight: FontWeight.w600)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.error,
+                  side: const BorderSide(color: AppColors.error),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () { Navigator.pop(ctx); _generateReport('xlsx'); },
+                icon: const Icon(Icons.table_chart_rounded, size: 16),
+                label: Text('Excel', style: appText(size: 13, weight: FontWeight.w600)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.accent,
+                  side: const BorderSide(color: AppColors.accent),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 12),
+        ]),
+      ),
+    );
+  }
+
+  Future<void> _generateReport(String format) async {
     setState(() => _generating = true);
+    AppSnackbar.success(context, 'Generating ${format == 'xlsx' ? 'Excel' : 'PDF'} report...');
+    // We already hold every guest in memory — feed them straight to the report.
     final res = await ReportGenerator.generateRsvpReport(
       widget.eventId,
-      format: 'pdf',
-      guests: _guests,
+      format: format,
+      guests: _allGuests.isNotEmpty ? _allGuests : _guests,
     );
     if (!mounted) return;
     setState(() => _generating = false);
-    if (res['success'] == true && res['bytes'] != null) {
-      Navigator.push(context, MaterialPageRoute(
-        builder: (_) => ReportPreviewScreen(
-          title: 'RSVP Report',
-          pdfBytes: res['bytes'] as Uint8List,
-          filePath: res['path'] as String?,
-        ),
-      ));
+    if (res['success'] == true) {
+      if (format == 'pdf' && res['bytes'] != null) {
+        Navigator.push(context, MaterialPageRoute(
+          builder: (_) => ReportPreviewScreen(
+            title: 'RSVP Report',
+            pdfBytes: res['bytes'] as Uint8List,
+            filePath: res['path'] as String?,
+          ),
+        ));
+      } else if (res['path'] != null) {
+        await OpenFilex.open(res['path'] as String);
+        if (mounted) AppSnackbar.success(context, 'Report opened');
+      }
     } else {
       AppSnackbar.error(context, res['message']?.toString() ?? "We couldn't generate the report");
     }

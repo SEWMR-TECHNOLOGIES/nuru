@@ -7,10 +7,10 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/services/social_service.dart';
 import '../../../core/widgets/video_thumbnail_image.dart';
 import '../../../providers/auth_provider.dart';
-import 'reel_viewer_screen.dart';
+import 'glimpse_viewer_screen.dart';
 
-/// Horizontal "Trending now" rail surfacing the most recent community **reels**
-/// (the same items that power the Reels circles). Tapping opens the reel in
+/// Horizontal "Trending now" rail surfacing the most recent community **glimpses**
+/// (the same items that power the Glimpses circles). Tapping opens the glimpse in
 /// the full-screen viewer.
 class TrendingRail extends StatefulWidget {
   const TrendingRail({super.key});
@@ -62,7 +62,7 @@ class _TrendingRailState extends State<TrendingRail> {
     return AppColors.primary;
   }
 
-  void _openReel(int index) {
+  void _openGlimpse(int index) {
     // Wrap each trending moment as a single-author group for the viewer.
     final groups = _moments.map((m) {
       final mm = m is Map ? m : const {};
@@ -80,7 +80,7 @@ class _TrendingRailState extends State<TrendingRail> {
       };
     }).toList();
     Navigator.of(context).push(MaterialPageRoute(
-      builder: (_) => ReelViewerScreen(reels: groups, initialAuthorIndex: index),
+      builder: (_) => GlimpseViewerScreen(glimpses: groups, initialAuthorIndex: index),
       fullscreenDialog: true,
     ));
   }
@@ -103,7 +103,7 @@ class _TrendingRailState extends State<TrendingRail> {
                   decoration: const BoxDecoration(color: AppColors.primary, shape: BoxShape.circle),
                 ),
                 const SizedBox(width: 8),
-                Text('Trending Reels',
+                Text('Trending Glimpses',
                     style: GoogleFonts.inter(
                         fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textPrimary, letterSpacing: 0.2)),
               ],
@@ -135,7 +135,7 @@ class _TrendingRailState extends State<TrendingRail> {
                     RegExp(r'\.(mp4|mov|webm|avi)(\?|$)', caseSensitive: false).hasMatch(media);
 
                 return GestureDetector(
-                  onTap: () => _openReel(i),
+                  onTap: () => _openGlimpse(i),
                   child: Container(
                     width: 124,
                     decoration: BoxDecoration(

@@ -24,6 +24,7 @@ class AgreementGate {
       final accepted = await showModalBottomSheet<bool>(
         context: context,
         isScrollControlled: true,
+        useSafeArea: true,
         backgroundColor: Colors.transparent,
         builder: (ctx) => _AgreementSheet(
           agreementType: agreementType,

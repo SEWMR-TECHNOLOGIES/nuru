@@ -94,6 +94,7 @@ class _MeetingDocumentsScreenState extends State<MeetingDocumentsScreen> with Si
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         final theme = Theme.of(ctx);

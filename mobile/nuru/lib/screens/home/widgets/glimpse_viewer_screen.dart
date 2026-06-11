@@ -1,0 +1,860 @@
+import 'dart:io';
+import 'dart:ui' as ui;
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:video_player/video_player.dart';
+import '../../../core/services/moments_service.dart';
+import '../../../core/theme/app_colors.dart';
+
+/// Full-screen glimpses viewer. Tap left/right to navigate, swipe down to close.
+/// Auto-advances after 5s for text/image. Marks each moment as seen.
+class GlimpseViewerScreen extends StatefulWidget {
+  /// All grouped glimpses from the home feed.
+  final List<dynamic> glimpses;
+  final int initialAuthorIndex;
+  const GlimpseViewerScreen({
+    super.key,
+    required this.glimpses,
+    required this.initialAuthorIndex,
+  });
+
+  @override
+  State<GlimpseViewerScreen> createState() => _GlimpseViewerScreenState();
+}
+
+class _GlimpseViewerScreenState extends State<GlimpseViewerScreen>
+    with SingleTickerProviderStateMixin {
+  late int _authorIdx;
+  int _momentIdx = 0;
+  VideoPlayerController? _vc;
+  late final AnimationController _progress;
+  static const _defaultDuration = Duration(seconds: 5);
+
+  @override
+  void initState() {
+    super.initState();
+    _authorIdx = widget.initialAuthorIndex;
+    _progress = AnimationController(vsync: this, duration: _defaultDuration)
+      ..addStatusListener((status) {
+        if (status == AnimationStatus.completed) _next();
+      });
+    _start();
+  }
+
+  @override
+  void dispose() {
+    _progress.dispose();
+    _vc?.dispose();
+    super.dispose();
+  }
+
+  Map get _author => (widget.glimpses[_authorIdx] as Map);
+  List get _moments => (_author['moments'] as List? ?? const []);
+  Map get _moment => _moments[_momentIdx] as Map;
+
+  Future<void> _start() async {
+    _progress.stop();
+    _progress.value = 0;
+    _vc?.dispose();
+    _vc = null;
+    if (mounted) setState(() {});
+    final id = _moment['id']?.toString();
+    if (id != null) {
+      MomentsService.markSeen(id);
+      _loadViewers(id);
+    }
+
+    final type = _moment['content_type']?.toString() ?? 'image';
+    final url = _moment['media_url']?.toString() ?? '';
+    if (type == 'video' && url.isNotEmpty) {
+      try {
+        final file = await DefaultCacheManager().getSingleFile(url);
+        if (!mounted) return;
+        final c = VideoPlayerController.file(File(file.path));
+        _vc = c;
+        await c.initialize();
+        if (!mounted || _vc != c) return;
+        c.setLooping(false);
+        c.play();
+        _progress.duration = c.value.duration > Duration.zero
+            ? c.value.duration
+            : _defaultDuration;
+        _progress.forward(from: 0);
+        setState(() {});
+      } catch (_) {
+        _progress.duration = _defaultDuration;
+        _progress.forward(from: 0);
+      }
+    } else {
+      _progress.duration = _defaultDuration;
+      _progress.forward(from: 0);
+    }
+  }
+
+  // ── Viewers (WhatsApp-style "Seen by" for the author's own glimpse) ──
+  List<Map<String, dynamic>> _viewers = const [];
+  bool _viewersLoading = false;
+  String? _viewersForMomentId;
+
+  bool get _isOwnGlimpse => (_author['user'] is Map) && (_author['user']['is_self'] == true);
+
+  Future<void> _loadViewers(String momentId) async {
+    if (!_isOwnGlimpse) return;
+    setState(() {
+      _viewersLoading = true;
+      _viewersForMomentId = momentId;
+      _viewers = const [];
+    });
+    final res = await MomentsService.getViewers(momentId);
+    if (!mounted || _viewersForMomentId != momentId) return;
+    final data = res['data'];
+    setState(() {
+      _viewers = data is List
+          ? data.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+          : const [];
+      _viewersLoading = false;
+    });
+  }
+
+  void _openViewersSheet() {
+    _progress.stop();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: true,
+      useSafeArea: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (_) => _ViewersSheet(viewers: _viewers, loading: _viewersLoading),
+    ).whenComplete(() {
+      if (mounted) _progress.forward();
+    });
+  }
+
+  void _next() {
+    if (_momentIdx < _moments.length - 1) {
+      setState(() => _momentIdx++);
+      _start();
+    } else if (_authorIdx < widget.glimpses.length - 1) {
+      setState(() {
+        _authorIdx++;
+        _momentIdx = 0;
+      });
+      _start();
+    } else {
+      Navigator.of(context).pop();
+    }
+  }
+
+  void _prev() {
+    if (_momentIdx > 0) {
+      setState(() => _momentIdx--);
+      _start();
+    } else if (_authorIdx > 0) {
+      setState(() {
+        _authorIdx--;
+        _momentIdx = (widget.glimpses[_authorIdx] as Map)['moments'].length - 1;
+      });
+      _start();
+    }
+  }
+
+  /// WhatsApp-style relative timestamp using the device's local time.
+  /// "Today, 14:32" / "Yesterday, 09:05" / "Mon, 09:05" / "12 Mar, 09:05".
+  String _formatPostedAt(String? iso) {
+    if (iso == null || iso.isEmpty) return '';
+    DateTime? dt;
+    try {
+      dt = DateTime.parse(iso);
+    } catch (_) {
+      return '';
+    }
+    final local = dt.isUtc ? dt.toLocal() : dt;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final that = DateTime(local.year, local.month, local.day);
+    final diffDays = today.difference(that).inDays;
+    final hh = local.hour.toString().padLeft(2, '0');
+    final mm = local.minute.toString().padLeft(2, '0');
+    if (diffDays == 0) return 'Today, $hh:$mm';
+    if (diffDays == 1) return 'Yesterday, $hh:$mm';
+    if (diffDays > 1 && diffDays < 7) {
+      const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      return '${days[local.weekday - 1]}, $hh:$mm';
+    }
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return '${local.day} ${months[local.month - 1]}, $hh:$mm';
+  }
+
+
+  @override
+  Widget build(BuildContext context) {
+    final user = (_author['user'] as Map? ?? const {});
+    final m = _moment;
+    final type = m['content_type']?.toString() ?? 'image';
+    final mediaUrl = m['media_url']?.toString() ?? '';
+    final caption = m['content']?.toString() ?? m['caption']?.toString() ?? '';
+
+    String? bg;
+    String? imageUrl;
+    if (type == 'text') {
+      // Backend stores text bg as "text:#RRGGBB"
+      if (mediaUrl.startsWith('text:')) {
+        bg = mediaUrl.substring(5);
+      } else {
+        bg = m['background_color']?.toString();
+      }
+    } else {
+      imageUrl = mediaUrl;
+    }
+
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: GestureDetector(
+        onVerticalDragEnd: (d) {
+          if ((d.primaryVelocity ?? 0) > 200) Navigator.of(context).pop();
+        },
+        onTapUp: (d) {
+          final w = MediaQuery.of(context).size.width;
+          if (d.globalPosition.dx < w / 3) {
+            _prev();
+          } else {
+            _next();
+          }
+        },
+        child: Stack(
+          children: [
+            Positioned.fill(child: _canvas(type, bg, imageUrl, caption)),
+            // Progress bars
+            Positioned(
+              top: MediaQuery.of(context).padding.top + 8,
+              left: 12,
+              right: 12,
+              child: Column(
+                children: [
+                  Row(
+                    children: List.generate(_moments.length, (i) {
+                      return Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(2),
+                            child: Container(
+                              height: 2.5,
+                              color: Colors.white24,
+                              alignment: Alignment.centerLeft,
+                              child: i < _momentIdx
+                                  ? Container(color: Colors.white)
+                                  : i == _momentIdx
+                                      ? AnimatedBuilder(
+                                          animation: _progress,
+                                          builder: (_, __) => FractionallySizedBox(
+                                            widthFactor: _progress.value.clamp(0.0, 1.0),
+                                            child: Container(color: Colors.white),
+                                          ),
+                                        )
+                                      : const SizedBox.shrink(),
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      _Avatar(name: user['name']?.toString() ?? '', url: user['avatar']?.toString()),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              user['is_self'] == true
+                                  ? 'My Glimpse'
+                                  : (user['name']?.toString() ?? 'Unknown'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: GoogleFonts.inter(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                            if (_formatPostedAt(_moment['created_at']?.toString()).isNotEmpty)
+                              Text(
+                                _formatPostedAt(_moment['created_at']?.toString()),
+                                style: GoogleFonts.inter(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w400,
+                                  color: Colors.white.withOpacity(0.75),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () => Navigator.of(context).pop(),
+                        child: Container(
+                          width: 38,
+                          height: 38,
+                          alignment: Alignment.center,
+                          child: SvgPicture.asset(
+                            'assets/icons/close-icon.svg',
+                            width: 18,
+                            height: 18,
+                            colorFilter: const ColorFilter.mode(
+                                Colors.white, BlendMode.srcIn),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                ],
+              ),
+            ),
+            // Premium caption block for media moments
+            if (type != 'text' && caption.isNotEmpty)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: _isOwnGlimpse ? 64 : 0,
+                child: _CaptionBlock(caption: caption),
+              ),
+            if (_isOwnGlimpse)
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 0,
+                child: SafeArea(
+                  top: false,
+                  child: _SeenByBar(
+                    viewers: _viewers,
+                    loading: _viewersLoading,
+                    onTap: _openViewersSheet,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _canvas(String type, String? bg, String? imageUrl, String caption) {
+    if (type == 'text') {
+      Color color = AppColors.primary;
+      if (bg != null && bg.startsWith('#') && bg.length == 7) {
+        color = Color(int.parse('FF${bg.substring(1)}', radix: 16));
+      }
+      final l =
+          (0.299 * color.red + 0.587 * color.green + 0.114 * color.blue) / 255;
+      final fg = l > 0.65 ? const Color(0xFF111111) : Colors.white;
+      return Container(
+        color: color,
+        padding: const EdgeInsets.all(28),
+        alignment: Alignment.center,
+        child: Text(
+          caption,
+          textAlign: TextAlign.center,
+          style: GoogleFonts.sora(
+            color: fg,
+            fontSize: 28,
+            fontWeight: FontWeight.w700,
+            height: 1.4,
+          ),
+        ),
+      );
+    }
+    if (type == 'video') {
+      final c = _vc;
+      if (c != null && c.value.isInitialized) {
+        return Container(
+          color: Colors.black,
+          alignment: Alignment.center,
+          child: AspectRatio(
+            aspectRatio: c.value.aspectRatio,
+            child: VideoPlayer(c),
+          ),
+        );
+      }
+      return Container(
+        color: Colors.black,
+        alignment: Alignment.center,
+        child: const SizedBox(
+          width: 36,
+          height: 36,
+          child: CircularProgressIndicator(
+              strokeWidth: 2.5, color: Colors.white70),
+        ),
+      );
+    }
+    if (imageUrl != null && imageUrl.isNotEmpty) {
+      // Show full image (BoxFit.contain) over a blurred copy of itself so
+      // portrait/landscape photos are never cropped or zoomed.
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          // Blurred backdrop to fill the dead space around the contained image.
+          CachedNetworkImage(
+            imageUrl: imageUrl,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            placeholder: (_, __) => Container(color: Colors.black),
+            errorWidget: (_, __, ___) => Container(color: Colors.black),
+          ),
+          BackdropFilter(
+            filter: ui.ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+            child: Container(color: Colors.black.withOpacity(0.55)),
+          ),
+          Center(
+            child: CachedNetworkImage(
+              imageUrl: imageUrl,
+              fit: BoxFit.contain,
+              width: double.infinity,
+              height: double.infinity,
+              placeholder: (_, __) => const SizedBox.shrink(),
+              errorWidget: (_, __, ___) => const Center(
+                child: Icon(Icons.broken_image_outlined,
+                    color: Colors.white54, size: 48),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+    return const SizedBox.shrink();
+  }
+}
+
+/// Premium caption block shown at the bottom of media glimpses. Includes a
+/// gradient scrim, expandable text, and a subtle glass background so the
+/// caption is always legible regardless of the underlying media.
+class _CaptionBlock extends StatefulWidget {
+  final String caption;
+  const _CaptionBlock({required this.caption});
+
+  @override
+  State<_CaptionBlock> createState() => _CaptionBlockState();
+}
+
+class _CaptionBlockState extends State<_CaptionBlock> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isLong = widget.caption.length > 110;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: isLong ? () => setState(() => _expanded = !_expanded) : null,
+      child: Container(
+        padding: EdgeInsets.fromLTRB(
+            18, 28, 18, 28 + MediaQuery.of(context).padding.bottom),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.transparent,
+              Colors.black.withOpacity(0.55),
+              Colors.black.withOpacity(0.85),
+            ],
+            stops: const [0.0, 0.45, 1.0],
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            AnimatedSize(
+              duration: const Duration(milliseconds: 180),
+              alignment: Alignment.topLeft,
+              child: Text(
+                widget.caption,
+                maxLines: _expanded ? 12 : 3,
+                overflow: TextOverflow.ellipsis,
+                style: GoogleFonts.inter(
+                  fontSize: 14.5,
+                  height: 1.45,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                  letterSpacing: 0.1,
+                ),
+              ),
+            ),
+            if (isLong) ...[
+              const SizedBox(height: 6),
+              Text(
+                _expanded ? 'Tap to collapse' : 'Tap to read more',
+                style: GoogleFonts.inter(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white70,
+                  letterSpacing: 0.3,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Avatar extends StatelessWidget {
+  final String name;
+  final String? url;
+  const _Avatar({required this.name, this.url});
+  @override
+  Widget build(BuildContext context) {
+    const size = 44.0;
+    return Container(
+      width: size,
+      height: size,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white12,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: (url != null && url!.isNotEmpty)
+          ? CachedNetworkImage(
+              imageUrl: url!,
+              fit: BoxFit.cover,
+              width: size,
+              height: size,
+              placeholder: (_, __) => Container(color: Colors.white12),
+              errorWidget: (_, __, ___) => Container(
+                color: Colors.white12,
+                alignment: Alignment.center,
+                child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: GoogleFonts.sora(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            )
+          : Container(
+              alignment: Alignment.center,
+              child: Text(
+                name.isNotEmpty ? name[0].toUpperCase() : '?',
+                style: GoogleFonts.sora(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                ),
+                ),
+      ),
+    );
+  }
+}
+
+/// Bottom strip on the author's own glimpse showing a quick preview of who has
+/// seen this moment. Tapping opens the full viewer sheet.
+class _SeenByBar extends StatelessWidget {
+  final List<Map<String, dynamic>> viewers;
+  final bool loading;
+  final VoidCallback onTap;
+  const _SeenByBar({
+    required this.viewers,
+    required this.loading,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.transparent,
+              Colors.black.withOpacity(0.55),
+              Colors.black.withOpacity(0.85),
+            ],
+            stops: const [0.0, 0.5, 1.0],
+          ),
+        ),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 64,
+              height: 28,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  for (int i = 0; i < viewers.take(3).length; i++)
+                    Positioned(
+                      left: i * 18.0,
+                      child: _MiniAvatar(
+                        url: viewers[i]['avatar']?.toString(),
+                        name: viewers[i]['name']?.toString() ?? '',
+                      ),
+                    ),
+                  if (viewers.isEmpty)
+                    Positioned(
+                      left: 0,
+                      child: Container(
+                        width: 28,
+                        height: 28,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.15),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white24, width: 1),
+                        ),
+                        child: const Icon(Icons.remove_red_eye_rounded,
+                            color: Colors.white70, size: 14),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                loading
+                    ? 'Loading viewers…'
+                    : (viewers.isEmpty
+                        ? 'No views yet'
+                        : '${viewers.length} ${viewers.length == 1 ? 'view' : 'views'}'),
+                style: GoogleFonts.inter(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            Icon(Icons.keyboard_arrow_up_rounded,
+                color: Colors.white.withOpacity(0.85)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MiniAvatar extends StatelessWidget {
+  final String? url;
+  final String name;
+  const _MiniAvatar({this.url, required this.name});
+  @override
+  Widget build(BuildContext context) {
+    const size = 28.0;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.black, width: 1.5),
+        color: Colors.white12,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: (url != null && url!.isNotEmpty)
+          ? CachedNetworkImage(
+              imageUrl: url!,
+              fit: BoxFit.cover,
+              width: size,
+              height: size,
+              errorWidget: (_, __, ___) => Container(
+                color: Colors.white12,
+                alignment: Alignment.center,
+                child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: GoogleFonts.sora(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700),
+                ),
+              ),
+            )
+          : Container(
+              alignment: Alignment.center,
+              child: Text(
+                name.isNotEmpty ? name[0].toUpperCase() : '?',
+                style: GoogleFonts.sora(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700),
+              ),
+            ),
+    );
+  }
+}
+
+class _ViewersSheet extends StatelessWidget {
+  final List<Map<String, dynamic>> viewers;
+  final bool loading;
+  const _ViewersSheet({required this.viewers, required this.loading});
+
+  String _rel(String? iso) {
+    if (iso == null || iso.isEmpty) return '';
+    var s = iso.trim();
+    final hasTz = s.endsWith('Z') ||
+        RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(s);
+    if (!hasTz) s = '${s}Z';
+    final dt = DateTime.tryParse(s);
+    if (dt == null) return '';
+    final diff = DateTime.now().difference(dt.toLocal());
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final h = MediaQuery.of(context).size.height;
+    return Container(
+      constraints: BoxConstraints(maxHeight: h * 0.7),
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).padding.bottom),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 10),
+          Container(
+            width: 42,
+            height: 4,
+            decoration: BoxDecoration(
+              color: const Color(0xFFE5E7EB),
+              borderRadius: BorderRadius.circular(99),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 14, 18, 10),
+            child: Row(
+              children: [
+                Icon(Icons.remove_red_eye_rounded,
+                    color: AppColors.primary, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Viewed by ${viewers.length}',
+                  style: GoogleFonts.inter(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          if (loading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 36),
+              child: CircularProgressIndicator(strokeWidth: 2.4),
+            )
+          else if (viewers.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 24),
+              child: Column(
+                children: [
+                  Icon(Icons.visibility_off_outlined,
+                      size: 36, color: AppColors.textTertiary),
+                  const SizedBox(height: 10),
+                  Text(
+                    'No one has viewed this glimpse yet',
+                    style: GoogleFonts.inter(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                itemCount: viewers.length,
+                separatorBuilder: (_, __) =>
+                    const Divider(height: 1, indent: 70),
+                itemBuilder: (_, i) {
+                  final v = viewers[i];
+                  return ListTile(
+                    leading: _SheetAvatar(
+                      url: v['avatar']?.toString(),
+                      name: v['name']?.toString() ?? '',
+                    ),
+                    title: Text(
+                      v['name']?.toString() ?? 'Unknown',
+                      style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    subtitle: Text(
+                      _rel(v['viewed_at']?.toString()),
+                      style: GoogleFonts.inter(
+                        fontSize: 11.5,
+                        color: AppColors.textTertiary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SheetAvatar extends StatelessWidget {
+  final String? url;
+  final String name;
+  const _SheetAvatar({this.url, required this.name});
+  @override
+  Widget build(BuildContext context) {
+    const size = 42.0;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: AppColors.surfaceVariant,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: (url != null && url!.isNotEmpty)
+          ? CachedNetworkImage(
+              imageUrl: url!,
+              fit: BoxFit.cover,
+              errorWidget: (_, __, ___) => Center(
+                child: Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: GoogleFonts.sora(
+                      color: AppColors.textSecondary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800),
+                ),
+              ),
+            )
+          : Center(
+              child: Text(
+                name.isNotEmpty ? name[0].toUpperCase() : '?',
+                style: GoogleFonts.sora(
+                    color: AppColors.textSecondary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800),
+              ),
+            ),
+    );
+  }
+}

@@ -13,6 +13,7 @@ import '../../core/services/user_services_service.dart';
 import '../../core/services/api_service.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/wallet_provider.dart';
 import '../../core/l10n/l10n_helper.dart';
 
 class AddServiceScreen extends StatefulWidget {
@@ -57,6 +58,12 @@ class _AddServiceScreenState extends State<AddServiceScreen> {
   final Map<String, List<File>> _documentFiles = <String, List<File>>{};
   List<Map<String, dynamic>> _kycRequirements = [];
   int _step = 0; // 0,1,2
+
+  /// The portfolio KYC requirement (filtered out of the documents list and
+  /// auto-filled at submit time using the photos/videos uploaded in the
+  /// "Portfolio & Samples" section below). We keep it so we can submit those
+  /// files against the right kyc_requirement_id rather than dropping it.
+  Map<String, dynamic>? _portfolioKycRequirement;
 
   static const String _draftKey = 'add_service_draft_v2';
 
@@ -144,8 +151,25 @@ class _AddServiceScreenState extends State<AddServiceScreen> {
       }
     }
     if (!mounted) return;
+    // Split out any portfolio/sample-style KYC requirement so it doesn't
+    // appear as a duplicate "Business Document" row. The photos uploaded
+    // in the Portfolio & Samples section will be submitted against it.
+    Map<String, dynamic>? portfolio;
+    final filtered = <Map<String, dynamic>>[];
+    for (final r in requirements) {
+      final name = (r['name'] ?? '').toString().toLowerCase();
+      if (portfolio == null &&
+          (name.contains('portfolio') ||
+           name.contains('sample') ||
+           name.contains('work') )) {
+        portfolio = r;
+      } else {
+        filtered.add(r);
+      }
+    }
     setState(() {
-      _kycRequirements = requirements;
+      _kycRequirements = filtered;
+      _portfolioKycRequirement = portfolio;
       _documentFiles.removeWhere((key, _) => !seen.contains(key));
       _loadingDocuments = false;
     });
@@ -256,6 +280,10 @@ class _AddServiceScreenState extends State<AddServiceScreen> {
       if (mx < mn) return 'Maximum price must be ≥ minimum price';
     }
     if (step == 2) {
+      // Portfolio photos are required when a portfolio-style KYC exists.
+      if (_portfolioKycRequirement != null && _images.isEmpty) {
+        return 'Please add at least one portfolio photo or sample';
+      }
       for (final item in _kycRequirements) {
         final id = item['id']?.toString() ?? '';
         final isMandatory = item['is_mandatory'] == true;
@@ -472,12 +500,21 @@ class _AddServiceScreenState extends State<AddServiceScreen> {
 
   Future<bool> _submitDocuments(String serviceId) async {
     final headers = await _headers();
-    for (final entry in _documentFiles.entries) {
-      for (final file in entry.value) {
+    // Build the list of (requirementId, file) pairs to upload, including the
+    // portfolio photos as the portfolio KYC requirement when present.
+    final uploads = <MapEntry<String, File>>[];
+    _documentFiles.forEach((rid, files) {
+      for (final f in files) uploads.add(MapEntry(rid, f));
+    });
+    final portfolioId = _portfolioKycRequirement?['id']?.toString();
+    if (portfolioId != null && portfolioId.isNotEmpty) {
+      for (final f in _images) uploads.add(MapEntry(portfolioId, f));
+    }
+    for (final entry in uploads) {
         final request = http.MultipartRequest('POST', Uri.parse('$_baseUrl/user-services/$serviceId/kyc'));
         request.headers.addAll(headers);
         request.fields['kyc_requirement_id'] = entry.key;
-        request.files.add(await http.MultipartFile.fromPath('file', file.path));
+        request.files.add(await http.MultipartFile.fromPath('file', entry.value.path));
         final streamed = await request.send();
         final body = await streamed.stream.bytesToString();
         if (streamed.statusCode < 200 || streamed.statusCode >= 300) {
@@ -496,7 +533,6 @@ class _AddServiceScreenState extends State<AddServiceScreen> {
             return false;
           }
         } catch (_) {}
-      }
     }
     return true;
   }
@@ -523,7 +559,7 @@ class _AddServiceScreenState extends State<AddServiceScreen> {
                       child: Text(
                         context.tr('add_service'),
                         textAlign: TextAlign.center,
-                        style: GoogleFonts.sora(fontSize: 17, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                        style: GoogleFonts.sora(fontSize: 17, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
                       ),
                     ),
                     TextButton(
@@ -618,7 +654,7 @@ class _AddServiceScreenState extends State<AddServiceScreen> {
   Widget _buildStep1() {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('Personal Info',
-          style: GoogleFonts.sora(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          style: GoogleFonts.sora(fontSize: 20, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
       const SizedBox(height: 6),
       Text('This is filled from your account so clients know who owns the service.',
           style: _f(size: 13, color: AppColors.textSecondary)),
@@ -646,9 +682,12 @@ class _AddServiceScreenState extends State<AddServiceScreen> {
   }
 
   Widget _buildStep2() {
+    String currency = 'TZS';
+    try { currency = context.watch<WalletProvider>().currency; } catch (_) {}
+    if (currency.isEmpty) currency = 'TZS';
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('Business Info',
-          style: GoogleFonts.sora(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          style: GoogleFonts.sora(fontSize: 20, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
       const SizedBox(height: 6),
       Text('Add your service details, types, pricing and location.',
           style: _f(size: 13, color: AppColors.textSecondary)),
@@ -735,7 +774,7 @@ class _AddServiceScreenState extends State<AddServiceScreen> {
       _sectionCard('Pricing & Location', [
         Row(children: [
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            _fieldLabel('Min Price (TZS) *'),
+            _fieldLabel('Min Price ($currency) *'),
             _textField(_minPriceCtrl, 'e.g., 300,000', keyboardType: TextInputType.number, onChanged: (v) {
               final f = _formatPrice(v);
               if (f != v) _minPriceCtrl.value = TextEditingValue(text: f, selection: TextSelection.collapsed(offset: f.length));
@@ -743,7 +782,7 @@ class _AddServiceScreenState extends State<AddServiceScreen> {
           ])),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            _fieldLabel('Max Price (TZS) *'),
+            _fieldLabel('Max Price ($currency) *'),
             _textField(_maxPriceCtrl, 'e.g., 2,500,000', keyboardType: TextInputType.number, onChanged: (v) {
               final f = _formatPrice(v);
               if (f != v) _maxPriceCtrl.value = TextEditingValue(text: f, selection: TextSelection.collapsed(offset: f.length));
@@ -752,7 +791,7 @@ class _AddServiceScreenState extends State<AddServiceScreen> {
         ]),
         const SizedBox(height: 14),
         _fieldLabel('Service Location'),
-        _textField(_locationCtrl, 'e.g., Dar es Salaam, Mikocheni'),
+        _textField(_locationCtrl, 'e.g., Mikocheni, Dar es Salaam'),
       ]),
     ]);
   }
@@ -760,22 +799,27 @@ class _AddServiceScreenState extends State<AddServiceScreen> {
   Widget _buildStep3() {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('Verify Your Business',
-          style: GoogleFonts.sora(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+          style: GoogleFonts.sora(fontSize: 20, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
       const SizedBox(height: 6),
       Text('Upload required documents to verify your business and gain the trust of customers.',
           style: _f(size: 13, color: AppColors.textSecondary)),
       const SizedBox(height: 28),
-      Text('Business Documents', style: _f(size: 16, weight: FontWeight.w800)),
+      Text('Business Documents', style: _f(size: 16, weight: FontWeight.w600)),
       const SizedBox(height: 14),
       _documentsCard(),
       const SizedBox(height: 22),
-      Text('Portfolio & Samples', style: _f(size: 16, weight: FontWeight.w800)),
+      Text('Portfolio & Samples', style: _f(size: 16, weight: FontWeight.w600)),
       const SizedBox(height: 6),
-      Text('Showcase your best work to attract more clients.', style: _f(size: 13, color: AppColors.textSecondary)),
+      Text(
+        _portfolioKycRequirement != null
+            ? 'Required — these photos verify your portfolio as part of your service KYC.'
+            : 'Showcase your best work to attract more clients.',
+        style: _f(size: 13, color: AppColors.textSecondary),
+      ),
       const SizedBox(height: 14),
       _portfolioCard(),
       const SizedBox(height: 22),
-      Text('Additional Information', style: _f(size: 16, weight: FontWeight.w800)),
+      Text('Additional Information', style: _f(size: 16, weight: FontWeight.w600)),
       const SizedBox(height: 14),
       _additionalInfoCard(),
     ]);
@@ -817,7 +861,9 @@ class _AddServiceScreenState extends State<AddServiceScreen> {
       _documentUploadRow(
         id: 'service-images',
         title: 'Sample Photos / Videos',
-        subtitle: 'Recommended (Max 10 files, videos up to 50MB)',
+        subtitle: _portfolioKycRequirement != null
+            ? 'Required (Max 10 files, videos up to 50MB)'
+            : 'Recommended (Max 10 files, videos up to 50MB)',
         iconAsset: 'assets/icons/gallery-icon.svg',
         iconTint: AppColors.primary,
         iconBg: AppColors.primary.withOpacity(0.10),
@@ -1020,7 +1066,7 @@ class _AddServiceScreenState extends State<AddServiceScreen> {
         border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(title, style: _f(size: 15, weight: FontWeight.w700)),
+        Text(title, style: _f(size: 15, weight: FontWeight.w600)),
         const SizedBox(height: 14),
         ...children,
       ]),

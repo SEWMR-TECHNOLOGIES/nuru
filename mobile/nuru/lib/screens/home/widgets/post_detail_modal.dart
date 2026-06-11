@@ -23,6 +23,7 @@ class PostDetailModal extends StatefulWidget {
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => PostDetailModal(post: post),
     );
