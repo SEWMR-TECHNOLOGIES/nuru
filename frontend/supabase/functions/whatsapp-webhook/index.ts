@@ -71,6 +71,22 @@ async function postRsvp(code: string, status: string, from?: string) {
   }
 }
 
+async function postBackend(path: string, payload: Record<string, unknown>) {
+  try {
+    const res = await fetch(`${NURU_API_BASE_URL}${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      console.warn(`[whatsapp-webhook] backend ${path} -> ${res.status} ${text.slice(0, 200)}`);
+    }
+  } catch (err) {
+    console.error(`[whatsapp-webhook] backend ${path} failed:`, err);
+  }
+}
+
 async function handlePost(req: Request): Promise<Response> {
   let body: any = null;
   try {
@@ -119,6 +135,12 @@ async function handlePost(req: Request): Promise<Response> {
           // Free-text reply — currently just logged; admin chat / keyword
           // handling lives on the FastAPI backend.
           if (msg?.type === "text") {
+            await postBackend("/whatsapp/incoming", {
+              phone: from,
+              content: msg.text?.body || "",
+              wa_message_id: msg?.id || null,
+              contact_name: value?.contacts?.[0]?.profile?.name || "",
+            });
             console.log(
               `[whatsapp-webhook] text from=${from} body=${(msg.text?.body || "").slice(0, 200)}`,
             );
@@ -134,6 +156,12 @@ async function handlePost(req: Request): Promise<Response> {
       // 2) Delivery statuses (sent/delivered/read/failed) — log only.
       const statuses: any[] = Array.isArray(value.statuses) ? value.statuses : [];
       for (const st of statuses) {
+        await postBackend("/whatsapp/status-update", {
+          wa_message_id: st?.id || null,
+          status: st?.status || null,
+          recipient_phone: st?.recipient_id || null,
+          errors: st?.errors || null,
+        });
         console.log(
           `[whatsapp-webhook] status id=${st?.id} status=${st?.status} recipient=${st?.recipient_id} err=${JSON.stringify(st?.errors || null)}`,
         );

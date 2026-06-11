@@ -516,30 +516,33 @@ def respond_to_rsvp(code: str, body: RSVPResponseInput):
         if is_whatsapp_button:
             # Guest tapped a quick-reply on the invitation card already in
             # their WhatsApp thread. Don't resend the card — just send a
-            # short bilingual text acknowledgement.
+            # short bilingual text acknowledgement. Use the FULL guest
+            # name (not just the first token) and ASCII-only punctuation
+            # (no em dashes, no curly quotes) so the message renders
+            # identically across Android, iOS and WhatsApp Web.
             try:
                 from utils.whatsapp import _send_whatsapp_text
-                first_name = (guest_display or "").split(" ")[0] or "rafiki"
+                full_name = (guest_display or "").strip() or "rafiki"
                 event_label = event.name or "the event"
                 if rsvp_enum == RSVPStatusEnum.confirmed:
                     msg = (
-                        f"Asante {first_name}! Tumepokea jibu lako — "
-                        f"umethibitisha kuhudhuria {event_label}. Karibu sana!\n\n"
-                        f"Thank you {first_name}! Your response has been received — "
-                        f"you have confirmed attendance for {event_label}. See you there!"
+                        f"Asante {full_name}! Tumepokea jibu lako. "
+                        f"Umethibitisha kuhudhuria {event_label}. Karibu sana!\n\n"
+                        f"Thank you {full_name}! Your response has been received. "
+                        f"You have confirmed attendance for {event_label}. See you there!"
                     )
                 elif rsvp_enum == RSVPStatusEnum.declined:
                     msg = (
-                        f"Asante {first_name} kwa kujibu. Tumepokea taarifa kuwa "
+                        f"Asante {full_name} kwa kujibu. Tumepokea taarifa kuwa "
                         f"hutaweza kuhudhuria {event_label}. Tutakukumbuka.\n\n"
-                        f"Thanks {first_name} for letting us know. Your response has "
-                        f"been received — we’re sorry you can’t make it to {event_label}."
+                        f"Thanks {full_name} for letting us know. Your response has "
+                        f"been received. We are sorry you cannot make it to {event_label}."
                     )
                 else:  # maybe
                     msg = (
-                        f"Asante {first_name}. Tumepokea jibu lako la \"labda\" "
+                        f"Asante {full_name}. Tumepokea jibu lako la \"labda\" "
                         f"kwa {event_label}. Unaweza kubadilisha jibu wakati wowote.\n\n"
-                        f"Thanks {first_name}. Your \"maybe\" response for "
+                        f"Thanks {full_name}. Your \"maybe\" response for "
                         f"{event_label} has been received. You can update it any time."
                     )
                 if guest_phone:

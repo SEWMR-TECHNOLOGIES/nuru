@@ -34,7 +34,6 @@ import {
   type CardTemplateDetail,
   type SavedEventCard,
 } from "@/lib/api/eventCards";
-import { uploadsApi } from "@/lib/api/uploads";
 import { createCardRenderJob, purgeLeakedRenderHosts } from "@/lib/cards/renderCardPng";
 import { useEventContributors } from "@/data/useContributors";
 import { eventsApi } from "@/lib/api/events";
@@ -845,8 +844,8 @@ export default function EventCardsTab({ eventId }: Props) {
       const RENDER_OPTS = {
         width: 1080,
         pixelRatio: mode === "safe" ? 1 : 1,
-        mimeType: "image/jpeg" as const,
-        quality: 0.9,
+        mimeType: "image/png" as const,
+        quality: 0.92,
         timeoutMs: TIMEOUT_MS,
       };
 
@@ -940,8 +939,8 @@ export default function EventCardsTab({ eventId }: Props) {
 
             if (import.meta.env.DEV) console.log(`[card_prepare_stage] batch=${batchNo} recipient=${name} stage=upload`);
             const tUp = performance.now();
-            const file = new File([blob], `pledge-card-${id}.jpg`, { type: blob.type || "image/jpeg" });
-            const res = await uploadsApi.upload(file);
+            const file = new File([blob], `card-${id}.png`, { type: blob.type || "image/png" });
+            const res = await eventCardsApi.uploadRenderedCard(eventId, activeCategory, id, file);
             uploadMs = performance.now() - tUp;
             const url = res.data?.url;
             if (!url) throw new Error("Upload returned no URL");

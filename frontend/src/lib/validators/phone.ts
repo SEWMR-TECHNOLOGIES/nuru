@@ -60,3 +60,51 @@ export function validateMobileMoneyPhone(raw: string, country?: string | null): 
 
   return { ok: true, message: "", e164: `+${rule.cc}${digits}` };
 }
+
+/**
+ * Permissive international phone validator for any contact (contributors,
+ * guests, members, etc.) — NOT mobile-money specific. Accepts any country's
+ * number as long as the country code is present (via leading "+" or by
+ * providing a bare international form). For convenience, local-format numbers
+ * (leading "0") are still accepted when the active region maps to a known
+ * country and the local prefix matches.
+ *
+ * Returns an E.164 string (with leading "+") when valid.
+ */
+export function validateInternationalPhone(raw: string, country?: string | null): PhoneCheck {
+  const cleaned = (raw || "").replace(/[\s\-().]/g, "");
+  if (!cleaned) return { ok: false, message: "Phone number is required" };
+
+  // Reject obvious garbage early.
+  if (!/^\+?\d+$/.test(cleaned)) {
+    return { ok: false, message: "Phone number can only contain digits and an optional leading +." };
+  }
+
+  // Local-format shortcut for known markets (e.g. 0712345678 in TZ/KE).
+  const cc = (country || "").toUpperCase();
+  const rule = RULES[cc];
+  if (rule && cleaned.startsWith("0") && cleaned.length === 10) {
+    const local = cleaned.slice(1);
+    if (rule.localPrefixes.some((p) => local.startsWith(p))) {
+      return { ok: true, message: "", e164: `+${rule.cc}${local}` };
+    }
+  }
+
+  // Normalise leading +/00 to plain digits, then require a country code.
+  let digits = cleaned.replace(/^\+/, "").replace(/^00/, "");
+
+  // Bare local format without country code (e.g. "0712345678") for unknown
+  // regions is rejected — they must include the country code.
+  if (cleaned.startsWith("0")) {
+    return {
+      ok: false,
+      message: "Include the country code (e.g. +255, +254, +1, +44).",
+    };
+  }
+
+  if (digits.length < 8 || digits.length > 15) {
+    return { ok: false, message: "Enter a valid phone number with country code (e.g. +255 712 345 678)." };
+  }
+
+  return { ok: true, message: "", e164: `+${digits}` };
+}

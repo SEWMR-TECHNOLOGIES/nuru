@@ -95,6 +95,9 @@ const Register = () => {
   // Username availability
   const [usernameStatus, setUsernameStatus] = useState<"idle" | "checking" | "available" | "taken">("idle");
   const [usernameSuggestions, setUsernameSuggestions] = useState<string[]>([]);
+  // Proactive suggestions fetched right after the name step
+  const [suggestedUsernames, setSuggestedUsernames] = useState<string[]>([]);
+  const [suggestionsLoading, setSuggestionsLoading] = useState(false);
   const usernameCheckTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Name validation
@@ -351,6 +354,16 @@ const Register = () => {
         return;
       }
       setCurrentStep(2);
+      // Fire-and-forget: fetch smart username suggestions for the next step
+      (async () => {
+        setSuggestionsLoading(true);
+        try {
+          const res = await api.auth.getUsernameSuggestions(formData.firstName.trim(), formData.lastName.trim());
+          const list = (res?.data as any)?.suggestions;
+          if (Array.isArray(list) && list.length) setSuggestedUsernames(list);
+        } catch { /* ignore */ }
+        finally { setSuggestionsLoading(false); }
+      })();
     } else if (currentStep === 2) {
       if (!formData.username.trim() || formData.username.length < 3) {
         toast({ title: "Required", description: "Username must be at least 3 characters.", variant: "destructive" });
@@ -548,6 +561,35 @@ const Register = () => {
                       {usernameStatus === "taken" && <span className="text-xs text-destructive font-medium">Taken</span>}
                     </div>
                   </div>
+
+                  {/* Proactive Gmail-style suggestions — shown while user hasn't typed yet */}
+                  {formData.username.length === 0 && (
+                    <div className="mt-3 space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        {suggestionsLoading ? "Finding usernames for you…" : "Suggested for you:"}
+                      </p>
+                      {suggestionsLoading ? (
+                        <div className="flex flex-wrap gap-2">
+                          {[0,1,2,3,4].map(i => (
+                            <div key={i} className="h-7 w-24 rounded-full bg-muted animate-pulse" />
+                          ))}
+                        </div>
+                      ) : suggestedUsernames.length > 0 ? (
+                        <div className="flex flex-wrap gap-2">
+                          {suggestedUsernames.map((s) => (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={() => handleInputChange("username", s)}
+                              className="text-xs px-3 py-1.5 rounded-full border border-primary/30 bg-primary/5 hover:bg-primary/10 transition-colors text-foreground font-medium"
+                            >
+                              @{s}
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
 
                   {usernameStatus === "available" && formData.username.length >= 3 && (
                     <p className="text-xs text-green-600 mt-1.5 flex items-center gap-1">

@@ -33,9 +33,10 @@ export const generateContributionReportHtml = (
   // Use full summary for header cards if provided, otherwise fall back to table totals
   const summaryPledged = fullSummary?.total_pledged ?? totalPledged;
   const summaryPaid = fullSummary?.total_paid ?? totalPaid;
+  const summaryBalance = fullSummary?.total_balance ?? totalBalance;
 
   // Outstanding pledge = what's promised but not yet collected
-  const outstandingPledge = Math.max(0, summaryPledged - summaryPaid);
+  const outstandingPledge = summaryBalance;
 
   const logoAbsoluteUrl = new URL(nuruLogoUrl, window.location.origin).href;
 

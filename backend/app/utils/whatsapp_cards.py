@@ -157,6 +157,44 @@ def _send(action: str, phone: str, params: dict) -> bool:
                 print(f"[wa_cards] send failed ({r.status_code}): {r.text[:200]}")
                 continue
             print(f"[wa_cards] send response: {r.text[:300]}")
+            # Mirror this template/card send into the admin WhatsApp inbox
+            # (wa_conversations + wa_messages) so the admin can see every
+            # outbound message — including invitation/ticket/thank-you cards —
+            # in the recipient's thread, with delivery status callbacks from
+            # the webhook updating the same row.
+            try:
+                data = r.json() or {}
+                wa_message_id = (
+                    data.get("message_id")
+                    or data.get("wa_message_id")
+                    or (((data.get("response") or {}).get("messages") or [{}])[0].get("id"))
+                )
+                if wa_message_id:
+                    from core.database import SessionLocal as _SL
+                    from api.routes.whatsapp_admin import _store_incoming as _store
+                    _s = _SL()
+                    try:
+                        from utils.whatsapp import _whatsapp_admin_summary
+                        summary = _whatsapp_admin_summary(action, params or {})
+                        image_url = (
+                            (params or {}).get("image_url")
+                            or (params or {}).get("media_url")
+                            or (params or {}).get("header_image")
+                        )
+                        _store(
+                            _s,
+                            phone=phone,
+                            content=str(summary)[:1000],
+                            wa_message_id=str(wa_message_id),
+                            contact_name=str((params or {}).get("guest_name") or (params or {}).get("name") or ""),
+                            direction="outbound",
+                            media_url=str(image_url) if image_url else None,
+                            media_type="image" if image_url else None,
+                        )
+                    finally:
+                        _s.close()
+            except Exception as _e:  # noqa: BLE001
+                print(f"[wa_cards] mirror outbound failed: {_e}")
             return True
         except Exception as e:
             print(f"[wa_cards] send exception url={url}: {e}")

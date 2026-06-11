@@ -71,12 +71,8 @@ def send_action(self, action: str, phone: str, params: dict):
                 from api.routes.whatsapp_admin import _store_incoming
                 db = SessionLocal()
                 try:
-                    summary = (
-                        params.get("message")
-                        or params.get("body")
-                        or params.get("preview")
-                        or f"[template:{action}]"
-                    )
+                    from utils.whatsapp import _whatsapp_admin_summary
+                    summary = _whatsapp_admin_summary(action, params or {})
                     image_url = (
                         params.get("image_url")
                         or params.get("media_url")
@@ -85,7 +81,7 @@ def send_action(self, action: str, phone: str, params: dict):
                     _store_incoming(
                         db, phone=phone, content=str(summary)[:1000],
                         wa_message_id=str(result.get("message_id")),
-                        contact_name=str(params.get("name") or ""),
+                        contact_name=str(params.get("guest_name") or params.get("contributor_name") or params.get("name") or ""),
                         direction="outbound",
                         media_url=str(image_url) if image_url else None,
                         media_type="image" if image_url else None,

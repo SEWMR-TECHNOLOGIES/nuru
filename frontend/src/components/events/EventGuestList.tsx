@@ -14,6 +14,8 @@ import {
 } from '@/components/ui/dialog';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+  DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuSeparator,
+  DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -47,7 +49,7 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
   const canManage = permissions?.can_manage_guests || permissions?.is_creator;
   const canSendInvites = permissions?.can_send_invitations || permissions?.is_creator;
   const canCheckin = permissions?.can_check_in_guests || permissions?.is_creator;
-  const { guests, summary, loading, error, refetch, addGuest, deleteGuest, sendInvitation, checkinGuest } = useEventGuests(eventId);
+  const { guests, summary, loading, error, refetch, addGuest, updateGuest, deleteGuest, sendInvitation, checkinGuest } = useEventGuests(eventId);
   
   const { confirm, ConfirmDialog } = useConfirmDialog();
 
@@ -182,6 +184,23 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
       toast.success('Guest checked in successfully');
     } catch (err: any) {
       showCaughtError(err, 'Failed to check in guest');
+    }
+  };
+
+  const handleUpdateRsvp = async (
+    guest: EventGuest,
+    status: 'confirmed' | 'pending' | 'declined' | 'maybe',
+  ) => {
+    if (guest.rsvp_status === status) return;
+    try {
+      await updateGuest(guest.id, { rsvp_status: status } as Partial<EventGuest>);
+      const label =
+        status === 'confirmed' ? 'Confirmed' :
+        status === 'declined' ? 'Declined' :
+        status === 'maybe' ? 'Maybe' : 'Pending';
+      toast.success(`RSVP updated to ${label}`);
+    } catch (err: any) {
+      showCaughtError(err, 'Failed to update RSVP');
     }
   };
 
@@ -332,7 +351,51 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
                     {guest.checked_in && <Badge className="bg-blue-100 text-blue-800 whitespace-nowrap"><QrCode className="w-3 h-3 mr-1" />Checked In</Badge>}
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreVertical className="w-4 h-4" /></Button></DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
+                      <DropdownMenuContent align="end" className="w-56">
+                        {canManage && (
+                          <>
+                            <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                              Set RSVP
+                            </DropdownMenuLabel>
+                            <DropdownMenuSub>
+                              <DropdownMenuSubTrigger>
+                                <CheckCircle className="w-4 h-4 mr-2" />
+                                Update RSVP status
+                              </DropdownMenuSubTrigger>
+                              <DropdownMenuSubContent className="w-48">
+                                <DropdownMenuItem
+                                  disabled={guest.rsvp_status === 'confirmed'}
+                                  onClick={() => handleUpdateRsvp(guest, 'confirmed')}
+                                >
+                                  <CheckCircle className="w-4 h-4 mr-2 text-emerald-600" />
+                                  Confirmed
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  disabled={guest.rsvp_status === 'maybe'}
+                                  onClick={() => handleUpdateRsvp(guest, 'maybe')}
+                                >
+                                  <Clock className="w-4 h-4 mr-2 text-amber-600" />
+                                  Maybe
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  disabled={guest.rsvp_status === 'pending'}
+                                  onClick={() => handleUpdateRsvp(guest, 'pending')}
+                                >
+                                  <Clock className="w-4 h-4 mr-2 text-muted-foreground" />
+                                  Pending
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  disabled={guest.rsvp_status === 'declined'}
+                                  onClick={() => handleUpdateRsvp(guest, 'declined')}
+                                >
+                                  <X className="w-4 h-4 mr-2 text-rose-600" />
+                                  Declined
+                                </DropdownMenuItem>
+                              </DropdownMenuSubContent>
+                            </DropdownMenuSub>
+                            <DropdownMenuSeparator />
+                          </>
+                        )}
                         {canSendInvites && (
                           <DropdownMenuItem onClick={() => { setSelectedGuest(guest); setInviteDialogOpen(true); }}>
                             <Send className="w-4 h-4 mr-2" />{guest.invitation_sent ? 'Resend Invitation' : 'Send Invitation'}
@@ -342,9 +405,12 @@ const EventGuestList = ({ eventId, permissions }: EventGuestListProps) => {
                           <DropdownMenuItem onClick={() => handleCheckin(guest.id)}><CheckCircle className="w-4 h-4 mr-2" />Check In</DropdownMenuItem>
                          )}
                          {canManage && (
-                           <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteGuest(guest.id)}>
-                             <Trash className="w-4 h-4 mr-2" />Remove
-                           </DropdownMenuItem>
+                           <>
+                             <DropdownMenuSeparator />
+                             <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteGuest(guest.id)}>
+                               <Trash className="w-4 h-4 mr-2" />Remove
+                             </DropdownMenuItem>
+                           </>
                          )}
                       </DropdownMenuContent>
                     </DropdownMenu>

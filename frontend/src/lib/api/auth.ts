@@ -43,6 +43,28 @@ export const authApi = {
   requestOtp: (data: RequestOtpData) => post("/users/request-otp", data),
 
   /**
+   * Get smart username suggestions from first + last name (proactive,
+   * shown before the user types). Backend uses an indexed lookup.
+   */
+  getUsernameSuggestions: async (firstName: string, lastName: string) => {
+    const params = new URLSearchParams();
+    if (firstName) params.append("first_name", firstName);
+    if (lastName) params.append("last_name", lastName);
+    const BASE_URL = resolveApiBaseUrl();
+    try {
+      const res = await fetch(`${BASE_URL}/users/username-suggestions?${params.toString()}`, {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        credentials: "omit",
+      });
+      const json = await res.json();
+      return { success: json.success ?? res.ok, message: json.message ?? "", data: json.data ?? null };
+    } catch {
+      return { success: false, message: "Unable to fetch suggestions", data: null };
+    }
+  },
+
+  /**
    * Check username availability
    */
   checkUsername: async (username: string, firstName?: string, lastName?: string) => {

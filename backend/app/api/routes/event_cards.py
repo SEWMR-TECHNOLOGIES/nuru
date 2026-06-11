@@ -24,7 +24,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from sqlalchemy import and_
 from sqlalchemy.orm import Session, joinedload
@@ -700,6 +700,47 @@ def upsert_event_card(
     })
 
 
+@router.post("/events/{event_id}/cards/{category}/upload-render")
+async def upload_browser_rendered_card(
+    event_id: str,
+    category: str,
+    recipient_id: str = Form(...),
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Upload browser-rendered card bytes through the card storage pipeline.
+
+    This avoids the generic upload host used for normal attachments. Meta can
+    fetch these URLs reliably for WhatsApp media headers across browsers.
+    """
+    event = _assert_event_manager(db, event_id, current_user)
+    active_card = (
+        db.query(EventCard)
+        .filter(and_(EventCard.event_id == event.id, EventCard.category == category, EventCard.is_active.is_(True)))
+        .first()
+    )
+    if not active_card:
+        raise HTTPException(status_code=404, detail="No card configured for this event yet.")
+    if not file or not file.filename:
+        raise HTTPException(status_code=400, detail="file is required")
+    try:
+        uuid.UUID(str(recipient_id))
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid recipient id")
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Empty card image")
+    if len(content) > 8 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Card image is too large")
+    from utils.whatsapp_cards import upload_card_png
+    path = f"cards/browser/{event.id}/{active_card.id}/{recipient_id}.png"
+    url = upload_card_png(path, content)
+    if not url:
+        raise HTTPException(status_code=502, detail="Card upload failed")
+    return standard_response(True, "Card image uploaded.", {"url": url, "path": path})
+
+
 @router.get("/events/{event_id}/cards/{category}/preview.svg")
 def preview_event_card_svg(
     event_id: str,
@@ -830,16 +871,12 @@ def send_pledge_thank_you_cards(
     # ── skip_existing pre-filter ──
     # "Skip existing" means: drop recipients who already have a row that
     # represents the kind of work we're about to do. For prepare_only we
-    # drop anything except discarded/failed. For send we drop only rows
+    # drop only existing prepared rows. For send we drop only rows
     # that were actually successfully delivered to WhatsApp/SMS (so a
     # previous failed send is retried automatically).
     skipped_existing_ids: List[str] = []
     if mode == "skip_existing":
-        if prepare_only:
-            keep_statuses = {"discarded", "failed", "cancelled"}
-        else:
-            # Anything Meta acknowledged counts as "already sent".
-            keep_statuses = {"prepared", "pending", "failed", "discarded", "cancelled"}
+        skip_statuses = {"prepared"} if prepare_only else {"sent", "delivered", "read"}
         column = SentEventCard.guest_attendee_id if is_guest_dispatch else SentEventCard.contributor_id
         existing_rows = (
             db.query(column, SentEventCard.delivery_status)
@@ -854,9 +891,8 @@ def send_pledge_thank_you_cards(
         for rid, status in existing_rows:
             if rid is None:
                 continue
-            if status and str(status) in keep_statuses:
-                continue
-            already_done.add(rid)
+            if status and str(status) in skip_statuses:
+                already_done.add(rid)
         if already_done:
             skipped_existing_ids = [str(x) for x in already_done]
             ids = [i for i in ids if i not in already_done]

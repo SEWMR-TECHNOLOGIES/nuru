@@ -38,7 +38,11 @@ def _moment_content_type(value):
 def _moment_dict(db, m, current_user_id=None):
     user = db.query(User).filter(User.id == m.user_id).first()
     profile = db.query(UserProfile).filter(UserProfile.user_id == m.user_id).first() if user else None
-    viewer_count = db.query(UserMomentViewer).filter(UserMomentViewer.moment_id == m.id).count()
+    # Exclude the author from viewer counts — viewing your own reel must not inflate the count.
+    viewer_count = db.query(UserMomentViewer).filter(
+        UserMomentViewer.moment_id == m.id,
+        UserMomentViewer.viewer_id != m.user_id,
+    ).count()
     has_seen = False
     if current_user_id:
         has_seen = db.query(UserMomentViewer).filter(UserMomentViewer.moment_id == m.id, UserMomentViewer.viewer_id == current_user_id).first() is not None
@@ -351,6 +355,12 @@ def mark_moment_seen(moment_id: str, db: Session = Depends(get_db), current_user
         mid = uuid.UUID(moment_id)
     except ValueError:
         return standard_response(False, "Invalid moment ID")
+    m = db.query(UserMoment).filter(UserMoment.id == mid).first()
+    if not m:
+        return standard_response(False, "Moment not found")
+    # Don't record the author as a viewer of their own reel.
+    if m.user_id == current_user.id:
+        return standard_response(True, "Author view skipped")
     existing = db.query(UserMomentViewer).filter(UserMomentViewer.moment_id == mid, UserMomentViewer.viewer_id == current_user.id).first()
     if not existing:
         db.add(UserMomentViewer(id=uuid.uuid4(), moment_id=mid, viewer_id=current_user.id, viewed_at=datetime.now(EAT)))
@@ -364,7 +374,14 @@ def get_moment_viewers(moment_id: str, db: Session = Depends(get_db), current_us
         mid = uuid.UUID(moment_id)
     except ValueError:
         return standard_response(False, "Invalid moment ID")
-    viewers = db.query(UserMomentViewer).filter(UserMomentViewer.moment_id == mid).all()
+    m = db.query(UserMoment).filter(UserMoment.id == mid).first()
+    if not m:
+        return standard_response(False, "Moment not found")
+    # Exclude the author from the viewer list (WhatsApp-style).
+    viewers = db.query(UserMomentViewer).filter(
+        UserMomentViewer.moment_id == mid,
+        UserMomentViewer.viewer_id != m.user_id,
+    ).order_by(UserMomentViewer.viewed_at.desc()).all()
     data = []
     for v in viewers:
         u = db.query(User).filter(User.id == v.viewer_id).first()

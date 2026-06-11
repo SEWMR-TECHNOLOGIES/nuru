@@ -16,7 +16,7 @@ import { showCaughtError } from '@/lib/api';
 import ContributorListSkeleton from '@/components/ui/ContributorListSkeleton';
 import type { UserContributor } from '@/lib/api/contributors';
 import { useLanguage } from '@/lib/i18n/LanguageContext';
-import { validateMobileMoneyPhone } from '@/lib/validators/phone';
+import { validateInternationalPhone } from '@/lib/validators/phone';
 import { getActiveRegion } from '@/lib/region/host';
 
 const ITEMS_PER_PAGE = 10;
@@ -64,8 +64,8 @@ const MyContributors = () => {
 
   const region = getActiveRegion().code;
 
-  const primaryCheck = form.phone.trim() ? validateMobileMoneyPhone(form.phone, region) : null;
-  const secondaryCheck = form.secondary_phone.trim() ? validateMobileMoneyPhone(form.secondary_phone, region) : null;
+  const primaryCheck = form.phone.trim() ? validateInternationalPhone(form.phone, region) : null;
+  const secondaryCheck = form.secondary_phone.trim() ? validateInternationalPhone(form.secondary_phone, region) : null;
 
   const handleSubmit = async () => {
     if (!form.name.trim()) { toast.error('Name is required'); return; }
@@ -210,7 +210,8 @@ const MyContributors = () => {
             <div><Label>{t('name')} *</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder={t('full_name_placeholder')} autoComplete="off" /></div>
             <div>
               <Label>{t('phone')}</Label>
-              <Input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="0712 345 678" autoComplete="off" />
+              <Input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="+255 712 345 678" autoComplete="off" />
+              
               {primaryCheck && !primaryCheck.ok && (
                 <p className="text-[11px] text-destructive mt-1">{primaryCheck.message}</p>
               )}
@@ -222,7 +223,7 @@ const MyContributors = () => {
                 <Input
                   value={form.secondary_phone}
                   onChange={e => setForm(f => ({ ...f, secondary_phone: e.target.value }))}
-                  placeholder="0712 345 678"
+                  placeholder="+255 712 345 678"
                   autoComplete="off"
                 />
                 {secondaryCheck && !secondaryCheck.ok && (
