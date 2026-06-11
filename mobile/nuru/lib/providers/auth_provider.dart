@@ -1,10 +1,13 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/services/api_service.dart';
 import '../core/services/events_service.dart';
 import '../core/services/secure_token_storage.dart';
 import '../core/services/push_notification_service.dart';
+import '../core/services/saved_accounts_service.dart';
 import '../core/services/event_groups_service.dart';
 import '../core/utils/event_groups_cache.dart';
 import '../core/utils/home_cache.dart';
@@ -210,6 +213,23 @@ class AuthProvider extends ChangeNotifier {
         await SecureTokenStorage.setToken(token);
         if (refreshToken != null) await SecureTokenStorage.setRefreshToken(refreshToken);
         final prefs = await SharedPreferences.getInstance();
+
+        // Privacy: if we're switching from a different account, wipe every
+        // cache BEFORE flipping _isLoggedIn so no UI ever renders the
+        // previous user's data on top of the new session.
+        final prevCached = prefs.getString('cached_user');
+        String? prevId;
+        if (prevCached != null && prevCached.isNotEmpty) {
+          try {
+            final decoded = jsonDecode(prevCached);
+            if (decoded is Map) prevId = decoded['id']?.toString();
+          } catch (_) {}
+        }
+        final newId = user?['id']?.toString();
+        if (prevId != null && newId != null && prevId != newId) {
+          await _wipeAllCaches();
+        }
+
         await prefs.setBool(_keyIsLoggedIn, true);
         _isLoggedIn = true;
         _user = user;
@@ -233,6 +253,15 @@ class AuthProvider extends ChangeNotifier {
         try {
           await PushNotificationService.instance.registerWithBackend();
         } catch (_) {}
+
+        // Save this account to the quick-switcher so the user can return
+        // with one tap. Refresh token stays in secure storage keyed by
+        // user id so we can resume without asking for the password again.
+        if (_user != null && refreshToken != null && refreshToken.isNotEmpty) {
+          try {
+            await SavedAccountsService.upsert(user: _user!, refreshToken: refreshToken);
+          } catch (_) {}
+        }
 
         // Silent contributor-claim refresh: reset the My Groups cache and
         // prefetch so any event groups the backend just attached on login
@@ -298,6 +327,11 @@ class AuthProvider extends ChangeNotifier {
     return AuthApi.checkUsername(username, firstName: firstName, lastName: lastName);
   }
 
+  /// Proactive username suggestions from first + last name
+  Future<Map<String, dynamic>> getUsernameSuggestions({String? firstName, String? lastName}) {
+    return AuthApi.getUsernameSuggestions(firstName: firstName, lastName: lastName);
+  }
+
   /// Validate name
   Future<Map<String, dynamic>> validateName(String name) {
     return AuthApi.validateName(name);
@@ -354,19 +388,94 @@ class AuthProvider extends ChangeNotifier {
     } catch (_) {}
 
     await _clearTokens();
-    // Wipe every in-memory cache so the next account that signs in on this
-    // device can never see stale events / messages / groups from the
-    // previous user.
-    try { EventGroupsCache.reset(); EventGroupsCache.groups = null; } catch (_) {}
-    try { HomeCache.reset(); } catch (_) {}
-    try { MessagesCache.reset(); } catch (_) {}
-    // Wipe persistent generic API cache so the next signed-in user starts
-    // from a clean slate. Only triggered on explicit sign-out, never on
-    // transient network failures.
-    try { await MobileCache.clearAll(); } catch (_) {}
+    // Wipe every in-memory + on-disk cache (including avatars and other
+    // network images) so a different account that signs in on this
+    // device — or even a snapshot of the recents/multitasking switcher —
+    // can never reveal the previous user's data.
+    await _wipeAllCaches();
     _isLoggedIn = false;
     _user = null;
     notifyListeners();
+  }
+
+  /// Resume a previously-signed-in account using its stored refresh token.
+  /// Returns true on success.
+  Future<bool> quickSignIn(String accountId) async {
+    try {
+      final refresh = await SavedAccountsService.getRefreshToken(accountId);
+      if (refresh == null || refresh.isEmpty) return false;
+      final res = await AuthApi.refresh(refresh);
+      if (res['success'] != true || res['data'] is! Map) return false;
+      final data = res['data'] as Map;
+      final access = data['access_token']?.toString();
+      final newRefresh = data['refresh_token']?.toString();
+      if (access == null || access.isEmpty) return false;
+
+      final prefs = await SharedPreferences.getInstance();
+      // Switching: if a different account was signed in last, wipe caches first.
+      final prevCached = prefs.getString('cached_user');
+      String? prevId;
+      if (prevCached != null && prevCached.isNotEmpty) {
+        try {
+          final decoded = jsonDecode(prevCached);
+          if (decoded is Map) prevId = decoded['id']?.toString();
+        } catch (_) {}
+      }
+      if (prevId != null && prevId != accountId) {
+        await _wipeAllCaches();
+      }
+
+      await SecureTokenStorage.setToken(access);
+      if (newRefresh != null && newRefresh.isNotEmpty) {
+        await SecureTokenStorage.setRefreshToken(newRefresh);
+      }
+      await prefs.setBool(_keyIsLoggedIn, true);
+      _isLoggedIn = true;
+
+      final meRes = await AuthApi.me();
+      if (meRes['success'] == true && meRes['data'] is Map<String, dynamic>) {
+        _user = meRes['data'] as Map<String, dynamic>;
+        try {
+          final profileRes = await EventsService.getProfile();
+          if (profileRes['success'] == true && profileRes['data'] is Map<String, dynamic>) {
+            _user = {..._user!, ...profileRes['data'] as Map<String, dynamic>};
+          }
+        } catch (_) {}
+        _syncCurrencyFromUser();
+        try { await prefs.setString('cached_user', jsonEncode(_user)); } catch (_) {}
+        try {
+          await SavedAccountsService.upsert(
+            user: _user!,
+            refreshToken: newRefresh ?? refresh,
+          );
+        } catch (_) {}
+      }
+
+      try { await PushNotificationService.instance.registerWithBackend(); } catch (_) {}
+      notifyListeners();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Remove an account from the quick-switcher list and forget its refresh token.
+  Future<void> forgetSavedAccount(String accountId) async {
+    await SavedAccountsService.remove(accountId);
+  }
+
+  /// Centralised cache wipe used by both signOut and account-switch flows.
+  Future<void> _wipeAllCaches() async {
+    try { EventGroupsCache.reset(); EventGroupsCache.groups = null; } catch (_) {}
+    try { HomeCache.reset(); } catch (_) {}
+    try { MessagesCache.reset(); } catch (_) {}
+    try { await MobileCache.clearAll(); } catch (_) {}
+    try {
+      PaintingBinding.instance.imageCache.clear();
+      PaintingBinding.instance.imageCache.clearLiveImages();
+    } catch (_) {}
+    try { await CachedNetworkImage.evictFromCache(''); } catch (_) {}
+    try { await DefaultCacheManager().emptyCache(); } catch (_) {}
   }
 
   Future<void> _clearTokens() async {

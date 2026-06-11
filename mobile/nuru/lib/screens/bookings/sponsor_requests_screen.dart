@@ -450,6 +450,7 @@ Future<void> _showRespond(BuildContext context, Map<String, dynamic> req,
   await showModalBottomSheet(
     context: context,
     isScrollControlled: true,
+    useSafeArea: true,
     backgroundColor: Colors.white,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),

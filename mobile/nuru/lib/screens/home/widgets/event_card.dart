@@ -58,8 +58,11 @@ class EventCard extends StatelessWidget {
     String? progressLabel;
     if (sellsTickets && ticketsCapacity > 0) {
       progressLabel = '$ticketsSold/$ticketsCapacity Tickets Sold';
-    } else if (invitationsTotal > 0) {
-      progressLabel = '$invitationsSent/$invitationsTotal Invitations Sent';
+    } else if (invitationsSent > 0 || invitationsTotal > 0) {
+      // Match the RSVP tab metric exactly: show the number of invitations
+      // actually dispatched. The previous "sent / total-created" denominator
+      // was confusing because it never matched the RSVP screen's count.
+      progressLabel = '$invitationsSent Invitation${invitationsSent == 1 ? '' : 's'} Sent';
     } else if (expectedGuests > 0) {
       progressLabel = '$guestCount/$expectedGuests Guests';
     } else if (budget != null && _toNum(budget) > 0) {
@@ -236,39 +239,32 @@ class EventCard extends StatelessWidget {
 
                       if (progressLabel != null || rightAmount != null) ...[
                         const SizedBox(height: 8),
-                        Row(
-                          children: [
-                            if (progressLabel != null)
-                              Expanded(
-                                child: Text(
-                                  progressLabel,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textSecondary,
-                                    height: 1.2,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              )
-                            else
-                              const Spacer(),
-                            if (rightAmount != null)
-                              Padding(
-                                padding: const EdgeInsets.only(right: 8),
-                                child: Text(
-                                  rightAmount,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.success,
-                                    height: 1.2,
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
+                        if (progressLabel != null)
+                          Text(
+                            progressLabel,
+                            style: GoogleFonts.inter(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textSecondary,
+                              height: 1.2,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        if (rightAmount != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            rightAmount,
+                            style: GoogleFonts.inter(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.success,
+                              height: 1.2,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ],
                     ],
                   ),

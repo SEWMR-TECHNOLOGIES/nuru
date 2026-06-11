@@ -7,10 +7,12 @@ import 'package:open_filex/open_filex.dart';
 import '../../../core/services/events_service.dart';
 import '../../../core/services/report_generator.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/app_icon.dart';
 import '../../../core/widgets/app_snackbar.dart';
 import '../report_preview_screen.dart';
 import '../../../core/widgets/deleting_overlay.dart';
 import '../../../core/theme/text_styles.dart';
+
 
 /// Full redesign — Expenses tab.
 /// Flat surfaces, generous whitespace, only one icon per surface (no per-row
@@ -424,90 +426,273 @@ class _EventExpensesTabState extends State<EventExpensesTab>
     }
   }
 
+  static const List<String> _categories = [
+    'Venue', 'Catering', 'Decorations', 'Photography',
+    'Music & Entertainment', 'Transport', 'Attire',
+    'Invitations', 'Coordination', 'Other',
+  ];
+
   void _showAddExpenseSheet() {
-    final catCtrl = TextEditingController();
     final descCtrl = TextEditingController();
     final amtCtrl = TextEditingController();
     final vendorCtrl = TextEditingController();
+    final notesCtrl = TextEditingController();
+    String category = '';
+    DateTime? expenseDate;
+    bool submitting = false;
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
-      builder: (ctx) => Padding(
-        padding: EdgeInsets.fromLTRB(
-            20, 20, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.85,
+          maxChildSize: 0.95,
+          minChildSize: 0.55,
+          builder: (_, scrollCtrl) => Padding(
+            padding: EdgeInsets.fromLTRB(
+                20, 10, 20, MediaQuery.of(ctx).viewInsets.bottom + 20),
+            child: ListView(controller: scrollCtrl, children: [
+              Center(
                 child: Container(
-                    width: 40,
-                    height: 4,
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                      color: AppColors.border,
+                      borderRadius: BorderRadius.circular(2)),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                      color: AppColors.primarySoft,
+                      borderRadius: BorderRadius.circular(14)),
+                  alignment: Alignment.center,
+                  child: const AppIcon('wallet',
+                      size: 22, color: AppColors.primary),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('New expense',
+                            style: appText(
+                                size: 18, weight: FontWeight.w800)),
+                        const SizedBox(height: 2),
+                        Text('Log a payment made for your event',
+                            style: appText(
+                                size: 12, color: AppColors.textTertiary)),
+                      ]),
+                ),
+                GestureDetector(
+                  onTap: () => Navigator.pop(ctx),
+                  child: Container(
+                    width: 32,
+                    height: 32,
                     decoration: BoxDecoration(
-                        color: AppColors.border,
-                        borderRadius: BorderRadius.circular(2)))),
-            const SizedBox(height: 16),
-            Text('Add Expense', style: appText(size: 18, weight: FontWeight.w800)),
-            const SizedBox(height: 14),
-            _input(catCtrl, 'Category'),
-            const SizedBox(height: 12),
-            _input(descCtrl, 'Description'),
-            const SizedBox(height: 12),
-            _input(amtCtrl, 'Amount', keyboard: TextInputType.number),
-            const SizedBox(height: 12),
-            _input(vendorCtrl, 'Vendor (optional)'),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                onPressed: () async {
-                  final data = <String, dynamic>{
-                    'category': catCtrl.text.trim(),
-                    'description': descCtrl.text.trim(),
-                    'amount': double.tryParse(amtCtrl.text.trim()) ?? 0,
-                  };
-                  if (vendorCtrl.text.trim().isNotEmpty) {
-                    data['vendor_name'] = vendorCtrl.text.trim();
-                  }
-                  Navigator.pop(ctx);
-                  final res =
-                      await EventsService.addExpense(widget.eventId, data);
-                  if (!mounted) return;
-                  if (res['success'] == true) {
-                    AppSnackbar.success(context, 'Added');
-                    _load();
-                  } else {
-                    AppSnackbar.error(context, res['message'] ?? 'Failed');
-                  }
+                        color: AppColors.borderLight,
+                        borderRadius: BorderRadius.circular(10)),
+                    alignment: Alignment.center,
+                    child: const AppIcon('close',
+                        size: 14, color: AppColors.textSecondary),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 22),
+              _label('Description'),
+              _input(descCtrl, 'e.g. Catering deposit', autofocus: true),
+              const SizedBox(height: 16),
+              _label('Amount'),
+              _input(amtCtrl, '0', keyboard: TextInputType.number),
+              const SizedBox(height: 18),
+              _label('Category'),
+              SizedBox(
+                height: 36,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _categories.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (_, i) {
+                    final c = _categories[i];
+                    final active = category == c;
+                    return GestureDetector(
+                      onTap: () => setSheet(
+                          () => category = active ? '' : c),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: active
+                              ? AppColors.primarySoft
+                              : Colors.white,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                              color: active
+                                  ? AppColors.primary.withOpacity(0.4)
+                                  : AppColors.borderLight),
+                        ),
+                        child: Text(c,
+                            style: appText(
+                                size: 12,
+                                weight: FontWeight.w700,
+                                color: active
+                                    ? AppColors.primary
+                                    : AppColors.textSecondary)),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 18),
+              _label('Date'),
+              GestureDetector(
+                onTap: () async {
+                  final d = await showDatePicker(
+                    context: ctx,
+                    initialDate: expenseDate ?? DateTime.now(),
+                    firstDate:
+                        DateTime.now().subtract(const Duration(days: 365)),
+                    lastDate:
+                        DateTime.now().add(const Duration(days: 365)),
+                  );
+                  if (d != null) setSheet(() => expenseDate = d);
                 },
-                style: ElevatedButton.styleFrom(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.borderLight),
+                  ),
+                  child: Row(children: [
+                    AppIcon('calendar',
+                        size: 16,
+                        color: expenseDate != null
+                            ? AppColors.primary
+                            : AppColors.textHint),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        expenseDate != null
+                            ? _formatDate(expenseDate!.toIso8601String())
+                            : 'Pick a date',
+                        style: appText(
+                            size: 13,
+                            weight: FontWeight.w600,
+                            color: expenseDate != null
+                                ? AppColors.textPrimary
+                                : AppColors.textHint),
+                      ),
+                    ),
+                    if (expenseDate != null)
+                      GestureDetector(
+                        onTap: () => setSheet(() => expenseDate = null),
+                        child: const AppIcon('close',
+                            size: 14, color: AppColors.textHint),
+                      ),
+                  ]),
+                ),
+              ),
+              const SizedBox(height: 18),
+              _label('Vendor (optional)'),
+              _input(vendorCtrl, 'e.g. Sunrise Catering'),
+              const SizedBox(height: 16),
+              _label('Notes (optional)'),
+              _input(notesCtrl, 'Anything to remember…', maxLines: 2),
+              const SizedBox(height: 28),
+              SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: ElevatedButton(
+                  onPressed: submitting
+                      ? null
+                      : () async {
+                          if (descCtrl.text.trim().isEmpty) {
+                            AppSnackbar.error(
+                                context, 'Description is required');
+                            return;
+                          }
+                          final amt = double.tryParse(
+                                  amtCtrl.text.trim()) ??
+                              0;
+                          if (amt <= 0) {
+                            AppSnackbar.error(context, 'Enter an amount');
+                            return;
+                          }
+                          setSheet(() => submitting = true);
+                          final data = <String, dynamic>{
+                            'description': descCtrl.text.trim(),
+                            'amount': amt,
+                            if (category.isNotEmpty) 'category': category,
+                            if (vendorCtrl.text.trim().isNotEmpty)
+                              'vendor_name': vendorCtrl.text.trim(),
+                            if (notesCtrl.text.trim().isNotEmpty)
+                              'notes': notesCtrl.text.trim(),
+                            if (expenseDate != null)
+                              'expense_date':
+                                  '${expenseDate!.year}-${expenseDate!.month.toString().padLeft(2, '0')}-${expenseDate!.day.toString().padLeft(2, '0')}',
+                          };
+                          Navigator.pop(ctx);
+                          final res = await EventsService.addExpense(
+                              widget.eventId, data);
+                          if (!mounted) return;
+                          if (res['success'] == true) {
+                            AppSnackbar.success(context, 'Expense added');
+                            _load();
+                          } else {
+                            AppSnackbar.error(
+                                context, res['message'] ?? 'Failed');
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primary,
                     foregroundColor: Colors.white,
+                    elevation: 0,
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14))),
-                child: Text('Save',
-                    style: appText(
-                        size: 14,
-                        weight: FontWeight.w700,
-                        color: Colors.white)),
+                        borderRadius: BorderRadius.circular(999)),
+                  ),
+                  child: Text('Add expense',
+                      style: appText(
+                          size: 15,
+                          weight: FontWeight.w800,
+                          color: Colors.white)),
+                ),
               ),
-            ),
-          ],
-        ),
-      ),
+            ]),
+          ),
+        );
+      }),
     );
   }
 
-  Widget _input(TextEditingController ctrl, String hint,
-      {TextInputType keyboard = TextInputType.text}) {
+  Widget _label(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(text,
+            style: appText(
+                size: 12,
+                weight: FontWeight.w700,
+                color: AppColors.textSecondary)),
+      );
+
+  Widget _input(TextEditingController c, String hint,
+      {int maxLines = 1,
+      bool autofocus = false,
+      TextInputType keyboard = TextInputType.text}) {
     return TextField(
-      controller: ctrl,
+      controller: c,
+      maxLines: maxLines,
+      autofocus: autofocus,
       keyboardType: keyboard,
-      autocorrect: false,
       style: appText(size: 14),
       decoration: InputDecoration(
         hintText: hint,
@@ -515,12 +700,19 @@ class _EventExpensesTabState extends State<EventExpensesTab>
         filled: true,
         fillColor: Colors.white,
         border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide:
-                const BorderSide(color: Color(0xFFE5E7EB), width: 1)),
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: AppColors.borderLight)),
+        enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: AppColors.borderLight)),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       ),
     );
   }
+
+
+
 
   Widget _skeleton() {
     Widget box({double? w, required double h, double r = 12}) => Container(
@@ -530,10 +722,71 @@ class _EventExpensesTabState extends State<EventExpensesTab>
               color: AppColors.borderLight,
               borderRadius: BorderRadius.circular(r)),
         );
+    Widget summaryCard() => Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.borderLight),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            box(w: 82, h: 12, r: 4),
+            const SizedBox(height: 8),
+            box(w: 160, h: 26, r: 5),
+            const SizedBox(height: 14),
+            box(h: 6, r: 999),
+            const SizedBox(height: 10),
+            Row(children: [
+              box(w: 132, h: 12, r: 4),
+              const Spacer(),
+              box(w: 88, h: 12, r: 4),
+            ]),
+            const SizedBox(height: 14),
+            Container(height: 1, color: AppColors.borderLight),
+            const SizedBox(height: 12),
+            Row(children: [
+              Expanded(child: _expenseMetricSkeleton(box)),
+              Container(width: 1, height: 28, color: AppColors.borderLight),
+              Expanded(child: _expenseMetricSkeleton(box)),
+            ]),
+          ]),
+        );
+    Widget expenseCard() => Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.borderLight),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  box(w: 92, h: 10, r: 4),
+                  const SizedBox(height: 7),
+                  box(w: 180, h: 14, r: 4),
+                  const SizedBox(height: 4),
+                  box(w: 120, h: 14, r: 4),
+                ]),
+              ),
+              const SizedBox(width: 14),
+              box(w: 92, h: 16, r: 4),
+            ]),
+            const SizedBox(height: 10),
+            Row(children: [
+              box(w: 84, h: 12, r: 4),
+              const SizedBox(width: 12),
+              Expanded(child: box(h: 12, r: 4)),
+              const SizedBox(width: 8),
+              box(w: 48, h: 12, r: 4),
+            ]),
+          ]),
+        );
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
       children: [
-        box(h: 160, r: 20),
+        summaryCard(),
         const SizedBox(height: 14),
         Row(children: [
           Expanded(child: box(h: 46, r: 14)),
@@ -544,10 +797,19 @@ class _EventExpensesTabState extends State<EventExpensesTab>
         box(w: 140, h: 20, r: 6),
         const SizedBox(height: 14),
         for (int i = 0; i < 4; i++) ...[
-          box(h: 80, r: 16),
-          const SizedBox(height: 10),
+          expenseCard(),
         ],
       ],
     );
   }
+
+  Widget _expenseMetricSkeleton(Widget Function({required double h, double r, double? w}) box) =>
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          box(w: 54, h: 11, r: 4),
+          const SizedBox(height: 6),
+          box(w: 86, h: 14, r: 4),
+        ]),
+      );
 }

@@ -1,6 +1,6 @@
 import 'api_base.dart';
 
-/// Service for the /moments endpoints (stories/reels).
+/// Service for the /moments endpoints (stories/glimpses).
 ///
 /// Backend visibility: only authors the current user follows OR has in their
 /// accepted circle, plus the current user.

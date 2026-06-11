@@ -87,7 +87,7 @@ const VideoPoster = ({ src, poster, minHeight }: { src: string; poster?: string 
       {displayPoster ? (
         <img
           src={displayPoster}
-          alt="Reel preview"
+          alt="Glimpse preview"
           className="w-full object-cover"
           loading="lazy"
           style={{ minHeight, maxHeight: '420px' }}
@@ -159,13 +159,13 @@ const TrendingMoments = () => {
           className="text-center mb-16"
         >
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-accent/10 border border-accent/20 mb-6">
-            <span className="text-sm font-medium text-accent-foreground">Trending Reels</span>
+            <span className="text-sm font-medium text-accent-foreground">Trending Glimpses</span>
           </div>
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-foreground mb-4">
             Shared by our community
           </h2>
           <p className="text-lg text-muted-foreground max-w-lg mx-auto">
-            Real reels from real people, shared with the world.
+            Real glimpses from real people, shared with the world.
           </p>
         </motion.div>
 
@@ -207,7 +207,7 @@ const TrendingMoments = () => {
                     ) : m.media_url ? (
                       <img
                         src={m.media_url}
-                        alt={m.caption || 'Reel'}
+                        alt={m.caption || 'Glimpse'}
                         className="w-full object-cover transition-transform duration-700 group-hover:scale-105"
                         loading="lazy"
                         style={{ minHeight: tileHeight, maxHeight: '420px' }}

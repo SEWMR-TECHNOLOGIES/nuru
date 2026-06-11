@@ -8,7 +8,7 @@ class HomeCache {
   static int feedPage = 1;
   static int feedTotalPages = 1;
 
-  static List<dynamic>? reels;
+  static List<dynamic>? glimpses;
 
   static Map<String, dynamic>? profile;
   static List<dynamic>? myEvents;
@@ -30,7 +30,7 @@ class HomeCache {
     feedPosts = null;
     feedPage = 1;
     feedTotalPages = 1;
-    reels = null;
+    glimpses = null;
     profile = null;
     myEvents = null;
     invitedEvents = null;

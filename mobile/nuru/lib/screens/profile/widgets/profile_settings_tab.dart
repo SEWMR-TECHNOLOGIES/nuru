@@ -5,6 +5,8 @@ import 'package:provider/provider.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/l10n/l10n_helper.dart';
 import '../../../core/widgets/language_selector.dart';
+import '../../../core/widgets/sign_out_overlay.dart';
+import '../../../core/widgets/sign_out_confirm_button.dart';
 import '../../../providers/auth_provider.dart';
 import '../../auth/login_screen.dart';
 import '../../settings/settings_screen.dart';
@@ -111,30 +113,18 @@ class ProfileSettingsTab extends StatelessWidget {
   }
 
   Widget _signOutButton(BuildContext context, AuthProvider auth) {
-    return GestureDetector(
-      onTap: () async {
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: Text(context.trw('sign_out'), style: GoogleFonts.inter(fontSize: 18, fontWeight: FontWeight.w700)),
-            content: Text('Are you sure you want to sign out?', style: GoogleFonts.inter(fontSize: 14, color: AppColors.textSecondary)),
-            actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false),
-                child: Text(context.trw('cancel'), style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textTertiary))),
-              TextButton(onPressed: () => Navigator.pop(ctx, true),
-                child: Text(context.trw('sign_out'), style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.error))),
-            ],
-          ),
-        );
-        if (confirmed == true && context.mounted) {
-          await auth.signOut();
-          if (context.mounted) {
-            Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
-          }
+    return SignOutConfirmButton(
+      confirmLabel: context.trw('sign_out'),
+      cancelLabel: context.trw('cancel'),
+      questionLabel: 'Sign out of this account?',
+      onConfirm: () async {
+        await SignOutOverlay.run(context, () => auth.signOut());
+        if (context.mounted) {
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
         }
       },
-      child: Container(
+      trigger: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         decoration: BoxDecoration(color: AppColors.surface, borderRadius: BorderRadius.circular(12),
           border: Border.all(color: AppColors.error.withOpacity(0.15), width: 1)),

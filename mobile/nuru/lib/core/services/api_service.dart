@@ -205,6 +205,15 @@ class AuthApi {
     return ApiService.get('/users/check-username', auth: false, queryParams: params);
   }
 
+  /// GET /users/username-suggestions — proactive Gmail-style suggestions
+  /// from the user's name (indexed lookup, never scans the users table).
+  static Future<Map<String, dynamic>> getUsernameSuggestions({String? firstName, String? lastName}) {
+    final params = <String, String>{};
+    if (firstName != null && firstName.isNotEmpty) params['first_name'] = firstName;
+    if (lastName != null && lastName.isNotEmpty) params['last_name'] = lastName;
+    return ApiService.get('/users/username-suggestions', auth: false, queryParams: params);
+  }
+
   /// GET /users/validate-name
   static Future<Map<String, dynamic>> validateName(String name) {
     return ApiService.get('/users/validate-name', auth: false, queryParams: {'name': name});

@@ -670,13 +670,14 @@ def batch_load_event_context(db: Session, event_ids: List[UUID]) -> Dict[str, Di
     ).filter(EventInvitation.event_id.in_(eid_list)).group_by(EventInvitation.event_id).all():
         base[str(eid)]["invitations_total"] = int(total_inv or 0)
 
-    # Sent invitations per event (sent_at not null)
+    # Sent invitations per event — every invitation record represents one sent
+    # invite (sent_at is unreliable when delivery happens via in-app routes),
+    # so we count all rows for the event.
     for eid, sent_inv in db.query(
         EventInvitation.event_id,
         sa_func.count(EventInvitation.id),
     ).filter(
         EventInvitation.event_id.in_(eid_list),
-        EventInvitation.sent_at.isnot(None),
     ).group_by(EventInvitation.event_id).all():
         base[str(eid)]["invitations_sent"] = int(sent_inv or 0)
 

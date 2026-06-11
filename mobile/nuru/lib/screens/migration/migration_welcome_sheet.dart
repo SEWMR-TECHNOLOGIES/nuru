@@ -257,6 +257,7 @@ Future<void> showMigrationWelcomeSheet(BuildContext context) {
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
+    useSafeArea: true,
     isDismissible: !isRestrict,
     enableDrag: !isRestrict,
     backgroundColor: Colors.transparent,

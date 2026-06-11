@@ -91,7 +91,7 @@ class _MyTicketPaymentsTabState extends State<MyTicketPaymentsTab>
         return (bg: const Color(0xFFFEE2E2), fg: const Color(0xFFB91C1C),
             label: 'Failed');
       default:
-        return (bg: const Color(0xFFE5E7EB), fg: AppColors.textSecondary,
+        return (bg: const Color(0xFFDBEAFE), fg: const Color(0xFF1D4ED8),
             label: s.isNotEmpty ? s[0].toUpperCase() + s.substring(1) : 'Unknown');
     }
   }
@@ -332,7 +332,9 @@ class _MyTicketPaymentsTabState extends State<MyTicketPaymentsTab>
     final amount = (m['net_amount'] is num)
         ? (m['net_amount'] as num)
         : ((m['gross_amount'] is num) ? (m['gross_amount'] as num) : 0);
-    final currency = m['currency_code']?.toString() ?? '';
+    // Always render using the active user currency so KE accounts never see
+    // a stale 'TZS' that may have been stored on legacy payment rows.
+    final currency = getActiveCurrency();
     final paidIso = m['completed_at'] ?? m['confirmed_at'] ?? m['initiated_at'];
     final eventName = m['event_name']?.toString() ?? '';
     final ticketClass = m['ticket_class_name']?.toString() ?? '';

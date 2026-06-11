@@ -8,6 +8,7 @@ import '../../../core/widgets/nuru_refresh_indicator.dart';
 import '../../../core/widgets/nuru_pagination.dart';
 import '../../../core/widgets/nuru_skeleton.dart';
 import '../../../core/widgets/app_icon.dart';
+import '../../../core/widgets/nuru_search_bar.dart';
 import '../../payments/payment_receipt_screen.dart';
 import '../contribution_details_screen.dart';
 
@@ -255,54 +256,15 @@ class _MyContributionPaymentsTabState extends State<MyContributionPaymentsTab>
   Widget _searchField() {
     return Row(children: [
       Expanded(
-        child: Container(
-          height: 46,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(26),
-            border: Border.all(color: _hair),
-          ),
-          child: Row(children: [
-            const AppIcon('search', size: 18, color: Color(0xFF8E8E93)),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextField(
-                controller: _searchCtrl,
-                cursorColor: _navy,
-                textAlignVertical: TextAlignVertical.center,
-                style: GoogleFonts.inter(fontSize: 13.5, color: _navy),
-                onSubmitted: (v) {
-                  _page = 1;
-                  _search = v.trim();
-                  _load();
-                },
-                decoration: InputDecoration(
-                  isDense: true,
-                  filled: false,
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                  hintText: 'Search transactions',
-                  hintStyle: GoogleFonts.inter(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w400,
-                      color: const Color(0xFF9E9E9E)),
-                ),
-              ),
-            ),
-            if (_search.isNotEmpty)
-              GestureDetector(
-                onTap: () {
-                  _searchCtrl.clear();
-                  _page = 1;
-                  _search = '';
-                  _load();
-                },
-                child: const AppIcon('close', size: 16, color: Color(0xFF8E8E93)),
-              ),
-          ]),
+        child: NuruSearchBar(
+          controller: _searchCtrl,
+          hintText: 'Search transactions',
+          debounce: const Duration(milliseconds: 300),
+          onChanged: (v) {
+            _page = 1;
+            _search = v.trim();
+            _load();
+          },
         ),
       ),
       const SizedBox(width: 10),

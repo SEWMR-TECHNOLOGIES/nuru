@@ -581,6 +581,7 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => LogOfflinePaymentSheet(
@@ -631,24 +632,89 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
       width: w, height: h,
       decoration: BoxDecoration(color: const Color(0xFFF1F1F4), borderRadius: BorderRadius.circular(r)),
     );
+    Widget summaryCard() => Container(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: AppColors.borderLight)),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        bar(36, 36, r: 10),
+        const SizedBox(width: 14),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          bar(108, 12, r: 4),
+          const SizedBox(height: 8),
+          Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            bar(32, 28, r: 5),
+            const SizedBox(width: 6),
+            Padding(padding: const EdgeInsets.only(bottom: 4), child: bar(34, 13, r: 4)),
+          ]),
+          const SizedBox(height: 6),
+          bar(72, 11, r: 4),
+        ])),
+        SizedBox(
+          width: 60, height: 60,
+          child: Stack(alignment: Alignment.center, children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: const Color(0xFFF1F1F4), width: 5)),
+            ),
+            bar(28, 12, r: 4),
+          ]),
+        ),
+      ]),
+    );
+    Widget searchToggle() => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.borderLight)),
+      child: Row(children: [
+        bar(32, 32, r: 10),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          bar(136, 13, r: 4),
+          const SizedBox(height: 6),
+          bar(190, 11, r: 4),
+        ])),
+        bar(16, 16, r: 4),
+      ]),
+    );
     Widget row() => Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: AppColors.borderLight)),
-      child: Row(children: [
-        Container(width: 80, height: 80, decoration: const BoxDecoration(color: Color(0xFFF1F1F4))),
-        const SizedBox(width: 12),
-        Expanded(child: Padding(padding: const EdgeInsets.symmetric(vertical: 14),
+      clipBehavior: Clip.antiAlias,
+      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        Padding(
+          padding: const EdgeInsets.all(10),
+          child: bar(64, 64, r: 12),
+        ),
+        Expanded(child: Padding(padding: const EdgeInsets.fromLTRB(2, 12, 12, 12),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              bar(160, 14), const SizedBox(height: 8), bar(100, 11), const SizedBox(height: 10), bar(70, 18, r: 999),
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(child: bar(160, 14, r: 4)),
+                bar(16, 16, r: 4),
+              ]),
+              const SizedBox(height: 7),
+              bar(116, 12, r: 4),
+              const SizedBox(height: 6),
+              bar(92, 11, r: 4),
+              const SizedBox(height: 8),
+              Row(children: [
+                bar(86, 20, r: 999),
+                const Spacer(),
+                bar(82, 14, r: 4),
+              ]),
             ]))),
-        const SizedBox(width: 12),
       ]),
     );
     return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 100), children: [
-      Container(height: 96, decoration: BoxDecoration(color: const Color(0xFFF1F1F4), borderRadius: BorderRadius.circular(20))),
+      summaryCard(),
       const SizedBox(height: 14),
-      bar(double.infinity, 60, r: 14),
+      searchToggle(),
       const SizedBox(height: 14),
+      Row(children: [
+        bar(116, 13, r: 4),
+        const SizedBox(width: 6),
+        bar(22, 16, r: 999),
+      ]),
+      const SizedBox(height: 10),
       ...List.generate(4, (_) => row()),
     ]);
   }

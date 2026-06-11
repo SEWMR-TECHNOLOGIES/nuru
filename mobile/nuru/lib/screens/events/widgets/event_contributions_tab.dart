@@ -1,4 +1,5 @@
 import '../../../core/widgets/nuru_refresh_indicator.dart';
+import '../../../core/widgets/nuru_search_bar.dart';
 import '../../../core/utils/money_format.dart';
 import 'dart:io';
 import 'dart:typed_data';
@@ -21,6 +22,7 @@ import '../../../core/widgets/deleting_overlay.dart';
 import '../../../core/theme/text_styles.dart';
 import '../../contributors/verify_contribution_scanner_screen.dart';
 import '../../../core/l10n/l10n_helper.dart';
+import '../../../core/widgets/app_icon.dart';
 
 const _kPaymentMethods = [
   {'id': 'cash', 'name': 'Cash'},
@@ -165,6 +167,8 @@ class _EventContributionsTabState extends State<EventContributionsTab>
 
   String _getDefaultTemplate(String caseType) {
     switch (caseType) {
+      case 'not_pledged':
+        return '{event_title}\nHabari {name},\nTunakukaribisha kushiriki katika {event_name}. Tafadhali toa ahadi yako ya mchango.\nNamba ya malipo: {payment}';
       case 'no_contribution':
         return '{event_title}\nHabari {name},\nTunakukumbusha kutoa mchango wako kwa ajili ya {event_name}.\nNamba ya malipo: {payment}';
       case 'partial':
@@ -233,10 +237,18 @@ class _EventContributionsTabState extends State<EventContributionsTab>
     final totalPaid = _toNum(
       _summary['total_paid'] ?? _summary['total_confirmed'],
     );
-    final totalBalance = (totalPledged - totalPaid)
-        .clamp(0, double.infinity)
-        .toDouble();
+    final totalBalance = _eventContributors.fold<double>(0, (sum, entry) {
+      final ec = entry is Map ? entry : const {};
+      // Match the contributors report logic: clamp each contributor's
+      // outstanding at 0 so overpayments don't cancel out others' debts.
+      final pledged = _toNum(ec['pledge_amount']);
+      final paid = _toNum(ec['total_paid'] ?? ec['amount']);
+      final fallback = (pledged - paid).clamp(0, double.infinity).toDouble();
+      final bal = ec['balance'] != null ? _toNum(ec['balance']) : fallback;
+      return sum + (bal < 0 ? 0.0 : bal);
+    });
     final budget = widget.eventBudget ?? 0;
+    final goal = budget > 0 ? budget : totalPledged;
     final filtered = _filteredContributors;
 
     return Stack(
@@ -248,28 +260,26 @@ class _EventContributionsTabState extends State<EventContributionsTab>
           },
           color: AppColors.primary,
           child: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
             children: [
-              // ── Summary Cards ──
-              _buildSummarySection(
-                totalPledged,
-                totalPaid,
-                totalBalance,
-                budget,
+              // ── Goal header (ring + total goal + linear progress) ──
+              _buildGoalHeader(goal: goal, collected: totalPaid),
+              const SizedBox(height: 12),
+
+              // ── 4-stat strip ──
+              _buildStatStrip(
+                pledged: totalPledged,
+                collected: totalPaid,
+                outstanding: totalBalance,
+                contributors: _eventContributors.length,
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
 
-              // ── Progress Bars ──
-              if (budget > 0 || totalPledged > 0) ...[
-                _buildProgressSection(totalPledged, totalPaid, budget),
-                const SizedBox(height: 12),
-              ],
+              // ── Quick actions (horizontal scroll) ──
+              _buildQuickActions(),
+              const SizedBox(height: 14),
 
-              // ── Action Buttons ──
-              _buildActionButtons(),
-              const SizedBox(height: 12),
-
-              // ── Messaging Section ──
+              // ── Messaging Section (expanded) ──
               if (widget.isCreator &&
                   _messagingExpanded &&
                   _eventContributors.isNotEmpty) ...[
@@ -287,30 +297,37 @@ class _EventContributionsTabState extends State<EventContributionsTab>
               _buildSearchBar(),
               const SizedBox(height: 12),
 
-              // ── Contributors List ──
-              Text(
-                '${filtered.length} contributor${filtered.length != 1 ? 's' : ''}',
-                style: appText(
-                  size: 14,
-                  weight: FontWeight.w600,
-                  color: AppColors.textSecondary,
-                ),
+              // ── Contributors header line ──
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2),
+                child: Row(children: [
+                  Text(
+                    '${filtered.length} contributor${filtered.length != 1 ? 's' : ''}',
+                    style: appText(
+                      size: 12,
+                      weight: FontWeight.w600,
+                      color: AppColors.textTertiary,
+                    ),
+                  ),
+                ]),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
+
               if (filtered.isEmpty)
                 Container(
-                  padding: const EdgeInsets.all(30),
+                  padding: const EdgeInsets.all(28),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: AppColors.borderLight),
                   ),
                   child: Center(
                     child: Text(
                       _searchQuery.isNotEmpty
                           ? 'No contributors match your search.'
-                          : 'No contributors added yet.\nTap "Add Contributor" to get started.',
+                          : 'No contributors added yet.\nTap the + button to add one.',
                       textAlign: TextAlign.center,
-                      style: appText(size: 14, color: AppColors.textTertiary),
+                      style: appText(size: 13, color: AppColors.textTertiary),
                     ),
                   ),
                 )
@@ -319,272 +336,353 @@ class _EventContributionsTabState extends State<EventContributionsTab>
             ],
           ),
         ),
+        // (Floating Add Contributor FAB removed — Add Contributor action lives in the header.)
         DeletingOverlay(visible: _actionLoading, label: 'Processing...'),
       ],
     );
   }
 
+
   // ════════════════════════════════════════════════════
-  // SUMMARY SECTION
+  // GOAL HEADER  (circular ring + total goal + linear progress)
   // ════════════════════════════════════════════════════
 
-  Widget _buildSummarySection(
-    double totalPledged,
-    double totalPaid,
-    double totalBalance,
-    double budget,
-  ) {
+  Widget _buildGoalHeader({required double goal, required double collected}) {
+    final pct = goal > 0 ? (collected / goal).clamp(0.0, 1.0) : 0.0;
+    final pctLabel = '${(pct * 100).round()}%';
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.borderLight),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text('Contribution Summary', style: appText(size: 15, weight: FontWeight.w700)),
-          const SizedBox(height: 12),
-          // Row 1: Budget (if exists) + Total Collected
-          if (budget > 0) ...[
-            Row(children: [
-              Expanded(child: _summaryCard('Event Budget', _formatAmount(budget), Colors.blue)),
-              const SizedBox(width: 10),
-              Expanded(child: _summaryCard('Total Collected', _formatAmount(totalPaid), AppColors.accent)),
-            ]),
-            const SizedBox(height: 10),
-            Row(children: [
-              Expanded(child: _summaryCard('Budget Shortfall', _formatAmount((budget - totalPaid).clamp(0, double.infinity)), AppColors.error)),
-              const SizedBox(width: 10),
-              Expanded(child: _summaryCard('Contributors', '${_eventContributors.length}', AppColors.textSecondary)),
-            ]),
-            const SizedBox(height: 10),
-          ],
-          // Pledged / Outstanding row
-          Row(children: [
-            Expanded(child: _summaryCard('Total Pledged', _formatAmount(totalPledged), const Color(0xFFd97706))),
-            const SizedBox(width: 10),
-            Expanded(child: _summaryCard('Outstanding', _formatAmount(totalBalance), AppColors.error)),
-          ]),
-          const SizedBox(height: 10),
-          Row(children: [
-            Expanded(child: _summaryCard('Paid', _formatAmount(totalPaid), AppColors.accent)),
-            const SizedBox(width: 10),
-            if (budget > 0)
-              Expanded(child: _summaryCard('Unpledged', _formatAmount((budget - totalPledged).clamp(0, double.infinity)), const Color(0xFF7c3aed)))
-            else
-              Expanded(child: _summaryCard('Contributors', '${_eventContributors.length}', AppColors.textSecondary)),
-          ]),
-        ],
-      ),
-    );
-  }
-
-  Widget _summaryCard(String label, String value, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: appText(size: 11, color: AppColors.textTertiary)),
-          const SizedBox(height: 4),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              style: appText(size: 15, weight: FontWeight.w700, color: color),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ════════════════════════════════════════════════════
-  // PROGRESS BARS
-  // ════════════════════════════════════════════════════
-
-  Widget _buildProgressSection(
-    double totalPledged,
-    double totalPaid,
-    double budget,
-  ) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          if (budget > 0) ...[
-            _progressBar(
-              'Budget vs Raised',
-              totalPaid,
-              budget,
-              AppColors.accent,
-            ),
-            const SizedBox(height: 12),
-          ],
-          if (totalPledged > 0)
-            _progressBar(
-              'Collection Progress',
-              totalPaid,
-              totalPledged,
-              AppColors.primary,
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _progressBar(String label, double current, double total, Color color) {
-    final pct = total > 0 ? (current / total * 100).clamp(0, 100) : 0.0;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: appText(size: 12, weight: FontWeight.w600)),
-            Text(
-              '${_formatAmount(current)} / ${_formatAmount(total)}',
-              style: appText(size: 11, color: AppColors.textTertiary),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: LinearProgressIndicator(
-            value: pct / 100,
-            minHeight: 8,
-            backgroundColor: color.withOpacity(0.12),
-            valueColor: AlwaysStoppedAnimation(color),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          '${pct.toStringAsFixed(1)}%',
-          style: appText(size: 11, color: color, weight: FontWeight.w600),
-        ),
-      ],
-    );
-  }
-
-  // ════════════════════════════════════════════════════
-  // ACTION BUTTONS
-  // ════════════════════════════════════════════════════
-
-  Widget _buildActionButtons() {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        _actionChip(
-          null,
-          'Report',
-          () => _showReportOptions(),
-          svgIcon: 'assets/icons/print-icon.svg',
-        ),
-        if (_canManage)
-          _actionChip(
-            null,
-            'Add Contributor',
-            _showAddContributorSheet,
-            filled: true,
-            svgIcon: 'assets/icons/plus-icon.svg',
-          ),
-        if (_canManage)
-          _actionChip(
-            Icons.qr_code_scanner_rounded,
-            'Verify QR',
-            () => Navigator.push(context, MaterialPageRoute(
-              builder: (_) => const VerifyContributionScannerScreen(),
-            )),
-          ),
-        if (widget.isCreator)
-          _actionChip(
-            Icons.upload_rounded,
-            'Bulk Upload',
-            _showBulkUploadSheet,
-          ),
-        if (widget.isCreator && _eventContributors.isNotEmpty)
-          _actionChip(
-            null,
-            _messagingExpanded ? 'Hide Messaging' : 'Messaging',
-            () => setState(() {
-              _messagingExpanded = !_messagingExpanded;
-              if (_messagingExpanded) {
-                // Auto-select all matching contributors when opening messaging
-                _messagingSelected.clear();
-                _messagingSelected.addAll(_eventContributors.where((ec) {
-                  final pledge = _toNum(ec['pledge_amount']);
-                  final paid = _toNum(ec['total_paid']);
-                  final phone = ec['contributor']?['phone']?.toString() ?? '';
-                  if (phone.isEmpty || pledge <= 0) return false;
-                  switch (_messagingCase) {
-                    case 'no_contribution': return paid == 0;
-                    case 'partial': return paid > 0 && paid < pledge;
-                    case 'completed': return paid >= pledge;
-                    default: return false;
-                  }
-                }).map((ec) => ec['id']?.toString() ?? ''));
-              }
-            }),
-            svgIcon: _messagingExpanded ? 'assets/icons/close-icon.svg' : 'assets/icons/chat-icon.svg',
-          ),
-      ],
-    );
-  }
-
-  Widget _actionChip(
-    IconData? icon,
-    String label,
-    VoidCallback onTap, {
-    bool filled = false,
-    String? svgIcon,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: filled ? AppColors.primary : Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: filled ? null : Border.all(color: AppColors.border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (svgIcon != null)
-              SvgPicture.asset(
-                svgIcon,
-                width: 16,
-                height: 16,
-                colorFilter: ColorFilter.mode(
-                  filled ? Colors.white : AppColors.textSecondary,
-                  BlendMode.srcIn,
+          // Circular ring
+          SizedBox(
+            width: 112,
+            height: 112,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 112,
+                  height: 112,
+                  child: CircularProgressIndicator(
+                    value: pct == 0 ? 0.001 : pct,
+                    strokeWidth: 9,
+                    backgroundColor: const Color(0xFFE2E8F0),
+                    valueColor:
+                        const AlwaysStoppedAnimation(Color(0xFFEA580C)),
+                    strokeCap: StrokeCap.round,
+                  ),
                 ),
-              )
-            else if (icon != null)
-              Icon(
-                icon,
-                size: 16,
-                color: filled ? Colors.white : AppColors.textSecondary,
-              ),
-            const SizedBox(width: 6),
-            Text(
-              label,
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(pctLabel,
+                        style: appText(
+                            size: 22,
+                            weight: FontWeight.w700,
+                            color: AppColors.textPrimary)),
+                    Text('of goal',
+                        style: appText(
+                            size: 10,
+                            color: AppColors.textTertiary,
+                            weight: FontWeight.w500)),
+                    Text('collected',
+                        style: appText(
+                            size: 10,
+                            color: AppColors.textTertiary,
+                            weight: FontWeight.w500)),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 18),
+          // Right column: goal + bar + collected
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Total goal',
+                    style: appText(
+                        size: 11,
+                        color: AppColors.textTertiary,
+                        weight: FontWeight.w500)),
+                const SizedBox(height: 2),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(_formatAmount(goal),
+                      style: appText(
+                          size: 22,
+                          weight: FontWeight.w700,
+                          color: AppColors.textPrimary)),
+                ),
+                const SizedBox(height: 10),
+                Stack(
+                  alignment: Alignment.centerLeft,
+                  children: [
+                    Container(
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE2E8F0),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    ),
+                    FractionallySizedBox(
+                      widthFactor: pct == 0 ? 0.02 : pct,
+                      child: Container(
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFEA580C),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text('Collected',
+                    style: appText(
+                        size: 11,
+                        color: AppColors.textTertiary,
+                        weight: FontWeight.w500)),
+                const SizedBox(height: 2),
+                Text(_formatAmount(collected),
+                    style: appText(
+                        size: 17,
+                        weight: FontWeight.w700,
+                        color: const Color(0xFF16A34A))),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ════════════════════════════════════════════════════
+  // STAT STRIP (4 columns: Pledged / Collected / Outstanding / Contributors)
+  // ════════════════════════════════════════════════════
+
+  Widget _buildStatStrip({
+    required double pledged,
+    required double collected,
+    required double outstanding,
+    required int contributors,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minWidth: MediaQuery.of(context).size.width - 44,
+          ),
+          child: Row(children: [
+            SizedBox(width: 104, child: _statColumn(
+              icon: 'event-calendar-check',
+              iconColor: const Color(0xFFEA580C),
+              label: 'Pledged',
+              value: _formatAmount(pledged),
+            )),
+            const SizedBox(width: 12),
+            SizedBox(width: 104, child: _statColumn(
+              icon: 'double-check',
+              iconColor: const Color(0xFF16A34A),
+              label: 'Collected',
+              value: _formatAmount(collected),
+            )),
+            const SizedBox(width: 12),
+            SizedBox(width: 104, child: _statColumn(
+              icon: 'calendar',
+              iconColor: const Color(0xFFDC2626),
+              label: 'Outstanding',
+              value: _formatAmount(outstanding),
+            )),
+            const SizedBox(width: 12),
+            SizedBox(width: 104, child: _statColumn(
+              icon: 'users',
+              iconColor: const Color(0xFF475569),
+              label: 'Contributors',
+              value: '$contributors',
+            )),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  Widget _statColumn({
+    required String icon,
+    required Color iconColor,
+    required String label,
+    required String value,
+  }) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        AppIcon(icon, size: 18, color: iconColor),
+        const SizedBox(height: 5),
+        Text(label,
+            style: appText(
+                size: 9.5,
+                weight: FontWeight.w500,
+                color: AppColors.textTertiary)),
+        const SizedBox(height: 2),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(value,
               style: appText(
-                size: 12,
-                weight: FontWeight.w600,
-                color: filled ? Colors.white : AppColors.textSecondary,
+                  size: 11,
+                  weight: FontWeight.w700,
+                  color: AppColors.textPrimary)),
+        ),
+      ],
+    );
+  }
+
+  // ════════════════════════════════════════════════════
+  // QUICK ACTIONS (horizontal scroll)
+  // ════════════════════════════════════════════════════
+
+  Widget _buildQuickActions() {
+    final actions = <_QuickAction>[
+      if (_canManage)
+        _QuickAction(
+          icon: 'user-add',
+          label: 'Add\nContributor',
+          tint: const Color(0xFFEA580C),
+          tintBg: const Color(0xFFFFEDD5),
+          onTap: _showAddContributorSheet,
+        ),
+      if (widget.isCreator)
+        _QuickAction(
+          icon: 'upload',
+          label: 'Bulk\nUpload',
+          tint: const Color(0xFF7C3AED),
+          tintBg: const Color(0xFFEDE9FE),
+          onTap: _showBulkUploadSheet,
+        ),
+      _QuickAction(
+        icon: 'print',
+        label: 'Report',
+        tint: const Color(0xFF2563EB),
+        tintBg: const Color(0xFFDBEAFE),
+        onTap: _showReportOptions,
+      ),
+      if (widget.isCreator && _eventContributors.isNotEmpty)
+        _QuickAction(
+          icon: _messagingExpanded ? 'close' : 'chat',
+          label: 'Messaging',
+          tint: const Color(0xFF16A34A),
+          tintBg: const Color(0xFFDCFCE7),
+          onTap: () => setState(() {
+            _messagingExpanded = !_messagingExpanded;
+            if (_messagingExpanded) {
+              _messagingSelected.clear();
+              _messagingSelected.addAll(_eventContributors.where((ec) {
+                final pledge = _toNum(ec['pledge_amount']);
+                final paid = _toNum(ec['total_paid']);
+                final phone = ec['contributor']?['phone']?.toString() ?? '';
+                if (phone.isEmpty) return false;
+                switch (_messagingCase) {
+                  case 'not_pledged':
+                    return pledge == 0 && paid == 0;
+                  case 'no_contribution':
+                    return pledge > 0 && paid == 0;
+                  case 'partial':
+                    return pledge > 0 && paid > 0 && paid < pledge;
+                  case 'completed':
+                    return pledge > 0 && paid >= pledge;
+                  default:
+                    return false;
+                }
+              }).map((ec) => ec['id']?.toString() ?? ''));
+            }
+          }),
+        ),
+      if (_canManage)
+        _QuickAction(
+          icon: null,
+          materialIcon: Icons.qr_code_scanner_rounded,
+          label: 'Verify\nQR',
+          tint: const Color(0xFF475569),
+          tintBg: const Color(0xFFF1F5F9),
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const VerifyContributionScannerScreen(),
+            ),
+          ),
+        ),
+    ];
+
+    return SizedBox(
+      height: 108,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        itemCount: actions.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (_, i) => _quickActionCard(actions[i]),
+      ),
+    );
+  }
+
+  Widget _quickActionCard(_QuickAction a) {
+    return GestureDetector(
+      onTap: a.onTap,
+      child: Container(
+        width: 92,
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.borderLight),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.03),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: a.tintBg,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              alignment: Alignment.center,
+              child: a.icon != null
+                  ? AppIcon(a.icon!, size: 20, color: a.tint)
+                  : Icon(a.materialIcon, size: 20, color: a.tint),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              a.label,
+              textAlign: TextAlign.center,
+              style: appText(
+                size: 11,
+                weight: FontWeight.w700,
+                height: 1.2,
+                color: AppColors.textPrimary,
               ),
             ),
           ],
@@ -592,53 +690,21 @@ class _EventContributionsTabState extends State<EventContributionsTab>
       ),
     );
   }
+
+
+
 
   // ════════════════════════════════════════════════════
   // SEARCH BAR
   // ════════════════════════════════════════════════════
 
   Widget _buildSearchBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: TextField(
-        controller: _searchCtrl,
-        onChanged: (v) => setState(() => _searchQuery = v.trim()),
-        style: appText(size: 14),
-        decoration: InputDecoration(
-          hintText: 'Search contributors...',
-          hintStyle: appText(size: 13, color: AppColors.textHint),
-          prefixIcon: Padding(
-            padding: const EdgeInsets.all(12),
-            child: SvgPicture.asset('assets/icons/search-icon.svg',
-                width: 20, height: 20,
-                colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
-          ),
-          suffixIcon: _searchQuery.isNotEmpty
-              ? IconButton(
-                  icon: SvgPicture.asset('assets/icons/close-icon.svg',
-                      width: 18, height: 18,
-                      colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
-                  onPressed: () {
-                    _searchCtrl.clear();
-                    setState(() => _searchQuery = '');
-                  },
-                )
-              : null,
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide.none,
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 14,
-          ),
-        ),
-      ),
+    return NuruSearchBar(
+      controller: _searchCtrl,
+      hintText: 'Search contributors',
+      debounce: const Duration(milliseconds: 200),
+      onChanged: (v) => setState(() => _searchQuery = v.trim()),
+      onClear: () => setState(() => _searchQuery = ''),
     );
   }
 
@@ -648,197 +714,188 @@ class _EventContributionsTabState extends State<EventContributionsTab>
 
   Widget _contributorTile(Map<String, dynamic> ec, bool canManage) {
     final contributor = ec['contributor'] as Map<String, dynamic>?;
-    final name = contributor?['name'] ?? 'Unknown';
+    final name = (contributor?['name']?.toString() ?? 'Unknown');
     final phone = contributor?['phone']?.toString() ?? '';
     final email = contributor?['email']?.toString() ?? '';
+    final avatarUrl = contributor?['avatar_url']?.toString() ??
+        contributor?['profile_image']?.toString() ??
+        '';
     final pledged = _toNum(ec['pledge_amount']);
     final paid = _toNum(ec['total_paid']);
-    final balance = (pledged - paid).clamp(0, double.infinity);
+    final balance = ec['balance'] != null
+        ? _toNum(ec['balance'])
+        : (pledged - paid).clamp(0, double.infinity).toDouble();
+    final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.fromLTRB(14, 14, 8, 12),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.borderLight),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Avatar
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: AppColors.primarySoft,
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: Text(
-                name[0].toUpperCase(),
-                style: appText(
-                  size: 16,
-                  weight: FontWeight.w700,
-                  color: AppColors.primary,
+          // Top row: avatar + name/phone + kebab
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.primarySoft,
+                  shape: BoxShape.circle,
+                  image: avatarUrl.isNotEmpty
+                      ? DecorationImage(
+                          image: NetworkImage(avatarUrl), fit: BoxFit.cover)
+                      : null,
                 ),
+                alignment: Alignment.center,
+                child: avatarUrl.isEmpty
+                    ? Text(initial,
+                        style: appText(
+                            size: 16,
+                            weight: FontWeight.w700,
+                            color: AppColors.primary))
+                    : null,
               ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(name, style: appText(size: 14, weight: FontWeight.w600)),
-                if (phone.isNotEmpty)
-                  Text(
-                    phone,
-                    style: appText(size: 11, color: AppColors.textTertiary),
-                  ),
-                if (email.isNotEmpty)
-                  Text(
-                    email,
-                    style: appText(size: 11, color: AppColors.textTertiary),
-                  ),
-                const SizedBox(height: 4),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 4,
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _inlineStat(
-                      'Pledged',
-                      _formatAmount(pledged),
-                      const Color(0xFFd97706),
-                    ),
-                    _inlineStat('Paid', _formatAmount(paid), AppColors.accent),
-                    _inlineStat(
-                      'Balance',
-                      _formatAmount(balance),
-                      balance > 0 ? AppColors.error : AppColors.accent,
-                    ),
+                    Text(name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: appText(
+                            size: 14,
+                            weight: FontWeight.w600,
+                            color: AppColors.textPrimary)),
+                    const SizedBox(height: 2),
+                    Text(phone.isNotEmpty ? phone : email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: appText(
+                            size: 11.5,
+                            weight: FontWeight.w500,
+                            color: AppColors.textTertiary)),
                   ],
                 ),
-              ],
-            ),
-          ),
-          if (canManage)
-            PopupMenuButton<String>(
-              icon: const Icon(
-                Icons.more_vert,
-                size: 18,
-                color: AppColors.textHint,
               ),
-              onSelected: (action) => _handleContributorAction(action, ec),
-              itemBuilder: (_) => [
-                const PopupMenuItem(
-                  value: 'payment',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.attach_money,
-                        size: 18,
-                        color: AppColors.textSecondary,
-                      ),
-                      SizedBox(width: 8),
-                      Text('Record Payment'),
-                    ],
-                  ),
+              if (canManage)
+                PopupMenuButton<String>(
+                  padding: EdgeInsets.zero,
+                  icon: const AppIcon('more-vertical',
+                      size: 20, color: AppColors.textHint),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  onSelected: (action) =>
+                      _handleContributorAction(action, ec),
+                  itemBuilder: (_) => [
+                    _menuItem('payment', 'money',
+                        'Record payment'),
+                    _menuItem('pledge', 'pen', 'Update pledge'),
+                    _menuItem('history', 'time-fast',
+                        'Payment history'),
+                    _menuItem('share_link', 'link',
+                        'Share payment link'),
+                    if (paid > 0)
+                      _menuItem('thankyou', 'heart',
+                          'Send thank you',
+                          color: Colors.pinkAccent),
+                    _menuItem('guest', 'user-add',
+                        'Add as guest'),
+                    _menuItem('remove', 'delete',
+                        'Remove contributor',
+                        color: AppColors.error),
+                  ],
                 ),
-                const PopupMenuItem(
-                  value: 'pledge',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.edit,
-                        size: 18,
-                        color: AppColors.textSecondary,
-                      ),
-                      SizedBox(width: 8),
-                      Text('Update Pledge'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'history',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.history,
-                        size: 18,
-                        color: AppColors.textSecondary,
-                      ),
-                      SizedBox(width: 8),
-                      Text('Payment History'),
-                    ],
-                  ),
-                ),
-                if (paid > 0)
-                  const PopupMenuItem(
-                    value: 'thankyou',
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.favorite,
-                          size: 18,
-                          color: Colors.pinkAccent,
-                        ),
-                        SizedBox(width: 8),
-                        Text('Send Thank You'),
-                      ],
-                    ),
-                  ),
-                const PopupMenuItem(
-                  value: 'share_link',
-                  child: Row(
-                    children: [
-                      Icon(Icons.link, size: 18, color: AppColors.textSecondary),
-                      SizedBox(width: 8),
-                      Text('Share payment link'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'guest',
-                  child: Row(
-                    children: [
-                      Icon(
-                        Icons.person_add_alt_1,
-                        size: 18,
-                        color: AppColors.textSecondary,
-                      ),
-                      SizedBox(width: 8),
-                      Text('Add as Guest'),
-                    ],
-                  ),
-                ),
-                const PopupMenuItem(
-                  value: 'remove',
-                  child: Row(
-                    children: [
-                      Icon(Icons.delete_outline, size: 18, color: Colors.red),
-                      SizedBox(width: 8),
-                      Text('Remove', style: TextStyle(color: Colors.red)),
-                    ],
-                  ),
-                ),
-              ],
+            ],
+          ),
+          const SizedBox(height: 12),
+          // 3-column footer: Pledged / Paid / Balance
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(12),
             ),
+            child: Row(children: [
+              Expanded(
+                child: _tileStat(
+                    'Pledged', _formatAmount(pledged), AppColors.textPrimary),
+              ),
+              _vDivider(),
+              Expanded(
+                child: _tileStat(
+                    'Paid',
+                    _formatAmount(paid),
+                    paid > 0
+                        ? const Color(0xFF16A34A)
+                        : AppColors.textTertiary),
+              ),
+              _vDivider(),
+              Expanded(
+                child: _tileStat(
+                    'Balance',
+                    _formatAmount(balance),
+                    balance > 0
+                        ? const Color(0xFFDC2626)
+                        : const Color(0xFF16A34A)),
+              ),
+            ]),
+          ),
         ],
       ),
     );
   }
 
-  Widget _inlineStat(String label, String value, Color color) {
+  PopupMenuItem<String> _menuItem(String value, String icon, String label,
+      {Color? color}) {
+    return PopupMenuItem<String>(
+      value: value,
+      child: Row(children: [
+        AppIcon(icon, size: 18, color: color ?? AppColors.textSecondary),
+        const SizedBox(width: 10),
+        Text(label,
+            style: appText(
+                size: 13,
+                weight: FontWeight.w500,
+                color: color ?? AppColors.textPrimary)),
+      ]),
+    );
+  }
+
+  Widget _tileStat(String label, String value, Color color) {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label, style: appText(size: 8, color: AppColors.textTertiary)),
-        Text(
-          value,
-          style: appText(size: 11, weight: FontWeight.w700, color: color),
+        Text(label,
+            style: appText(
+                size: 10,
+                weight: FontWeight.w500,
+                color: AppColors.textTertiary)),
+        const SizedBox(height: 3),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(value,
+              style:
+                  appText(size: 13, weight: FontWeight.w700, color: color)),
         ),
       ],
     );
   }
+
+  Widget _vDivider() => Container(
+        width: 1,
+        height: 28,
+        color: AppColors.borderLight,
+      );
+
+
 
   // ════════════════════════════════════════════════════
   // CONTRIBUTOR ACTIONS
@@ -893,6 +950,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -1204,6 +1262,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -1598,6 +1657,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -1713,36 +1773,45 @@ class _EventContributionsTabState extends State<EventContributionsTab>
 
   Widget _buildPendingSection() {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFFBEB),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFFDE68A)),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.borderLight),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              const Icon(
-                Icons.verified_user,
-                size: 20,
-                color: Color(0xFFD97706),
+              Container(
+                width: 30, height: 30,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF3F4F6),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: const Icon(Icons.hourglass_top_rounded, size: 16, color: Color(0xFF6B7280)),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  'Awaiting Confirmation (${_pendingContributions.length})',
-                  style: appText(
-                    size: 14,
-                    weight: FontWeight.w700,
-                    color: const Color(0xFF92400E),
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Awaiting Confirmation',
+                      style: appText(size: 13.5, weight: FontWeight.w800, color: AppColors.textPrimary),
+                    ),
+                    Text(
+                      '${_pendingContributions.length} payment${_pendingContributions.length == 1 ? '' : 's'} need your review',
+                      style: appText(size: 10.5, color: AppColors.textTertiary),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           // Select All
           Row(
             children: [
@@ -1760,7 +1829,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
                       ? 'Deselect All'
                       : 'Select All',
                   style: appText(
-                    size: 12,
+                    size: 11.5,
                     weight: FontWeight.w600,
                     color: AppColors.primary,
                   ),
@@ -1778,10 +1847,12 @@ class _EventContributionsTabState extends State<EventContributionsTab>
               ],
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           ..._pendingContributions.map((pc) {
             final id = pc['id'].toString();
             final selected = _selectedPending.contains(id);
+            final name = (pc['contributor_name'] ?? 'Unknown').toString();
+            final initial = name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : '?';
             return GestureDetector(
               onTap: () => setState(() {
                 if (selected)
@@ -1790,59 +1861,100 @@ class _EventContributionsTabState extends State<EventContributionsTab>
                   _selectedPending.add(id);
               }),
               child: Container(
-                margin: const EdgeInsets.only(bottom: 6),
-                padding: const EdgeInsets.all(10),
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
+                  color: selected ? const Color(0xFFF8FAFC) : Colors.white,
+                  borderRadius: BorderRadius.circular(14),
                   border: Border.all(
-                    color: selected ? AppColors.primary : AppColors.border,
+                    color: selected
+                        ? AppColors.primary
+                        : AppColors.borderLight,
+                    width: selected ? 1.5 : 1,
                   ),
                 ),
                 child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Icon(
-                      selected ? Icons.check_circle : Icons.circle_outlined,
-                      size: 20,
-                      color: selected ? AppColors.primary : AppColors.textHint,
+                    // Selection check
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
+                      width: 22, height: 22,
+                      decoration: BoxDecoration(
+                        color: selected ? AppColors.primary : Colors.white,
+                        borderRadius: BorderRadius.circular(7),
+                        border: Border.all(
+                          color: selected ? AppColors.primary : const Color(0xFFE5E7EB),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: selected
+                          ? const Icon(Icons.check_rounded, size: 14, color: Colors.white)
+                          : null,
+                    ),
+                    const SizedBox(width: 10),
+                    // Avatar
+                    Container(
+                      width: 36, height: 36,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFF3F4F6),
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(initial,
+                          style: appText(size: 14, weight: FontWeight.w800, color: AppColors.textSecondary)),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            pc['contributor_name'] ?? 'Unknown',
-                            style: appText(size: 13, weight: FontWeight.w600),
-                          ),
-                          if (pc['created_at'] != null)
-                            Text(
-                              _formatDate(pc['created_at']),
-                              style: appText(
-                                size: 10,
-                                color: AppColors.textTertiary,
+                          Text(name,
+                              style: appText(size: 13, weight: FontWeight.w700, color: AppColors.textPrimary),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          const SizedBox(height: 3),
+                          Row(children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFEF3C7),
+                                borderRadius: BorderRadius.circular(999),
                               ),
+                              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                const Icon(Icons.schedule_rounded, size: 9, color: Color(0xFFB45309)),
+                                const SizedBox(width: 3),
+                                Text('Pending',
+                                    style: appText(size: 9, weight: FontWeight.w700, color: const Color(0xFFB45309))),
+                              ]),
                             ),
+                            if (pc['created_at'] != null) ...[
+                              const SizedBox(width: 6),
+                              Flexible(
+                                child: Text(
+                                  _formatDate(pc['created_at']),
+                                  style: appText(size: 10, color: AppColors.textTertiary),
+                                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ]),
                         ],
                       ),
                     ),
+                    const SizedBox(width: 8),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          _formatAmount(pc['amount']),
-                          style: appText(
-                            size: 13,
-                            weight: FontWeight.w700,
-                            color: const Color(0xFFD97706),
-                          ),
-                        ),
+                        Text(_formatAmount(pc['amount']),
+                            style: appText(size: 14, weight: FontWeight.w800, color: AppColors.textPrimary)),
                         if (pc['payment_method'] != null)
-                          Text(
-                            pc['payment_method'].toString(),
-                            style: appText(
-                              size: 10,
-                              color: AppColors.textTertiary,
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              pc['payment_method'].toString().replaceAll('_', ' '),
+                              style: appText(size: 10, weight: FontWeight.w500, color: AppColors.textTertiary),
                             ),
                           ),
                       ],
@@ -1967,6 +2079,12 @@ class _EventContributionsTabState extends State<EventContributionsTab>
 
   Widget _buildMessagingSection() {
     final cases = {
+      'not_pledged': {
+        'label': 'Not Pledged',
+        'desc': 'No pledge yet',
+        'svgIcon': 'assets/icons/users-icon.svg',
+        'color': const Color(0xFF6B7280),
+      },
       'no_contribution': {
         'label': 'No Contribution',
         'desc': 'Pledged but no payment',
@@ -1992,14 +2110,16 @@ class _EventContributionsTabState extends State<EventContributionsTab>
       final pledge = _toNum(ec['pledge_amount']);
       final paid = _toNum(ec['total_paid']);
       final phone = ec['contributor']?['phone']?.toString() ?? '';
-      if (phone.isEmpty || pledge <= 0) return false;
+      if (phone.isEmpty) return false;
       switch (_messagingCase) {
+        case 'not_pledged':
+          return pledge == 0 && paid == 0;
         case 'no_contribution':
-          return paid == 0;
+          return pledge > 0 && paid == 0;
         case 'partial':
-          return paid > 0 && paid < pledge;
+          return pledge > 0 && paid > 0 && paid < pledge;
         case 'completed':
-          return paid >= pledge;
+          return pledge > 0 && paid >= pledge;
         default:
           return false;
       }
@@ -2051,74 +2171,81 @@ class _EventContributionsTabState extends State<EventContributionsTab>
           ),
           const SizedBox(height: 12),
 
-          // Case selector
-          Row(
-            children: cases.entries.map((entry) {
-              final key = entry.key;
-              final cfg = entry.value;
-              final count = _eventContributors.where((ec) {
-                final pledge = _toNum(ec['pledge_amount']);
-                final paid = _toNum(ec['total_paid']);
-                final phone = ec['contributor']?['phone']?.toString() ?? '';
-                if (phone.isEmpty || pledge <= 0) return false;
-                if (key == 'no_contribution') return paid == 0;
-                if (key == 'partial') return paid > 0 && paid < pledge;
-                if (key == 'completed') return paid >= pledge;
-                return false;
-              }).length;
-              final isActive = _messagingCase == key;
+          // Case selector — 4 chips, horizontally scrollable to fit the
+          // extra "Not Pledged" target without crushing the layout.
+          SizedBox(
+            height: 78,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              padding: EdgeInsets.zero,
+              itemCount: cases.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, i) {
+                final entry = cases.entries.elementAt(i);
+                final key = entry.key;
+                final cfg = entry.value;
+                final color = cfg['color'] as Color;
+                final count = _eventContributors.where((ec) {
+                  final pledge = _toNum(ec['pledge_amount']);
+                  final paid = _toNum(ec['total_paid']);
+                  final phone = ec['contributor']?['phone']?.toString() ?? '';
+                  if (phone.isEmpty) return false;
+                  if (key == 'not_pledged') return pledge == 0 && paid == 0;
+                  if (key == 'no_contribution') return pledge > 0 && paid == 0;
+                  if (key == 'partial') return pledge > 0 && paid > 0 && paid < pledge;
+                  if (key == 'completed') return pledge > 0 && paid >= pledge;
+                  return false;
+                }).length;
+                final isActive = _messagingCase == key;
 
-              return Expanded(
-                child: GestureDetector(
+                return GestureDetector(
                   onTap: () => setState(() {
                     _messagingCase = key;
                     _applySavedForCase(key);
-                    // Auto-select all matching contributors when switching case
                     _messagingSelected.clear();
                     final matching = _eventContributors.where((ec) {
                       final pledge = _toNum(ec['pledge_amount']);
                       final paid = _toNum(ec['total_paid']);
                       final phone = ec['contributor']?['phone']?.toString() ?? '';
-                      if (phone.isEmpty || pledge <= 0) return false;
-                      if (key == 'no_contribution') return paid == 0;
-                      if (key == 'partial') return paid > 0 && paid < pledge;
-                      if (key == 'completed') return paid >= pledge;
+                      if (phone.isEmpty) return false;
+                      if (key == 'not_pledged') return pledge == 0 && paid == 0;
+                      if (key == 'no_contribution') return pledge > 0 && paid == 0;
+                      if (key == 'partial') return pledge > 0 && paid > 0 && paid < pledge;
+                      if (key == 'completed') return pledge > 0 && paid >= pledge;
                       return false;
                     });
                     _messagingSelected.addAll(matching.map((ec) => ec['id']?.toString() ?? ''));
                   }),
                   child: Container(
-                    margin: EdgeInsets.only(right: key != 'completed' ? 6 : 0),
-                    padding: const EdgeInsets.all(8),
+                    width: 96,
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: isActive
-                          ? (cfg['color'] as Color).withOpacity(0.1)
-                          : Colors.white,
-                      borderRadius: BorderRadius.circular(10),
+                      color: isActive ? color.withOpacity(0.1) : Colors.white,
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: isActive ? (cfg['color'] as Color) : Colors.transparent,
-                        width: 1.5,
+                        color: isActive ? color : const Color(0xFFE5E7EB),
+                        width: isActive ? 1.5 : 1,
                       ),
                     ),
-                    child: Column(
-                      children: [
-                        SvgPicture.asset(
-                          cfg['svgIcon'] as String,
-                          width: 18, height: 18,
-                          colorFilter: ColorFilter.mode(cfg['color'] as Color, BlendMode.srcIn),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(cfg['label'] as String,
-                            style: appText(size: 9, weight: FontWeight.w600),
-                            maxLines: 1, textAlign: TextAlign.center),
-                        Text('$count',
-                            style: appText(size: 12, weight: FontWeight.w700, color: cfg['color'] as Color)),
-                      ],
-                    ),
+                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      SvgPicture.asset(
+                        cfg['svgIcon'] as String,
+                        width: 16, height: 16,
+                        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(cfg['label'] as String,
+                          style: appText(size: 9.5, weight: FontWeight.w700, color: AppColors.textPrimary),
+                          maxLines: 1, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis),
+                      const SizedBox(height: 2),
+                      Text('$count',
+                          style: appText(size: 13, weight: FontWeight.w800, color: color)),
+                    ]),
                   ),
-                ),
-              );
-            }).toList(),
+                );
+              },
+            ),
           ),
           const SizedBox(height: 12),
 
@@ -2368,87 +2495,109 @@ class _EventContributionsTabState extends State<EventContributionsTab>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      useSafeArea: true,
+      backgroundColor: const Color(0xFFF7F8FA),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (ctx) => Container(
-        constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.8),
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(ctx).size.height * 0.85),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Center(child: Container(width: 40, height: 4,
-                decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)))),
-            const SizedBox(height: 16),
+                decoration: BoxDecoration(color: const Color(0xFFE3E5EA), borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 14),
             Row(children: [
-              const Icon(Icons.visibility_outlined, size: 20, color: AppColors.primary),
-              const SizedBox(width: 8),
-              Text('Message Preview', style: appText(size: 17, weight: FontWeight.w700)),
-            ]),
-            const SizedBox(height: 12),
-            Text('${targets.length} recipient${targets.length != 1 ? 's' : ''}',
-                style: appText(size: 12, color: AppColors.textTertiary)),
-            const SizedBox(height: 12),
-            // Sample message
-            if (sampleEc != null) ...[
-              Text('Sample message for: ${sampleEc['contributor']?['name'] ?? 'Unknown'}',
-                  style: appText(size: 11, weight: FontWeight.w600, color: AppColors.textSecondary)),
-              const SizedBox(height: 6),
+              Text('Message Preview', style: appText(size: 18, weight: FontWeight.w800)),
+              const Spacer(),
               Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.border),
+                  color: AppColors.primary.withOpacity(0.08),
+                  borderRadius: BorderRadius.circular(999),
                 ),
-                child: Text(sampleMessage,
-                    style: appText(size: 12, color: AppColors.textPrimary, height: 1.5)),
+                child: Text('${targets.length} recipient${targets.length != 1 ? 's' : ''}',
+                    style: appText(size: 11, weight: FontWeight.w700, color: AppColors.primary)),
               ),
-              const SizedBox(height: 12),
+            ]),
+            const SizedBox(height: 14),
+            if (sampleEc != null) ...[
+              Text('Sample for ${sampleEc['contributor']?['name'] ?? 'contributor'}',
+                  style: appText(size: 11, weight: FontWeight.w600, color: AppColors.textTertiary)),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: MediaQuery.of(ctx).size.width * 0.82),
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFDCF8C6),
+                      borderRadius: BorderRadius.only(
+                        topLeft: Radius.circular(16),
+                        topRight: Radius.circular(16),
+                        bottomLeft: Radius.circular(16),
+                        bottomRight: Radius.circular(4),
+                      ),
+                    ),
+                    child: Text(sampleMessage,
+                        style: appText(size: 13, color: AppColors.textPrimary, height: 1.45)),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
             ],
-            // All recipients
-            Text('All recipients:', style: appText(size: 11, weight: FontWeight.w600, color: AppColors.textSecondary)),
-            const SizedBox(height: 6),
+            Text('Recipients', style: appText(size: 11, weight: FontWeight.w600, color: AppColors.textTertiary)),
+            const SizedBox(height: 8),
             Flexible(
               child: Container(
                 decoration: BoxDecoration(
-                  border: Border.all(color: AppColors.border),
-                  borderRadius: BorderRadius.circular(10),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.borderLight),
                 ),
                 child: ListView.separated(
                   shrinkWrap: true,
                   itemCount: targets.length,
-                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  separatorBuilder: (_, __) => Divider(height: 1, color: AppColors.borderLight),
                   itemBuilder: (_, i) {
                     final ec = targets[i];
+                    final name = (ec['contributor']?['name'] ?? '').toString();
+                    final initial = name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : '?';
                     return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       child: Row(children: [
+                        Container(
+                          width: 32, height: 32,
+                          decoration: BoxDecoration(
+                            color: AppColors.primary.withOpacity(0.10),
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(initial,
+                              style: appText(size: 12, weight: FontWeight.w800, color: AppColors.primary)),
+                        ),
+                        const SizedBox(width: 10),
                         Expanded(child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(ec['contributor']?['name'] ?? '',
-                                style: appText(size: 12, weight: FontWeight.w600)),
+                            Text(name,
+                                style: appText(size: 12.5, weight: FontWeight.w700)),
                             Text(ec['contributor']?['phone'] ?? '',
-                                style: appText(size: 10, color: AppColors.textTertiary)),
+                                style: appText(size: 10.5, color: AppColors.textTertiary)),
                           ],
                         )),
-                        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                          Text('Pledged: ${_formatAmount(ec['pledge_amount'])}',
-                              style: appText(size: 10, color: AppColors.textTertiary)),
-                          Text('Paid: ${_formatAmount(ec['total_paid'])}',
-                              style: appText(size: 10, color: AppColors.textTertiary)),
-                        ]),
                       ]),
                     );
                   },
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 14),
             Row(children: [
               Expanded(
                 child: OutlinedButton(
@@ -2621,6 +2770,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => StatefulBuilder(
@@ -2809,23 +2959,54 @@ class _EventContributionsTabState extends State<EventContributionsTab>
                   ),
                   const SizedBox(height: 14),
 
-                  // File picker button
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed: pickAndParseFile,
-                      icon: const Icon(Icons.upload_file_rounded, size: 18),
-                      label: Text(bulkFileName.isEmpty ? 'Choose File (.xlsx, .csv)' : bulkFileName,
-                          style: appText(size: 13, weight: FontWeight.w600)),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: AppColors.primary,
-                        side: BorderSide(color: AppColors.primary.withOpacity(0.4)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
+                  // File picker - drop-zone style
+                  InkWell(
+                    onTap: pickAndParseFile,
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 22, horizontal: 16),
+                      decoration: BoxDecoration(
+                        color: (bulkFileName.isEmpty ? AppColors.primary : const Color(0xFF16A34A))
+                            .withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: (bulkFileName.isEmpty ? AppColors.primary : const Color(0xFF16A34A))
+                              .withOpacity(0.35),
+                          width: 1.5,
+                        ),
                       ),
+                      child: Column(children: [
+                          Container(
+                            width: 48, height: 48,
+                            decoration: BoxDecoration(
+                              color: (bulkFileName.isEmpty ? AppColors.primary : const Color(0xFF16A34A))
+                                  .withOpacity(0.12),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              bulkFileName.isEmpty ? Icons.cloud_upload_rounded : Icons.insert_drive_file_rounded,
+                              size: 24,
+                              color: bulkFileName.isEmpty ? AppColors.primary : const Color(0xFF16A34A),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          Text(
+                            bulkFileName.isEmpty ? 'Tap to select a file' : bulkFileName,
+                            style: appText(size: 14, weight: FontWeight.w700),
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            bulkFileName.isEmpty ? 'XLSX or CSV · up to a few thousand rows' : 'Tap to choose a different file',
+                            style: appText(size: 11, color: AppColors.textTertiary),
+                          ),
+                        ]),
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 12),
 
                   // Parsed rows preview
                   if (bulkRows.isNotEmpty) ...[
@@ -3008,6 +3189,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -3386,6 +3568,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -3551,6 +3734,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -3822,28 +4006,183 @@ class _EventContributionsTabState extends State<EventContributionsTab>
             borderRadius: BorderRadius.circular(r),
           ),
         );
+    Widget goalHeader() => Container(
+          padding: const EdgeInsets.fromLTRB(18, 20, 18, 20),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.borderLight),
+          ),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            SizedBox(
+              width: 112,
+              height: 112,
+              child: Stack(alignment: Alignment.center, children: [
+                Container(
+                  width: 112,
+                  height: 112,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: const Color(0xFFE2E8F0), width: 9),
+                  ),
+                ),
+                Column(mainAxisSize: MainAxisSize.min, children: [
+                  box(w: 44, h: 22, r: 5),
+                  const SizedBox(height: 6),
+                  box(w: 46, h: 10, r: 4),
+                  const SizedBox(height: 4),
+                  box(w: 58, h: 10, r: 4),
+                ]),
+              ]),
+            ),
+            const SizedBox(width: 18),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                box(w: 66, h: 11, r: 4),
+                const SizedBox(height: 8),
+                box(w: 154, h: 22, r: 5),
+                const SizedBox(height: 12),
+                box(h: 6, r: 999),
+                const SizedBox(height: 12),
+                box(w: 58, h: 11, r: 4),
+                const SizedBox(height: 7),
+                box(w: 126, h: 17, r: 4),
+              ]),
+            ),
+          ]),
+        );
+    Widget statStrip() => Container(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AppColors.borderLight),
+          ),
+          child: Row(children: List.generate(4, (_) => Expanded(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  box(w: 22, h: 22, r: 6),
+                  const SizedBox(height: 6),
+                  box(w: 58, h: 10, r: 4),
+                  const SizedBox(height: 5),
+                  box(w: 66, h: 13, r: 4),
+                ]),
+              ))),
+        );
+    Widget quickAction() => Container(
+          width: 92,
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.borderLight),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8, offset: const Offset(0, 2))],
+          ),
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            box(w: 40, h: 40, r: 12),
+            const SizedBox(height: 8),
+            box(w: 58, h: 11, r: 4),
+            const SizedBox(height: 5),
+            box(w: 46, h: 11, r: 4),
+          ]),
+        );
+    Widget searchBar() => Container(
+          height: 50,
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Row(children: [
+            box(w: 20, h: 20, r: 5),
+            const SizedBox(width: 12),
+            box(w: 150, h: 13, r: 4),
+          ]),
+        );
+    Widget contributorTile() => Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.fromLTRB(14, 14, 8, 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.borderLight),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+              box(w: 44, h: 44, r: 999),
+              const SizedBox(width: 12),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                box(w: 136, h: 14, r: 4),
+                const SizedBox(height: 7),
+                box(w: 112, h: 11.5, r: 4),
+              ])),
+              box(w: 20, h: 20, r: 5),
+            ]),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+              decoration: BoxDecoration(color: const Color(0xFFF8FAFC), borderRadius: BorderRadius.circular(12)),
+              child: Row(children: [
+                Expanded(child: _contributionTileStatSkeleton(box)),
+                Container(width: 1, height: 28, color: AppColors.borderLight),
+                Expanded(child: _contributionTileStatSkeleton(box)),
+                Container(width: 1, height: 28, color: AppColors.borderLight),
+                Expanded(child: _contributionTileStatSkeleton(box)),
+              ]),
+            ),
+          ]),
+        );
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
       children: [
-        box(h: 132, r: 20),
+        goalHeader(),
         const SizedBox(height: 12),
-        box(h: 78, r: 16),
+        statStrip(),
         const SizedBox(height: 14),
-        Row(children: [
-          Expanded(child: box(h: 44, r: 999)),
-          const SizedBox(width: 8),
-          Expanded(child: box(h: 44, r: 999)),
-          const SizedBox(width: 8),
-          Expanded(child: box(h: 44, r: 999)),
-        ]),
+        SizedBox(
+          height: 108,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: 5,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (_, __) => quickAction(),
+          ),
+        ),
         const SizedBox(height: 14),
-        box(h: 48, r: 14),
-        const SizedBox(height: 18),
+        searchBar(),
+        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 2),
+          child: box(w: 92, h: 12, r: 4),
+        ),
+        const SizedBox(height: 10),
         for (int i = 0; i < 5; i++) ...[
-          box(h: 76, r: 16),
-          const SizedBox(height: 10),
+          contributorTile(),
         ],
       ],
     );
   }
+
+  Widget _contributionTileStatSkeleton(
+    Widget Function({required double h, double r, double? w}) box,
+  ) => Column(mainAxisSize: MainAxisSize.min, children: [
+        box(w: 48, h: 10, r: 4),
+        const SizedBox(height: 6),
+        box(w: 64, h: 13, r: 4),
+      ]);
 }
+
+class _QuickAction {
+  final String? icon;
+  final IconData? materialIcon;
+  final String label;
+  final VoidCallback onTap;
+  final Color tint;
+  final Color tintBg;
+  const _QuickAction({
+    this.icon,
+    this.materialIcon,
+    required this.label,
+    required this.onTap,
+    required this.tint,
+    required this.tintBg,
+  });
+}
+
+

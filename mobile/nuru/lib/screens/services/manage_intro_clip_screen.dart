@@ -1,8 +1,13 @@
 import 'dart:convert';
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 import 'package:http/http.dart' as http;
 import '../../core/services/secure_token_storage.dart';
 import '../../core/theme/app_colors.dart';
@@ -25,6 +30,19 @@ class _ManageIntroClipScreenState extends State<ManageIntroClipScreen> {
   List<dynamic> _media = [];
   bool _loading = true;
   bool _uploading = false;
+
+  final AudioRecorder _recorder = AudioRecorder();
+  bool _isRecording = false;
+  String? _recordPath;
+  Duration _recordDuration = Duration.zero;
+  Timer? _recordTimer;
+
+  @override
+  void dispose() {
+    _recordTimer?.cancel();
+    _recorder.dispose();
+    super.dispose();
+  }
 
   static String get _baseUrl => ApiService.baseUrl;
 
@@ -63,18 +81,34 @@ class _ManageIntroClipScreenState extends State<ManageIntroClipScreen> {
     }
   }
 
-  Future<void> _uploadClip() async {
-    final picker = ImagePicker();
-    final picked = await picker.pickVideo(source: ImageSource.gallery);
-    if (picked == null) return;
+  Future<void> _uploadClip({String source = 'video'}) async {
+    String? filePath;
+    String mediaType = 'video';
+    if (source == 'video') {
+      final picker = ImagePicker();
+      final picked = await picker.pickVideo(source: ImageSource.gallery);
+      if (picked == null) return;
+      filePath = picked.path;
+    } else {
+      final res = await FilePicker.platform.pickFiles(
+        type: FileType.audio, allowMultiple: false, withData: false,
+      );
+      if (res == null || res.files.isEmpty) return;
+      filePath = res.files.single.path;
+      mediaType = 'audio';
+    }
+    if (filePath == null) return;
+    await _doUpload(filePath, mediaType);
+  }
 
+  Future<void> _doUpload(String filePath, String mediaType) async {
     setState(() => _uploading = true);
     try {
       final uri = Uri.parse('$_baseUrl/user-services/${widget.serviceId}/intro-media');
       final request = http.MultipartRequest('POST', uri);
       request.headers.addAll(await _authOnlyHeaders());
-      request.fields['media_type'] = 'video';
-      request.files.add(await http.MultipartFile.fromPath('media', picked.path));
+      request.fields['media_type'] = mediaType;
+      request.files.add(await http.MultipartFile.fromPath('media', filePath));
       final streamedRes = await request.send();
       if (streamedRes.statusCode >= 200 && streamedRes.statusCode < 300) {
         if (mounted) AppSnackbar.success(context, 'Intro clip uploaded');
@@ -87,6 +121,51 @@ class _ManageIntroClipScreenState extends State<ManageIntroClipScreen> {
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
+  }
+
+  Future<void> _startRecording() async {
+    try {
+      if (!await _recorder.hasPermission()) {
+        if (mounted) AppSnackbar.error(context, 'Microphone permission denied');
+        return;
+      }
+      final dir = await getTemporaryDirectory();
+      final path = '${dir.path}/intro_${DateTime.now().millisecondsSinceEpoch}.m4a';
+      await _recorder.start(
+        const RecordConfig(encoder: AudioEncoder.aacLc, bitRate: 128000, sampleRate: 44100),
+        path: path,
+      );
+      _recordPath = path;
+      _recordDuration = Duration.zero;
+      setState(() => _isRecording = true);
+      _recordTimer?.cancel();
+      _recordTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+        if (mounted) setState(() => _recordDuration += const Duration(seconds: 1));
+      });
+    } catch (_) {
+      if (mounted) AppSnackbar.error(context, 'Could not start recording');
+    }
+  }
+
+  Future<void> _cancelRecording() async {
+    try { await _recorder.stop(); } catch (_) {}
+    _recordTimer?.cancel();
+    if (_recordPath != null) {
+      try { File(_recordPath!).deleteSync(); } catch (_) {}
+    }
+    _recordPath = null;
+    if (mounted) setState(() { _isRecording = false; _recordDuration = Duration.zero; });
+  }
+
+  Future<void> _stopAndUpload() async {
+    String? p;
+    try { p = await _recorder.stop(); } catch (_) {}
+    _recordTimer?.cancel();
+    if (mounted) setState(() { _isRecording = false; _recordDuration = Duration.zero; });
+    final filePath = p ?? _recordPath;
+    _recordPath = null;
+    if (filePath == null || filePath.isEmpty) return;
+    await _doUpload(filePath, 'audio');
   }
 
   Future<void> _deleteClip(String mediaId) async {
@@ -118,7 +197,7 @@ class _ManageIntroClipScreenState extends State<ManageIntroClipScreen> {
                   child: Row(children: [
                     SvgPicture.asset('assets/icons/video-icon.svg', width: 20, height: 20, colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn)),
                     const SizedBox(width: 10),
-                    Expanded(child: Text('Upload a short video or audio clip to introduce your service to potential clients.', style: _f(size: 12, color: AppColors.primary))),
+                    Expanded(child: Text('Upload a short video, audio clip, or record a voice intro to introduce your service.', style: _f(size: 12, color: AppColors.primary))),
                   ]),
                 ),
                 const SizedBox(height: 20),
@@ -162,36 +241,64 @@ class _ManageIntroClipScreenState extends State<ManageIntroClipScreen> {
                     );
                   }),
 
-                // Upload button
-                GestureDetector(
-                  onTap: _uploading ? null : _uploadClip,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(vertical: 28),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.borderLight),
-                    ),
-                    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      if (_uploading)
-                        const CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)
-                      else ...[
-                        Container(
-                          width: 56, height: 56,
-                          decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(16)),
-                          child: Center(child: SvgPicture.asset('assets/icons/video-icon.svg', width: 28, height: 28,
-                            colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn))),
-                        ),
-                        const SizedBox(height: 12),
-                        Text('Upload Intro Clip', style: _f(size: 14, weight: FontWeight.w700, color: AppColors.primary)),
-                        const SizedBox(height: 4),
-                        Text('Video or audio file', style: _f(size: 12, color: AppColors.textTertiary)),
-                      ],
-                    ]),
-                  ),
-                ),
+                if (_isRecording) _buildRecordingBar() else _buildActions(),
               ],
             ),
+    );
+  }
+
+  Widget _buildActions() {
+    Widget btn(String label, IconData icon, VoidCallback? onTap) => Expanded(
+      child: OutlinedButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon, size: 18, color: AppColors.primary),
+        label: Text(label, style: _f(size: 12, weight: FontWeight.w600, color: AppColors.primary)),
+        style: OutlinedButton.styleFrom(
+          side: BorderSide(color: AppColors.primary.withOpacity(0.45)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          padding: const EdgeInsets.symmetric(vertical: 14),
+        ),
+      ),
+    );
+    return Row(children: [
+      btn('Video', Icons.videocam_rounded, _uploading ? null : () => _uploadClip(source: 'video')),
+      const SizedBox(width: 8),
+      btn('Audio file', Icons.audiotrack_rounded, _uploading ? null : () => _uploadClip(source: 'audio')),
+      const SizedBox(width: 8),
+      btn('Record', Icons.mic_rounded, _uploading ? null : _startRecording),
+    ]);
+  }
+
+  Widget _buildRecordingBar() {
+    String two(int n) => n.toString().padLeft(2, '0');
+    final m = two(_recordDuration.inMinutes.remainder(60));
+    final s = two(_recordDuration.inSeconds.remainder(60));
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.error.withOpacity(0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.error.withOpacity(0.30)),
+      ),
+      child: Row(children: [
+        const Icon(Icons.fiber_manual_record_rounded, size: 16, color: AppColors.error),
+        const SizedBox(width: 8),
+        Text('Recording  $m:$s', style: _f(size: 14, weight: FontWeight.w600, color: AppColors.error)),
+        const Spacer(),
+        TextButton(onPressed: _cancelRecording, child: Text('Cancel', style: _f(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary))),
+        const SizedBox(width: 4),
+        ElevatedButton(
+          onPressed: _stopAndUpload,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: AppColors.textPrimary,
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+          child: Text('Stop & upload', style: _f(size: 12, weight: FontWeight.w700)),
+        ),
+      ]),
     );
   }
 }

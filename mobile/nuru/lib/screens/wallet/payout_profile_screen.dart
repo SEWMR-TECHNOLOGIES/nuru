@@ -65,6 +65,7 @@ class _PayoutProfileScreenState extends State<PayoutProfileScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _AddProfileSheet(onSaved: _load),
     );

@@ -13,6 +13,7 @@ import 'booking_detail_screen.dart';
 import 'sponsor_requests_screen.dart';
 import '../../core/widgets/nuru_refresh.dart';
 import '../../core/widgets/nuru_skeleton.dart';
+import '../../core/widgets/nuru_search_bar.dart';
 
 enum BookingsMode { vendor, organizer }
 
@@ -228,32 +229,14 @@ class _BookingsScreenState extends State<BookingsScreen> {
   Widget _buildInlineSearch() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.surfaceVariant,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: TextField(
-          controller: _searchCtrl,
-          autofocus: true,
-          onChanged: (v) {
-            _search = v;
-            _load();
-          },
-          style: GoogleFonts.inter(fontSize: 14, color: AppColors.textPrimary),
-          decoration: InputDecoration(
-            hintText: 'Search bookings, clients, services',
-            hintStyle: GoogleFonts.inter(fontSize: 14, color: AppColors.textHint),
-            prefixIcon: Padding(
-              padding: const EdgeInsets.all(12),
-              child: SvgPicture.asset('assets/icons/search-icon.svg',
-                  width: 16, height: 16,
-                  colorFilter: const ColorFilter.mode(AppColors.textHint, BlendMode.srcIn)),
-            ),
-            border: InputBorder.none,
-            contentPadding: const EdgeInsets.symmetric(vertical: 14),
-          ),
-        ),
+      child: NuruSearchBar(
+        controller: _searchCtrl,
+        hintText: 'Search bookings, clients, services',
+        debounce: const Duration(milliseconds: 300),
+        onChanged: (v) {
+          _search = v;
+          _load();
+        },
       ),
     );
   }

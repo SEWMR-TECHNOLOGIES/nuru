@@ -70,6 +70,7 @@ class _EventSponsorsTabState extends State<EventSponsorsTab> with AutomaticKeepA
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (_) => _InviteSheet(eventId: widget.eventId, onInvited: () => _load(background: true)),
@@ -360,6 +361,55 @@ class _EventSponsorsTabState extends State<EventSponsorsTab> with AutomaticKeepA
       width: w, height: h,
       decoration: BoxDecoration(color: const Color(0xFFF1F1F4), borderRadius: BorderRadius.circular(r)),
     );
+    // ── Summary card placeholder: mirrors _summaryCard layout exactly ──
+    Widget summary() => Container(
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Container(width: 40, height: 40, decoration: const BoxDecoration(color: Color(0xFFF1F1F4), shape: BoxShape.circle)),
+          const SizedBox(width: 12),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            bar(90, 14), const SizedBox(height: 6), bar(150, 11),
+          ])),
+        ]),
+        const SizedBox(height: 18),
+        Row(children: [
+          Expanded(child: Column(children: [bar(30, 22, r: 5), const SizedBox(height: 4), bar(54, 10)])),
+          Container(width: 1, height: 32, color: AppColors.borderLight),
+          Expanded(child: Column(children: [bar(30, 22, r: 5), const SizedBox(height: 4), bar(50, 10)])),
+          Container(width: 1, height: 32, color: AppColors.borderLight),
+          Expanded(child: Column(children: [bar(30, 22, r: 5), const SizedBox(height: 4), bar(40, 10)])),
+        ]),
+        const SizedBox(height: 16),
+        Container(height: 1, color: AppColors.borderLight),
+        const SizedBox(height: 14),
+        Row(children: [
+          bar(16, 16, r: 4), const SizedBox(width: 8), bar(90, 12),
+          const Spacer(),
+          bar(120, 16, r: 4),
+        ]),
+      ]),
+    );
+    // ── Invite CTA placeholder ──
+    Widget invite() => Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(color: const Color(0xFFF1F1F4), borderRadius: BorderRadius.circular(16)),
+      child: Row(children: [
+        Container(width: 18, height: 18, decoration: BoxDecoration(color: Colors.white.withOpacity(0.6), borderRadius: BorderRadius.circular(4))),
+        const SizedBox(width: 10),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Container(height: 14, width: 100, decoration: BoxDecoration(color: Colors.white.withOpacity(0.6), borderRadius: BorderRadius.circular(4))),
+          const SizedBox(height: 6),
+          Container(height: 11, width: 180, decoration: BoxDecoration(color: Colors.white.withOpacity(0.4), borderRadius: BorderRadius.circular(4))),
+        ])),
+      ]),
+    );
+    // ── Sponsor row placeholder: mirrors _sponsorRow exactly ──
     Widget row() => Container(
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
@@ -368,19 +418,51 @@ class _EventSponsorsTabState extends State<EventSponsorsTab> with AutomaticKeepA
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.borderLight),
       ),
-      child: Row(children: [
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(width: 56, height: 56, decoration: BoxDecoration(color: const Color(0xFFF1F1F4), borderRadius: BorderRadius.circular(12))),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          bar(140, 14), const SizedBox(height: 8), bar(80, 11), const SizedBox(height: 10), bar(60, 18, r: 999),
+          bar(140, 14),
+          const SizedBox(height: 4),
+          bar(80, 12),
+          const SizedBox(height: 10),
+          Row(children: [
+            bar(70, 20, r: 999),
+            const SizedBox(width: 8),
+            bar(80, 12),
+          ]),
         ])),
+        const SizedBox(width: 8),
+        Container(width: 32, height: 32, decoration: const BoxDecoration(color: Color(0xFFF1F1F4), shape: BoxShape.circle)),
       ]),
     );
+    // ── Filter pill placeholder ──
+    Widget pill() => Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: AppColors.borderLight),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [bar(40, 12), const SizedBox(width: 6), bar(14, 12)]),
+      ),
+    );
     return ListView(padding: const EdgeInsets.fromLTRB(16, 16, 16, 32), children: [
-      Container(height: 156, decoration: BoxDecoration(color: const Color(0xFFF1F1F4), borderRadius: BorderRadius.circular(20))),
+      summary(),
       const SizedBox(height: 16),
-      bar(double.infinity, 52, r: 16),
+      invite(),
       const SizedBox(height: 16),
+      SizedBox(
+        height: 34,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          physics: const NeverScrollableScrollPhysics(),
+          children: List.generate(4, (_) => pill()),
+        ),
+      ),
+      const SizedBox(height: 12),
       ...List.generate(4, (_) => row()),
     ]);
   }

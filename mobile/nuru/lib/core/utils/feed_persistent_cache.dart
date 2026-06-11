@@ -10,7 +10,7 @@ class FeedPersistentCache {
   static const _kFeedPageKey = 'nuru.feed.cache.page.v1';
   static const _kFeedPagesKey = 'nuru.feed.cache.pages.v1';
   static const _kFeedTsKey = 'nuru.feed.cache.ts.v1';
-  static const _kReelsKey = 'nuru.reels.cache.v1';
+  static const _kGlimpsesKey = 'nuru.glimpses.cache.v1';
   static const int _maxItems = 60;
 
   static Future<void> saveFeed({
@@ -46,18 +46,18 @@ class FeedPersistentCache {
     }
   }
 
-  static Future<void> saveReels(List<dynamic> reels) async {
+  static Future<void> saveGlimpses(List<dynamic> glimpses) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final trimmed = reels.length > 30 ? reels.sublist(0, 30) : reels;
-      await prefs.setString(_kReelsKey, jsonEncode(trimmed));
+      final trimmed = glimpses.length > 30 ? glimpses.sublist(0, 30) : glimpses;
+      await prefs.setString(_kGlimpsesKey, jsonEncode(trimmed));
     } catch (_) {}
   }
 
-  static Future<List<dynamic>?> readReels() async {
+  static Future<List<dynamic>?> readGlimpses() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final raw = prefs.getString(_kReelsKey);
+      final raw = prefs.getString(_kGlimpsesKey);
       if (raw == null) return null;
       final decoded = jsonDecode(raw);
       return decoded is List ? decoded : null;
@@ -73,7 +73,7 @@ class FeedPersistentCache {
       await prefs.remove(_kFeedPageKey);
       await prefs.remove(_kFeedPagesKey);
       await prefs.remove(_kFeedTsKey);
-      await prefs.remove(_kReelsKey);
+      await prefs.remove(_kGlimpsesKey);
     } catch (_) {}
   }
 }

@@ -120,6 +120,7 @@ class _CountryPhoneInputState extends State<CountryPhoneInput> {
     final result = await showModalBottomSheet<CountryData>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _CountrySheet(selected: _selected),
     );

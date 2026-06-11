@@ -150,6 +150,7 @@ class _EventPublicViewScreenState extends State<EventPublicViewScreen> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => FractionallySizedBox(
         heightFactor: 0.78,

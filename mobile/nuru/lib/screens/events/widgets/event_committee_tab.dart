@@ -374,6 +374,7 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
 
     showModalBottomSheet(
       context: context, isScrollControlled: true, backgroundColor: Colors.white,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) {
@@ -604,6 +605,7 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
 
     showModalBottomSheet(
       context: context, isScrollControlled: true, backgroundColor: Colors.white,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheetState) => DraggableScrollableSheet(
@@ -744,18 +746,117 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
               color: AppColors.borderLight,
               borderRadius: BorderRadius.circular(r)),
         );
+    Widget reportCard() => Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.borderLight),
+          ),
+          padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+                box(w: 50, h: 10, r: 4),
+                const SizedBox(height: 8),
+                box(w: 152, h: 16, r: 4),
+                const SizedBox(height: 8),
+                box(w: 210, h: 12, r: 4),
+              ]),
+            ),
+            const SizedBox(width: 12),
+            box(w: 94, h: 44, r: 12),
+          ]),
+        );
+    Widget filterBar() => Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6)],
+          ),
+          child: Row(children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                child: Row(children: [
+                  box(w: 16, h: 16, r: 4),
+                  const SizedBox(width: 8),
+                  Expanded(child: box(h: 13, r: 4)),
+                  const SizedBox(width: 8),
+                  box(w: 16, h: 16, r: 4),
+                ]),
+              ),
+            ),
+            Container(width: 1, height: 28, color: AppColors.divider),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+              child: Row(children: [
+                box(w: 28, h: 28, r: 999),
+                const SizedBox(width: 8),
+                box(w: 72, h: 13, r: 4),
+              ]),
+            ),
+          ]),
+        );
+    Widget memberCard() => Container(
+          margin: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 3))],
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              SizedBox(
+                width: 52,
+                height: 52,
+                child: Stack(children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.primary.withOpacity(0.35), width: 2),
+                    ),
+                    padding: const EdgeInsets.all(2),
+                    child: box(h: 48, r: 999),
+                  ),
+                  Positioned(right: 0, bottom: 0, child: box(w: 14, h: 14, r: 999)),
+                ]),
+              ),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                box(w: 138, h: 15, r: 4),
+                const SizedBox(height: 7),
+                box(w: 116, h: 12, r: 4),
+              ])),
+              box(w: 18, h: 18, r: 4),
+            ]),
+            const SizedBox(height: 12),
+            Container(height: 1, color: AppColors.divider),
+            const SizedBox(height: 10),
+            Row(children: [box(w: 14, h: 14, r: 4), const SizedBox(width: 10), Expanded(child: box(h: 12, r: 4))]),
+            const SizedBox(height: 8),
+            Row(children: [box(w: 14, h: 14, r: 4), const SizedBox(width: 10), Expanded(child: box(h: 12, r: 4))]),
+            const SizedBox(height: 12),
+            Row(children: [
+              box(w: 82, h: 24, r: 999),
+              const SizedBox(width: 8),
+              box(w: 106, h: 24, r: 999),
+            ]),
+          ]),
+        );
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
       children: [
-        box(h: 86, r: 20),
+        reportCard(),
         const SizedBox(height: 14),
-        box(h: 54, r: 16),
+        filterBar(),
         const SizedBox(height: 18),
         box(w: 140, h: 18, r: 6),
         const SizedBox(height: 12),
         for (int i = 0; i < 4; i++) ...[
-          box(h: 130, r: 20),
-          const SizedBox(height: 12),
+          memberCard(),
         ],
       ],
     );

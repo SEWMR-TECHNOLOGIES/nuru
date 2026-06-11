@@ -646,7 +646,7 @@ class _EditProfileSectionState extends State<_EditProfileSection> {
       if (res['success'] == true) {
         // Evict the old avatar from the in-memory + disk cache so the
         // new photo shows instantly across every screen (Profile,
-        // Circles, Reels). Without this, CachedNetworkImage keeps
+        // Circles, Glimpses). Without this, CachedNetworkImage keeps
         // serving the previous bytes for the same URL.
         final oldAvatar =
             (_loadedProfile['avatar'] ?? widget.profile?['avatar'])?.toString();
@@ -2060,6 +2060,7 @@ class _SecuritySectionState extends State<_SecuritySection> {
       await showModalBottomSheet(
         context: context,
         isScrollControlled: true,
+        useSafeArea: true,
         backgroundColor: Colors.white,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),

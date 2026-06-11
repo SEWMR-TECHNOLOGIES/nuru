@@ -98,6 +98,7 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => Padding(
@@ -182,7 +183,7 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator(color: AppColors.primary));
+    if (_loading) return _skeleton();
 
     final progress = _totalQuantity > 0 ? (_totalSold / _totalQuantity).clamp(0.0, 1.0) : 0.0;
 
@@ -261,22 +262,7 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
 
             _selectedView == 0 ? _classesView() : _soldView(),
 
-            const SizedBox(height: 18),
-            // Trust footer
-            Row(children: [
-              Container(
-                width: 28, height: 28,
-                decoration: BoxDecoration(color: const Color(0xFFDCFCE7), shape: BoxShape.circle),
-                child: const AppIcon('shield', size: 14, color: Color(0xFF16A34A)),
-              ),
-              const SizedBox(width: 10),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('All ticket sales are secure and protected.',
-                  style: appText(size: 11, color: AppColors.textSecondary, weight: FontWeight.w600)),
-                Text("You're all set!",
-                  style: appText(size: 11, color: AppColors.textTertiary)),
-              ])),
-            ]),
+            const SizedBox(height: 8),
           ],
         ),
       )),
@@ -411,134 +397,100 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
       final qty = _asInt(tc['quantity']);
       final sold = _asInt(tc['sold']);
       final status = tc['status']?.toString() ?? 'available';
+      final description = tc['description']?.toString() ?? '';
       final available = qty - sold;
       final progress = qty > 0 ? sold / qty : 0.0;
-      final lower = name.toLowerCase();
-      final isVip = lower.contains('vip') || lower.contains('premium');
-      final tagline = isVip ? 'Premium Access' : 'General Admission';
       final isAvailable = status == 'available' && available > 0;
 
       return Padding(
         padding: const EdgeInsets.only(bottom: 14),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(18),
-          child: Stack(children: [
-            Container(
-              decoration: BoxDecoration(
-                color: isVip ? const Color(0xFF0E0E0E) : Colors.white,
-                borderRadius: BorderRadius.circular(18),
-                border: isVip ? null : Border.all(color: AppColors.borderLight),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(isVip ? 0.2 : 0.04), blurRadius: 12, offset: const Offset(0, 4))],
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.borderLight),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(
+                width: 56, height: 56,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.primarySoft,
+                ),
+                child: Center(
+                  child: SvgPicture.asset('assets/icons/ticket-icon.svg',
+                    width: 26, height: 26,
+                    colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn)),
+                ),
               ),
-              padding: const EdgeInsets.all(16),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(child: Text(name,
+                    style: appText(size: 16, weight: FontWeight.w700, color: AppColors.textPrimary),
+                    maxLines: 1, overflow: TextOverflow.ellipsis)),
                   Container(
-                    width: 72, height: 72,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isVip ? Colors.black : const Color(0xFFEDE9FE),
-                      border: isVip ? Border.all(color: const Color(0xFFD4AF37), width: 2) : null,
+                      color: isAvailable
+                        ? const Color(0xFF16A34A).withOpacity(0.12)
+                        : const Color(0xFFF3F4F6),
+                      borderRadius: BorderRadius.circular(999),
                     ),
-                    child: Center(child: isVip
-                      ? const AppIcon('crown', size: 32, color: Color(0xFFE8C46A))
-                      : SvgPicture.asset('assets/icons/ticket-icon.svg', width: 32, height: 32,
-                          colorFilter: const ColorFilter.mode(Color(0xFF7C3AED), BlendMode.srcIn))),
+                    child: Text(isAvailable ? 'available' : status,
+                      style: appText(size: 10, weight: FontWeight.w700,
+                        color: isAvailable ? const Color(0xFF16A34A) : AppColors.textTertiary)),
                   ),
-                  const SizedBox(width: 14),
-                  Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Expanded(child: Text(name,
-                        style: appText(size: 20, weight: FontWeight.w800,
-                          color: isVip ? Colors.white : AppColors.textPrimary),
-                        maxLines: 1, overflow: TextOverflow.ellipsis)),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: isAvailable
-                            ? const Color(0xFF16A34A).withOpacity(isVip ? 0.15 : 0.12)
-                            : (isVip ? Colors.white.withOpacity(0.08) : const Color(0xFFF3F4F6)),
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(color: isAvailable
-                            ? const Color(0xFF16A34A).withOpacity(0.45)
-                            : Colors.transparent),
-                        ),
-                        child: Text(isAvailable ? 'available' : status,
-                          style: appText(size: 10, weight: FontWeight.w700,
-                            color: isAvailable
-                              ? const Color(0xFF16A34A)
-                              : (isVip ? Colors.white.withOpacity(0.6) : AppColors.textTertiary))),
-                      ),
-                    ]),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: isVip ? const Color(0xFFD4AF37).withOpacity(0.18) : const Color(0xFFFEF3C7),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(tagline,
-                        style: appText(size: 11, weight: FontWeight.w700,
-                          color: isVip ? const Color(0xFFE8C46A) : AppColors.primaryDark)),
-                    ),
-                  ])),
                 ]),
-                const SizedBox(height: 16),
-                Row(children: [
-                  Expanded(child: _colStat('Price',
-                    price != null && _asInt(price) > 0 ? _fmtPrice(price) : 'FREE',
-                    isVip: isVip, accent: true)),
-                  Container(width: 1, height: 36,
-                    color: isVip ? Colors.white.withOpacity(0.1) : AppColors.divider),
-                  Expanded(child: _colStat('Sold', '$sold / $qty', isVip: isVip)),
-                  Container(width: 1, height: 36,
-                    color: isVip ? Colors.white.withOpacity(0.1) : AppColors.divider),
-                  Expanded(child: _colStat('Available', '$available', isVip: isVip)),
-                ]),
-                const SizedBox(height: 14),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: LinearProgressIndicator(
-                    value: progress, minHeight: 6,
-                    backgroundColor: isVip ? Colors.white.withOpacity(0.1) : const Color(0xFFF3F4F6),
-                    valueColor: AlwaysStoppedAnimation(isVip ? const Color(0xFFD4AF37) : AppColors.primary),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text('${(progress * 100).toStringAsFixed(0)}% sold',
-                  style: appText(size: 11,
-                    color: isVip ? const Color(0xFFE8C46A) : AppColors.textTertiary,
-                    weight: FontWeight.w600)),
-              ]),
-            ),
-            if (isVip)
-              Positioned(top: 0, left: 0,
-                child: CustomPaint(
-                  size: const Size(70, 70),
-                  painter: _CornerRibbonPainter(),
-                ),
+                if (description.isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(description,
+                    style: appText(size: 12, color: AppColors.textTertiary, height: 1.35),
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
+                ],
+              ])),
+            ]),
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(child: _colStat('Price',
+                price != null && _asInt(price) > 0 ? _fmtPrice(price) : 'FREE', accent: true)),
+              Container(width: 1, height: 36, color: AppColors.divider),
+              Expanded(child: _colStat('Sold', '$sold / $qty')),
+              Container(width: 1, height: 36, color: AppColors.divider),
+              Expanded(child: _colStat('Available', '$available')),
+            ]),
+            const SizedBox(height: 14),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: LinearProgressIndicator(
+                value: progress, minHeight: 6,
+                backgroundColor: const Color(0xFFF3F4F6),
+                valueColor: const AlwaysStoppedAnimation(AppColors.primary),
               ),
+            ),
+            const SizedBox(height: 6),
+            Text('${(progress * 100).toStringAsFixed(0)}% sold',
+              style: appText(size: 11, color: AppColors.textTertiary, weight: FontWeight.w600)),
           ]),
         ),
       );
     }).toList());
   }
 
-  Widget _colStat(String label, String value, {bool isVip = false, bool accent = false}) {
+  Widget _colStat(String label, String value, {bool accent = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 4),
       child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
         Text(label,
-          style: appText(size: 10,
-            color: isVip ? Colors.white.withOpacity(0.55) : AppColors.textTertiary,
-            weight: FontWeight.w500)),
+          style: appText(size: 10, color: AppColors.textTertiary, weight: FontWeight.w500)),
         const SizedBox(height: 4),
         FittedBox(fit: BoxFit.scaleDown,
           child: Text(value,
             style: appText(size: 14, weight: FontWeight.w800,
-              color: accent
-                ? (isVip ? const Color(0xFFE8C46A) : AppColors.primary)
-                : (isVip ? Colors.white : AppColors.textPrimary)))),
+              color: accent ? AppColors.primary : AppColors.textPrimary))),
       ]),
     );
   }
@@ -666,7 +618,7 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
       case 'confirmed': case 'approved': return const Color(0xFF16A34A);
       case 'pending': return const Color(0xFFCA8A04);
       case 'rejected': case 'cancelled': return AppColors.error;
-      default: return AppColors.textTertiary;
+      default: return AppColors.blue;
     }
   }
 
@@ -681,40 +633,105 @@ class _EventTicketsTabState extends State<EventTicketsTab> {
     if (n == 0) return '—';
     return '${getActiveCurrency()} ${n.toString().replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]},')}';
   }
+
+  // ─── Skeleton mirroring the real layout ───
+  Widget _skeleton() {
+    Widget box({double? w, required double h, double r = 12}) => Container(
+          width: w,
+          height: h,
+          decoration: BoxDecoration(
+              color: AppColors.borderLight,
+              borderRadius: BorderRadius.circular(r)),
+        );
+    Widget kpi() => Container(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 2))],
+          ),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            box(w: 36, h: 36, r: 10),
+            const SizedBox(height: 10),
+            box(w: 42, h: 18, r: 4),
+            const SizedBox(height: 5),
+            box(w: 46, h: 10, r: 4),
+          ]),
+        );
+    Widget ticketClassCard() => Container(
+          margin: const EdgeInsets.only(bottom: 14),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.borderLight),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 12, offset: const Offset(0, 4))],
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              box(w: 56, h: 56, r: 999),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Expanded(child: box(h: 16, r: 4)),
+                  const SizedBox(width: 10),
+                  box(w: 70, h: 22, r: 999),
+                ]),
+                const SizedBox(height: 10),
+                box(w: 190, h: 12, r: 4),
+                const SizedBox(height: 6),
+                box(w: 132, h: 12, r: 4),
+              ])),
+            ]),
+            const SizedBox(height: 16),
+            Row(children: [
+              Expanded(child: _ticketStatSkeleton(box)),
+              Container(width: 1, height: 36, color: AppColors.divider),
+              Expanded(child: _ticketStatSkeleton(box)),
+              Container(width: 1, height: 36, color: AppColors.divider),
+              Expanded(child: _ticketStatSkeleton(box)),
+            ]),
+            const SizedBox(height: 14),
+            box(h: 6, r: 6),
+            const SizedBox(height: 8),
+            box(w: 52, h: 11, r: 4),
+          ]),
+        );
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+      children: [
+        box(h: 64, r: 16), // approval banner
+        const SizedBox(height: 14),
+        Row(children: [
+          for (int i = 0; i < 4; i++) ...[
+            Expanded(child: kpi()),
+            if (i < 3) const SizedBox(width: 10),
+          ],
+        ]),
+        const SizedBox(height: 16),
+        box(h: 46, r: 999), // segmented control
+        const SizedBox(height: 18),
+        Row(children: [
+          box(w: 140, h: 18, r: 6),
+          const Spacer(),
+          box(w: 92, h: 32, r: 999),
+        ]),
+        const SizedBox(height: 12),
+        for (int i = 0; i < 3; i++) ...[
+          ticketClassCard(),
+        ],
+      ],
+    );
+  }
+
+  Widget _ticketStatSkeleton(Widget Function({required double h, double r, double? w}) box) =>
+      Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          box(w: 42, h: 10, r: 4),
+          const SizedBox(height: 7),
+          box(w: 58, h: 14, r: 4),
+        ]),
+      );
 }
 
-class _DashedLinePainter extends CustomPainter {
-  final Color color;
-  _DashedLinePainter({required this.color});
-  @override
-  void paint(Canvas canvas, Size size) {
-    const dashWidth = 4.0;
-    const dashSpace = 4.0;
-    double startX = 0;
-    final paint = Paint()..color = color..strokeWidth = 1;
-    while (startX < size.width) {
-      canvas.drawLine(Offset(startX, 0), Offset(startX + dashWidth, 0), paint);
-      startX += dashWidth + dashSpace;
-    }
-  }
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _CornerRibbonPainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..shader = const LinearGradient(
-        colors: [Color(0xFFE8C46A), Color(0xFFD4AF37), Color(0xFFB8941F)],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
-    final path = Path()
-      ..moveTo(0, 0)
-      ..lineTo(size.width, 0)
-      ..lineTo(0, size.height)
-      ..close();
-    canvas.drawPath(path, paint);
-  }
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}

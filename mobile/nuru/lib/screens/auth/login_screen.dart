@@ -4,8 +4,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/services/saved_accounts_service.dart';
 import '../../core/widgets/nuru_logo.dart';
 import '../../core/widgets/auth_skyline.dart';
 import '../../core/widgets/app_snackbar.dart';
@@ -48,6 +50,181 @@ class _LoginScreenState extends State<LoginScreen> {
   final _pwCtrl = TextEditingController();
   bool _loading = false;
   bool _obscure = true;
+  List<SavedAccount> _savedAccounts = const [];
+  String? _quickLoadingId;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSavedAccounts();
+  }
+
+  Future<void> _loadSavedAccounts() async {
+    final list = await SavedAccountsService.list();
+    if (mounted) setState(() => _savedAccounts = list);
+  }
+
+  Future<void> _quickSignIn(SavedAccount acc) async {
+    if (_quickLoadingId != null) return;
+    setState(() => _quickLoadingId = acc.id);
+    final ok = await context.read<AuthProvider>().quickSignIn(acc.id);
+    if (!mounted) return;
+    if (ok) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        (_) => false,
+      );
+    } else {
+      setState(() => _quickLoadingId = null);
+      AppSnackbar.error(context, 'Session expired — please sign in with your password.');
+      _credCtrl.text = acc.email ?? acc.phone ?? '';
+    }
+  }
+
+  Future<void> _confirmRemoveAccount(SavedAccount acc) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Text('Remove ${acc.name}?',
+            style: _f(size: 16, weight: FontWeight.w700)),
+        content: Text(
+          'This account will be removed from this device. You can still sign in again with your password.',
+          style: _f(size: 13, color: AppColors.textSecondary),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false),
+              child: Text('Cancel', style: _f(size: 13, weight: FontWeight.w600, color: AppColors.textTertiary))),
+          TextButton(onPressed: () => Navigator.pop(ctx, true),
+              child: Text('Remove', style: _f(size: 13, weight: FontWeight.w700, color: AppColors.error))),
+        ],
+      ),
+    );
+    if (ok == true) {
+      await context.read<AuthProvider>().forgetSavedAccount(acc.id);
+      await _loadSavedAccounts();
+    }
+  }
+
+  Widget _accountSwitcher() {
+    if (_savedAccounts.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 10),
+            child: Text(
+              _savedAccounts.length == 1 ? 'Continue as' : 'Pick an account',
+              style: _f(size: 12, weight: FontWeight.w700, color: AppColors.textTertiary, letterSpacing: 0.4),
+            ),
+          ),
+          SizedBox(
+            height: 124,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              itemCount: _savedAccounts.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (_, i) => _accountTile(_savedAccounts[i]),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(children: [
+            Expanded(child: Container(height: 1, color: AppColors.border)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Text('or use another account',
+                  style: _f(size: 11, weight: FontWeight.w600, color: AppColors.textTertiary)),
+            ),
+            Expanded(child: Container(height: 1, color: AppColors.border)),
+          ]),
+        ],
+      ),
+    );
+  }
+
+  Widget _accountTile(SavedAccount acc) {
+    final loading = _quickLoadingId == acc.id;
+    final initials = acc.name.trim().isEmpty
+        ? '?'
+        : acc.name.trim().split(RegExp(r'\s+')).take(2).map((w) => w[0].toUpperCase()).join();
+    return GestureDetector(
+      onTap: loading ? null : () => _quickSignIn(acc),
+      onLongPress: loading ? null : () => _confirmRemoveAccount(acc),
+      child: Container(
+        width: 108,
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.primary.withOpacity(0.18), width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withOpacity(0.06),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Stack(
+              alignment: Alignment.bottomRight,
+              children: [
+                Container(
+                  width: 56, height: 56,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.primary.withOpacity(0.1),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: (acc.avatar != null && acc.avatar!.isNotEmpty)
+                      ? CachedNetworkImage(
+                          imageUrl: acc.avatar!,
+                          fit: BoxFit.cover,
+                          errorWidget: (_, __, ___) => Center(
+                            child: Text(initials,
+                                style: _f(size: 18, weight: FontWeight.w800, color: AppColors.primary)),
+                          ),
+                        )
+                      : Center(
+                          child: Text(initials,
+                              style: _f(size: 18, weight: FontWeight.w800, color: AppColors.primary)),
+                        ),
+                ),
+                if (loading)
+                  Container(
+                    width: 56, height: 56,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.7),
+                    ),
+                    child: const Center(
+                      child: SizedBox(
+                        width: 22, height: 22,
+                        child: CircularProgressIndicator(strokeWidth: 2.4, color: AppColors.primary),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              acc.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: _f(size: 12.5, weight: FontWeight.w700, color: AppColors.textPrimary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -243,6 +420,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
 
                           const SizedBox(height: 28),
+                          _accountSwitcher(),
 
                           // ── Form ──
                           Form(

@@ -280,7 +280,7 @@ class _InvitationViewScreenState extends State<InvitationViewScreen> {
       case 'maybe':
         return AppColors.warning;
       default:
-        return AppColors.textSecondary;
+        return AppColors.blue;
     }
   }
 }

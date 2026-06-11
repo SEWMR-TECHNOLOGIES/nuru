@@ -54,7 +54,7 @@ class _ContributionHistoryScreenState extends State<ContributionHistoryScreen> {
       case 'confirmed': return const Color(0xFF0F7A4A);
       case 'pending':   return const Color(0xFFB07A12);
       case 'failed':    return AppColors.error;
-      default:          return AppColors.textTertiary;
+      default:          return AppColors.blue;
     }
   }
 
@@ -64,7 +64,7 @@ class _ContributionHistoryScreenState extends State<ContributionHistoryScreen> {
       case 'confirmed': return const Color(0xFFD6EFE0);
       case 'pending':   return const Color(0xFFFFE9B0);
       case 'failed':    return AppColors.error.withOpacity(0.12);
-      default:          return AppColors.borderLight;
+      default:          return AppColors.blue.withOpacity(0.12);
     }
   }
 

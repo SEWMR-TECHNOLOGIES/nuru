@@ -65,7 +65,7 @@ Every contribution and ticket purchase produces an instant printable
 receipt. Track money in/out from one wallet across all your events.
 
 ✦ A social feed for event moments
-Share reels, photos and milestones from your events; follow organisers,
+Share glimpses, photos and milestones from your events; follow organisers,
 vendors and communities you care about.
 
 ✦ Multilingual & multi-currency

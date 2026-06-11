@@ -9,6 +9,7 @@ import '../../core/widgets/nuru_subpage_app_bar.dart';
 import 'ai_assistant_screen.dart';
 import 'help_category_screen.dart';
 import 'live_chat_screen.dart';
+import '../issues/my_issues_screen.dart';
 import '../../core/l10n/l10n_helper.dart';
 
 /// Redesigned Help Center — uses Nuru's custom SVG iconography (no Flutter Material icons).
@@ -170,6 +171,9 @@ class _HelpScreenState extends State<HelpScreen> {
       _Quick('assets/icons/email-icon.svg', 'Email', () => _emailSupport()),
       _Quick('assets/icons/sparkle-icon.svg', 'Nuru Assistant', () {
         Navigator.push(context, MaterialPageRoute(builder: (_) => const AiAssistantScreen()));
+      }),
+      _Quick('assets/icons/issue-icon.svg', 'My Issues', () {
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const MyIssuesScreen()));
       }),
     ];
     return Row(

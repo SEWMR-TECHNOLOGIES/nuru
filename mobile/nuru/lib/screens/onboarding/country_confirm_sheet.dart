@@ -215,6 +215,7 @@ Future<void> showCountryConfirmSheet(BuildContext context) {
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
+    useSafeArea: true,
     isDismissible: false,
     enableDrag: false,
     backgroundColor: Colors.transparent,

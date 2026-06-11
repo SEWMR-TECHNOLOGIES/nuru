@@ -707,6 +707,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) => Container(
           padding: const EdgeInsets.fromLTRB(20, 14, 20, 26),

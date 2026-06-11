@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/widgets/app_icon.dart';
+import '../../../core/widgets/nuru_search_bar.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/events_service.dart';
 import '../../../core/widgets/app_snackbar.dart';
@@ -19,7 +20,9 @@ class EventGuestsTab extends StatefulWidget {
 }
 
 class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAliveClientMixin {
-  List<dynamic> _guests = [];
+  /// Master guest list — fetched once. Filtering & search run client-side
+  /// so tab/search interactions are instant (no round-trip).
+  List<dynamic> _allGuests = [];
   Map<String, dynamic> _summary = {};
   bool _loading = true;
   String _filter = 'all';
@@ -36,22 +39,53 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
 
   Future<void> _load({bool background = false}) async {
     if (!background) setState(() => _loading = true);
-    final res = await EventsService.getGuests(
-      widget.eventId,
-      rsvpStatus: _filter == 'all' ? null : _filter,
-      search: _searchCtrl.text.trim().isEmpty ? null : _searchCtrl.text.trim(),
-    );
+    final List<dynamic> all = [];
+    Map<String, dynamic> summary = {};
+    String? lastError;
+    int page = 1;
+    while (true) {
+      final res = await EventsService.getGuests(widget.eventId,
+          page: page, limit: 200);
+      if (res['success'] != true) {
+        lastError = res['message']?.toString();
+        break;
+      }
+      final data = res['data'];
+      final list = (data?['guests'] as List?) ?? const [];
+      all.addAll(list);
+      if (page == 1) {
+        summary = (data?['summary'] as Map?)?.cast<String, dynamic>() ?? {};
+      }
+      final pagination = (data?['pagination'] as Map?) ?? const {};
+      final totalPages = (pagination['total_pages'] ?? pagination['totalPages'] ?? 1) as int;
+      if (list.isEmpty || page >= totalPages) break;
+      page++;
+      if (page > 200) break;
+    }
     if (!mounted) return;
     setState(() {
       _loading = false;
-      if (res['success'] == true) {
-        final data = res['data'];
-        _guests = (data?['guests'] as List?) ?? [];
-        _summary = (data?['summary'] as Map?)?.cast<String, dynamic>() ?? {};
-      } else if (!background) {
-        AppSnackbar.error(context, res['message']?.toString() ?? 'Unable to load guests');
-      }
+      _allGuests = all;
+      if (summary.isNotEmpty) _summary = summary;
     });
+    if (lastError != null && !background && mounted) {
+      AppSnackbar.error(context, lastError);
+    }
+  }
+
+  /// Client-side filter + search applied to [_allGuests].
+  List<dynamic> get _guests {
+    final q = _searchCtrl.text.trim().toLowerCase();
+    return _allGuests.where((g) {
+      if (g is! Map) return false;
+      final status = (g['rsvp_status'] ?? 'pending').toString();
+      if (_filter != 'all' && status != _filter) return false;
+      if (q.isEmpty) return true;
+      final hay = [
+        g['name'], g['full_name'], g['phone'], g['phone_number'], g['email'],
+      ].whereType<Object>().map((e) => e.toString().toLowerCase()).join(' ');
+      return hay.contains(q);
+    }).toList();
   }
 
   @override
@@ -107,24 +141,14 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
 
           // Search + Invite
           Row(children: [
-            Expanded(child: Container(
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-              child: TextField(
+            Expanded(
+              child: NuruSearchBar(
                 controller: _searchCtrl,
-                onChanged: (_) => _load(background: true),
-                autocorrect: false,
-                style: appText(size: 14),
-                decoration: InputDecoration(
-                  hintText: 'Search guests...',
-                  hintStyle: appText(size: 13, color: AppColors.textHint),
-                  prefixIcon: const Padding(padding: EdgeInsets.all(14), child: AppIcon('search', size: 18, color: AppColors.textHint)),
-                  filled: true, fillColor: Colors.white,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
-                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
-                ),
+                hintText: 'Search guests...',
+                debounce: const Duration(milliseconds: 300),
+                onChanged: (_) => setState(() {}),
               ),
-            )),
+            ),
             if (canManage) ...[
               const SizedBox(width: 10),
               GestureDetector(
@@ -228,7 +252,7 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: GestureDetector(
-        onTap: () { setState(() => _filter = value); _load(background: true); },
+        onTap: () => setState(() => _filter = value),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
@@ -435,6 +459,7 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => StatefulBuilder(

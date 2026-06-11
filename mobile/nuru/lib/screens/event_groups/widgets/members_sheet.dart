@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/widgets/nuru_search_bar.dart';
 import '../../../core/services/event_groups_service.dart';
 import '../../../core/widgets/nuru_skeleton.dart';
 
@@ -135,22 +136,10 @@ class _MembersSheetState extends State<MembersSheet> {
         // Search — matches "Search events" style: filled, pill, no border
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 4, 12, 6),
-          child: TextField(
-            autofocus: false,
+          child: NuruSearchBar(
+            hintText: 'Search members…',
+            debounce: const Duration(milliseconds: 200),
             onChanged: (v) => setState(() => _search = v),
-            style: GoogleFonts.inter(fontSize: 11),
-            decoration: InputDecoration(
-              isDense: true,
-              hintText: 'Search members…',
-              hintStyle: GoogleFonts.inter(fontSize: 10.5, color: AppColors.textTertiary),
-              prefixIcon: const Icon(Icons.search_rounded, size: 15, color: AppColors.textTertiary),
-              filled: true,
-              fillColor: AppColors.background,
-              contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide.none),
-              enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide.none),
-              focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(22), borderSide: BorderSide.none),
-            ),
           ),
         ),
         const SizedBox(height: 8),

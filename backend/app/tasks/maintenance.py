@@ -64,7 +64,7 @@ def expire_moments(self):
 
 
 # ─────────────────────────────────────────────
-# Storage cleanup — physically delete expired reel/moment assets
+# Storage cleanup — physically delete expired glimpse/moment assets
 # ─────────────────────────────────────────────
 @celery_app.task(
     name="tasks.maintenance.cleanup_expired_moment_assets",

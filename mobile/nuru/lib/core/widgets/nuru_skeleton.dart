@@ -487,14 +487,20 @@ class NuruSkeletonPostCard extends StatelessWidget {
   }
 }
 
+/// Tab-specific skeleton variants for the home feed so the placeholder
+/// matches the data shape the user is waiting on.
+enum FeedSkeletonVariant { post, moment, event, glimpse }
+
 /// Vertical list of post-card skeletons for the home feed.
 class NuruSkeletonPostList extends StatelessWidget {
   final int itemCount;
   final EdgeInsets padding;
+  final FeedSkeletonVariant variant;
   const NuruSkeletonPostList({
     super.key,
     this.itemCount = 3,
     this.padding = EdgeInsets.zero,
+    this.variant = FeedSkeletonVariant.post,
   });
 
   @override
@@ -503,14 +509,143 @@ class NuruSkeletonPostList extends StatelessWidget {
       child: Padding(
         padding: padding,
         child: Column(
-          children: List.generate(
-            itemCount,
-            (_) => const Padding(
-              padding: EdgeInsets.only(bottom: 16),
-              child: NuruSkeletonPostCard(),
+          children: List.generate(itemCount, (_) => Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: _cardForVariant(variant),
+          )),
+        ),
+      ),
+    );
+  }
+
+  Widget _cardForVariant(FeedSkeletonVariant v) {
+    switch (v) {
+      case FeedSkeletonVariant.moment:
+        return const _MomentSkeletonCard();
+      case FeedSkeletonVariant.event:
+        return const _EventShareSkeletonCard();
+      case FeedSkeletonVariant.glimpse:
+        return const _GlimpseGroupSkeletonCard();
+      case FeedSkeletonVariant.post:
+        return const NuruSkeletonPostCard();
+    }
+  }
+}
+
+/// Image-led moment card placeholder (big square media + caption).
+class _MomentSkeletonCard extends StatelessWidget {
+  const _MomentSkeletonCard();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFF0F0F4)),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            NuruSkeleton.circle(size: 36),
+            const SizedBox(width: 10),
+            NuruSkeleton.text(width: 110, height: 11),
+          ]),
+          const SizedBox(height: 12),
+          NuruSkeleton.box(height: 280, radius: 16),
+          const SizedBox(height: 12),
+          NuruSkeleton.text(width: double.infinity, height: 10),
+          const SizedBox(height: 6),
+          NuruSkeleton.text(width: 180, height: 10),
+        ],
+      ),
+    );
+  }
+}
+
+/// Event-share card placeholder: cover row + title + meta + CTA.
+class _EventShareSkeletonCard extends StatelessWidget {
+  const _EventShareSkeletonCard();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFF0F0F4)),
+      ),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          NuruSkeleton.box(height: 140, radius: 14),
+          const SizedBox(height: 12),
+          Row(children: [
+            NuruSkeleton.box(width: 56, height: 56, radius: 12),
+            const SizedBox(width: 12),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                NuruSkeleton.text(width: 180, height: 13),
+                const SizedBox(height: 8),
+                NuruSkeleton.text(width: 130, height: 10),
+                const SizedBox(height: 6),
+                NuruSkeleton.text(width: 90, height: 10),
+              ],
+            )),
+          ]),
+          const SizedBox(height: 14),
+          Row(children: [
+            Expanded(child: NuruSkeleton.box(height: 38, radius: 10)),
+            const SizedBox(width: 10),
+            NuruSkeleton.box(width: 44, height: 38, radius: 10),
+          ]),
+        ],
+      ),
+    );
+  }
+}
+
+/// Glimpse-group placeholder: author header + horizontal row of preview tiles.
+class _GlimpseGroupSkeletonCard extends StatelessWidget {
+  const _GlimpseGroupSkeletonCard();
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFF0F0F4)),
+      ),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            NuruSkeleton.circle(size: 40),
+            const SizedBox(width: 10),
+            Expanded(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                NuruSkeleton.text(width: 120, height: 11),
+                const SizedBox(height: 6),
+                NuruSkeleton.text(width: 70, height: 9),
+              ],
+            )),
+          ]),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 140,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: 3,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (_, __) => NuruSkeleton.box(width: 96, height: 140, radius: 12),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -523,27 +658,121 @@ class NuruSkeletonEventDetail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return NuruSkeletonGroup(
-      child: ListView(
-        physics: const NeverScrollableScrollPhysics(),
-        padding: EdgeInsets.zero,
-        children: [
-          NuruSkeleton.box(height: 220, radius: 0),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                NuruSkeleton.text(width: 220, height: 18),
-                const SizedBox(height: 12),
-                NuruSkeleton.text(width: 160, height: 12),
-                const SizedBox(height: 8),
-                NuruSkeleton.text(width: 120, height: 12),
-              ],
+      child: SafeArea(
+        bottom: false,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 4, 8, 6),
+              child: Row(
+                children: [
+                  NuruSkeleton.box(width: 44, height: 44, radius: 22),
+                  const Spacer(),
+                  NuruSkeleton.text(width: 112, height: 16),
+                  const Spacer(),
+                  NuruSkeleton.box(width: 44, height: 44, radius: 22),
+                ],
+              ),
             ),
-          ),
-          const NuruSkeletonStats(count: 3),
-          const NuruSkeletonList(itemCount: 4, showAvatar: false),
-        ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  NuruSkeleton.box(width: 72, height: 72, radius: 14),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: NuruSkeleton.text(width: 180, height: 15)),
+                            const SizedBox(width: 8),
+                            NuruSkeleton.box(width: 62, height: 22, radius: 999),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        NuruSkeleton.text(width: 170, height: 11),
+                        const SizedBox(height: 8),
+                        NuruSkeleton.text(width: 210, height: 11),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              height: 44,
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                scrollDirection: Axis.horizontal,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: 7,
+                separatorBuilder: (_, __) => const SizedBox(width: 20),
+                itemBuilder: (_, i) => Center(
+                  child: NuruSkeleton.text(width: 64 + (i % 3) * 10, height: 13),
+                ),
+              ),
+            ),
+            Expanded(
+              child: ListView(
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                children: [
+                  NuruSkeleton.text(width: 146, height: 15),
+                  const SizedBox(height: 10),
+                  NuruSkeleton.box(height: 118, radius: 16),
+                  const SizedBox(height: 12),
+                  NuruSkeleton.box(height: 76, radius: 16),
+                  const SizedBox(height: 8),
+                  Row(children: const [
+                    Expanded(child: NuruSkeleton(height: 84, borderRadius: BorderRadius.all(Radius.circular(16)))),
+                    SizedBox(width: 8),
+                    Expanded(child: NuruSkeleton(height: 84, borderRadius: BorderRadius.all(Radius.circular(16)))),
+                  ]),
+                  const SizedBox(height: 20),
+                  NuruSkeleton.text(width: 128, height: 15),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 78,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: 4,
+                      separatorBuilder: (_, __) => const SizedBox(width: 10),
+                      itemBuilder: (_, __) => NuruSkeleton.box(width: 132, height: 78, radius: 14),
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Row(children: const [
+                    Expanded(child: NuruSkeleton(height: 238, borderRadius: BorderRadius.all(Radius.circular(18)))),
+                    SizedBox(width: 10),
+                    Expanded(child: NuruSkeleton(height: 238, borderRadius: BorderRadius.all(Radius.circular(18)))),
+                  ]),
+                  const SizedBox(height: 18),
+                  NuruSkeleton.text(width: 118, height: 15),
+                  const SizedBox(height: 12),
+                  Row(children: const [
+                    Expanded(child: NuruSkeleton(height: 86, borderRadius: BorderRadius.all(Radius.circular(14)))),
+                    SizedBox(width: 10),
+                    Expanded(child: NuruSkeleton(height: 86, borderRadius: BorderRadius.all(Radius.circular(14)))),
+                    SizedBox(width: 10),
+                    Expanded(child: NuruSkeleton(height: 86, borderRadius: BorderRadius.all(Radius.circular(14)))),
+                    SizedBox(width: 10),
+                    Expanded(child: NuruSkeleton(height: 86, borderRadius: BorderRadius.all(Radius.circular(14)))),
+                  ]),
+                  const SizedBox(height: 18),
+                  NuruSkeleton.box(height: 112, radius: 16),
+                  const SizedBox(height: 20),
+                  NuruSkeleton.text(width: 132, height: 15),
+                  const SizedBox(height: 10),
+                  NuruSkeleton.box(height: 142, radius: 18),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -9,6 +9,10 @@ class EventFinanceService {
     return ApiBase.postRaw('/user-events/$eventId/budget', data);
   }
 
+  static Future<Map<String, dynamic>> updateBudgetItem(String eventId, String itemId, Map<String, dynamic> data) {
+    return ApiBase.putRaw('/user-events/$eventId/budget/$itemId', data);
+  }
+
   static Future<Map<String, dynamic>> deleteBudgetItem(String eventId, String itemId) {
     return ApiBase.deleteRaw('/user-events/$eventId/budget/$itemId');
   }

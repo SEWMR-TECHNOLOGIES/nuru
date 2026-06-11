@@ -12,6 +12,7 @@ import '../../core/widgets/nuru_skeleton.dart';
 import '../../core/services/social_service.dart';
 import '../../core/l10n/l10n_helper.dart';
 import 'community_detail_screen.dart';
+import '../../core/widgets/nuru_search_bar.dart';
 
 /// Communities — pixel match to mockup.
 /// Purple hero • My Communities horizontal scroll • Recommended for You list.
@@ -201,69 +202,11 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
   Widget _searchBar() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-      child: Container(
-        height: 44,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: const Color(0xFFEDEDEF), width: 1),
-        ),
-        child: Row(
-          children: [
-            SvgPicture.asset(
-              'assets/icons/search-icon.svg',
-              width: 18,
-              height: 18,
-              colorFilter: const ColorFilter.mode(
-                Color(0xFF8E8E93),
-                BlendMode.srcIn,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: TextField(
-                controller: _searchCtl,
-                autofocus: true,
-                autocorrect: false,
-                cursorColor: Colors.black,
-                textAlignVertical: TextAlignVertical.center,
-                style: GoogleFonts.inter(fontSize: 14, color: Colors.black),
-                decoration: InputDecoration(
-                  isDense: true,
-                  filled: false,
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                  hintText: 'Search communities…',
-                  hintStyle: GoogleFonts.inter(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
-                    color: const Color(0xFF9E9E9E),
-                  ),
-                ),
-                onChanged: (v) => setState(() => _search = v),
-              ),
-            ),
-            if (_searchCtl.text.isNotEmpty)
-              GestureDetector(
-                onTap: () {
-                  _searchCtl.clear();
-                  setState(() => _search = '');
-                },
-                child: SvgPicture.asset(
-                  'assets/icons/close-icon.svg',
-                  width: 18,
-                  height: 18,
-                  colorFilter: const ColorFilter.mode(
-                    Color(0xFF8E8E93),
-                    BlendMode.srcIn,
-                  ),
-                ),
-              ),
-          ],
-        ),
+      child: NuruSearchBar(
+        controller: _searchCtl,
+        hintText: 'Search communities…',
+        debounce: const Duration(milliseconds: 200),
+        onChanged: (v) => setState(() => _search = v),
       ),
     );
   }
@@ -752,6 +695,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
       context: context,
       backgroundColor: Colors.white,
       isScrollControlled: true,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
@@ -839,6 +783,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
       context: context,
       backgroundColor: Colors.white,
       isScrollControlled: true,
+      useSafeArea: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),

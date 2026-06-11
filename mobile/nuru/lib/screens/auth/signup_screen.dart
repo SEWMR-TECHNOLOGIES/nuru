@@ -88,6 +88,9 @@ class _SignupScreenState extends State<SignupScreen> {
 
   String _usernameStatus = 'idle';
   List<String> _usernameSuggestions = [];
+  // Proactive suggestions shown on the username step (Gmail-style)
+  List<String> _proactiveSuggestions = [];
+  bool _suggestionsLoading = false;
   Timer? _usernameTimer;
 
   String? _userId;
@@ -185,6 +188,23 @@ class _SignupScreenState extends State<SignupScreen> {
     });
   }
 
+  Future<void> _fetchProactiveSuggestions() async {
+    final fn = _firstNameCtrl.text.trim();
+    final ln = _lastNameCtrl.text.trim();
+    if (fn.isEmpty && ln.isEmpty) return;
+    setState(() => _suggestionsLoading = true);
+    try {
+      final res = await _auth.getUsernameSuggestions(firstName: fn, lastName: ln);
+      if (!mounted) return;
+      final data = res['data'];
+      if (data is Map && data['suggestions'] is List) {
+        setState(() => _proactiveSuggestions = (data['suggestions'] as List).cast<String>());
+      }
+    } catch (_) {/* silent */} finally {
+      if (mounted) setState(() => _suggestionsLoading = false);
+    }
+  }
+
   Future<void> _handleNext() async {
     if (_step == 1) {
       if (_firstNameCtrl.text.trim().isEmpty || _lastNameCtrl.text.trim().isEmpty) {
@@ -196,6 +216,8 @@ class _SignupScreenState extends State<SignupScreen> {
         return;
       }
       setState(() => _step = 2);
+      // Fire-and-forget: fetch proactive Gmail-style suggestions
+      _fetchProactiveSuggestions();
     } else if (_step == 2) {
       if (_usernameCtrl.text.trim().length < 3) {
         AppSnackbar.error(context, 'Username must be at least 3 characters');
@@ -524,6 +546,45 @@ class _SignupScreenState extends State<SignupScreen> {
                   FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z0-9_.]')),
                 ],
               ),
+              // Proactive Gmail-style suggestions (shown while input is empty)
+              if (_usernameCtrl.text.trim().isEmpty) ...[
+                const SizedBox(height: 14),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    _suggestionsLoading ? 'Finding usernames for you…' : 'Suggested for you',
+                    style: _f(size: 12, color: _kInkSoft, weight: FontWeight.w600),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (_suggestionsLoading)
+                  Wrap(
+                    spacing: 8, runSpacing: 8,
+                    children: List.generate(5, (_) => Container(
+                      height: 28, width: 96,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1EDE6),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                    )),
+                  )
+                else if (_proactiveSuggestions.isNotEmpty)
+                  Wrap(
+                    spacing: 8, runSpacing: 8,
+                    children: _proactiveSuggestions.map((s) => GestureDetector(
+                      onTap: () { _usernameCtrl.text = s; _checkUsername(s); setState((){}); },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: _kAccentSoft,
+                          border: Border.all(color: _kAccent.withOpacity(0.35)),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text('@$s', style: _f(size: 12, weight: FontWeight.w700, color: _kAccent)),
+                      ),
+                    )).toList(),
+                  ),
+              ],
               if (_usernameStatus != 'idle') ...[
                 const SizedBox(height: 14),
                 _UsernameStatusBanner(

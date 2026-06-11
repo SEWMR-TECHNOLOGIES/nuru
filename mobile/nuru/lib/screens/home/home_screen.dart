@@ -26,10 +26,10 @@ import '../profile/profile_screen.dart';
 import 'widgets/moment_card.dart';
 import 'widgets/post_detail_modal.dart';
 import 'widgets/trending_rail.dart';
-import 'widgets/reels_rail.dart';
-import 'widgets/reel_composer_screen.dart';
-import 'widgets/reel_viewer_screen.dart';
-import 'widgets/reel_group_card.dart';
+import 'widgets/glimpses_rail.dart';
+import 'widgets/glimpse_composer_screen.dart';
+import 'widgets/glimpse_viewer_screen.dart';
+import 'widgets/glimpse_group_card.dart';
 import 'widgets/create_post_box.dart';
 import 'widgets/event_card.dart';
 import 'widgets/stats_row.dart';
@@ -38,6 +38,7 @@ import 'widgets/shared_widgets.dart';
 import 'widgets/home_header.dart';
 import 'widgets/home_bottom_nav.dart';
 import 'widgets/home_left_drawer.dart';
+import '../../core/widgets/nuru_search_bar.dart';
 import 'widgets/home_right_drawer.dart';
 import 'widgets/home_notifications_tab.dart';
 import '../../core/services/moments_service.dart';
@@ -98,10 +99,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final GlobalKey<MyTicketsScreenState> _ticketsKey = GlobalKey<MyTicketsScreenState>();
   final GlobalKey<MyContributionsTabState> _myContribKey = GlobalKey<MyContributionsTabState>();
 
-  // Feed pill tabs: 0 All, 1 Moments, 2 Events, 3 Reels
+  // Feed pill tabs: 0 All, 1 Moments, 2 Events, 3 Glimpses
   int _feedTab = 0;
-  List<dynamic> _reels = [];
-  bool _reelsLoading = true;
+  List<dynamic> _glimpses = [];
+  bool _glimpsesLoading = true;
 
   @override
   void initState() {
@@ -116,9 +117,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _feedTotalPages = HomeCache.feedTotalPages;
       _feedLoading = false;
     }
-    if (HomeCache.reels != null) {
-      _reels = List<dynamic>.from(HomeCache.reels!);
-      _reelsLoading = false;
+    if (HomeCache.glimpses != null) {
+      _glimpses = _pruneExpiredGlimpses(List<dynamic>.from(HomeCache.glimpses!));
+      _glimpsesLoading = false;
     }
     if (HomeCache.profile != null) _profile = HomeCache.profile;
     if (HomeCache.myEvents != null) { _myEvents = List<dynamic>.from(HomeCache.myEvents!); _eventsLoading = false; }
@@ -155,14 +156,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         HomeCache.feedPosts = _feedPosts;
       });
     }
-    if (_reels.isEmpty) {
-      FeedPersistentCache.readReels().then((cached) {
+    if (_glimpses.isEmpty) {
+      FeedPersistentCache.readGlimpses().then((cached) {
         if (!mounted || cached == null) return;
+        final pruned = _pruneExpiredGlimpses(cached);
         setState(() {
-          _reels = cached;
-          _reelsLoading = false;
+          _glimpses = pruned;
+          _glimpsesLoading = false;
         });
-        HomeCache.reels = _reels;
+        HomeCache.glimpses = _glimpses;
       });
     }
     _loadAllData(silent: silent);
@@ -171,7 +173,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // appear without forcing a pull-to-refresh.  Overlapping polls are
     // skipped so the UI never stutters.
     _myEventsPollTimer = Timer.periodic(const Duration(seconds: 25), (_) {
-      if (!mounted || _eventsPollInProgress) return;
+      if (!mounted) return;
+      // Prune expired glimpses every tick so the rail self-clears at the 24h
+      // mark even when the user hasn't pulled to refresh.
+      final pruned = _pruneExpiredGlimpses(_glimpses);
+      if (pruned.length != _glimpses.length) {
+        setState(() => _glimpses = pruned);
+        HomeCache.glimpses = _glimpses;
+        FeedPersistentCache.saveGlimpses(_glimpses);
+      }
+      if (_eventsPollInProgress) return;
       _eventsPollInProgress = true;
       _loadEvents(silent: true).whenComplete(() => _eventsPollInProgress = false);
     });
@@ -227,23 +238,53 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _loadUpcomingTickets(),
       _loadTicketedEvents(),
       _loadMyServices(),
-      _loadReels(silent: silent),
+      _loadGlimpses(silent: silent),
     ]);
     if (mounted && !silent) setState(() => _loading = false);
     HomeCache.hasLoadedOnce = true;
   }
 
-  Future<void> _loadReels({bool silent = false}) async {
-    if (mounted && !silent) setState(() => _reelsLoading = true);
+  Future<void> _loadGlimpses({bool silent = false}) async {
+    if (mounted && !silent) setState(() => _glimpsesLoading = true);
     final res = await MomentsService.getFeed();
     if (!mounted) return;
     final data = res['data'];
+    final fresh = _pruneExpiredGlimpses(data is List ? data : const []);
     setState(() {
-      _reels = data is List ? data : const [];
-      _reelsLoading = false;
+      _glimpses = fresh;
+      _glimpsesLoading = false;
     });
-    HomeCache.reels = _reels;
-    FeedPersistentCache.saveReels(_reels);
+    HomeCache.glimpses = _glimpses;
+    FeedPersistentCache.saveGlimpses(_glimpses);
+  }
+
+  /// Remove moments whose `expires_at` has already passed, and drop authors
+  /// whose moments are all gone. Stops stale cached glimpses from lingering on
+  /// screen after their 24h window has lapsed.
+  List<dynamic> _pruneExpiredGlimpses(List<dynamic> glimpses) {
+    final now = DateTime.now();
+    final out = <dynamic>[];
+    for (final r in glimpses) {
+      if (r is! Map) continue;
+      final moments = (r['moments'] is List) ? List<dynamic>.from(r['moments']) : <dynamic>[];
+      moments.removeWhere((m) {
+        if (m is! Map) return true;
+        final exp = m['expires_at']?.toString();
+        if (exp == null || exp.isEmpty) return false;
+        var s = exp.trim();
+        final hasTz = s.endsWith('Z') || RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(s);
+        if (!hasTz) s = '${s}Z';
+        final dt = DateTime.tryParse(s);
+        if (dt == null) return false;
+        return dt.toLocal().isBefore(now);
+      });
+      if (moments.isEmpty) continue;
+      final copy = Map<String, dynamic>.from(r);
+      copy['moments'] = moments;
+      copy['all_seen'] = moments.every((m) => m is Map && m['has_seen'] == true);
+      out.add(copy);
+    }
+    return out;
   }
 
   /// Listener for [HomeTabController] requests coming from any screen.
@@ -777,60 +818,60 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final pt = (p['post_type'] ?? p['type'] ?? '').toString();
       return pt == 'event_share' || p['shared_event'] != null;
     }
-    bool isReel(dynamic p) {
+    bool isGlimpse(dynamic p) {
       if (p is! Map) return false;
       final pt = (p['post_type'] ?? p['type'] ?? '').toString();
-      return pt == 'reel' || pt == 'moment_share' || p['moment'] != null || p['moment_id'] != null;
+      return pt == 'glimpse' || pt == 'moment_share' || p['moment'] != null || p['moment_id'] != null;
     }
     bool isMoment(dynamic p) {
-      // Plain user posts/feeds — exclude event-shares & reels
+      // Plain user posts/feeds — exclude event-shares & glimpses
       if (p is! Map) return false;
-      if (isEventShare(p) || isReel(p)) return false;
+      if (isEventShare(p) || isGlimpse(p)) return false;
       return true;
     }
     if (_feedTab == 1) return _feedPosts.where(isMoment).toList();
     if (_feedTab == 2) return _feedPosts.where(isEventShare).toList();
-    if (_feedTab == 3) return _feedPosts.where(isReel).toList();
-    // All tab: hide individual reel posts (they're already grouped in the rail above).
-    return _feedPosts.where((p) => !isReel(p)).toList();
+    if (_feedTab == 3) return _feedPosts.where(isGlimpse).toList();
+    // All tab: hide individual glimpse posts (they're already grouped in the rail above).
+    return _feedPosts.where((p) => !isGlimpse(p)).toList();
   }
 
-  void _openReelViewer(int authorIndex) {
-    if (authorIndex < 0 || authorIndex >= _reels.length) return;
+  void _openGlimpseViewer(int authorIndex) {
+    if (authorIndex < 0 || authorIndex >= _glimpses.length) return;
     Navigator.of(context).push(MaterialPageRoute(
       fullscreenDialog: true,
-      builder: (_) => ReelViewerScreen(
-        reels: _reels,
+      builder: (_) => GlimpseViewerScreen(
+        glimpses: _glimpses,
         initialAuthorIndex: authorIndex,
       ),
-    )).then((_) => _loadReels());
+    )).then((_) => _loadGlimpses());
   }
 
-  void _openCreateReel() async {
+  void _openCreateGlimpse() async {
     final created = await Navigator.of(context).push<bool>(MaterialPageRoute(
       fullscreenDialog: true,
-      builder: (_) => const ReelComposerScreen(),
+      builder: (_) => const GlimpseComposerScreen(),
     ));
     if (created == true) {
-      await _loadReels();
+      await _loadGlimpses();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Your reel is live for 24 hours')),
+          const SnackBar(content: Text('Your glimpse is live for 24 hours')),
         );
       }
     }
   }
 
   Widget _feedContent() {
-    final isReelsTab = _feedTab == 3;
-    final filtered = isReelsTab ? const <dynamic>[] : _filteredFeed;
-    final reelGroups = isReelsTab ? _reels : const <dynamic>[];
-    final listLen = isReelsTab ? reelGroups.length : filtered.length;
+    final isGlimpsesTab = _feedTab == 3;
+    final filtered = isGlimpsesTab ? const <dynamic>[] : _filteredFeed;
+    final glimpseGroups = isGlimpsesTab ? _glimpses : const <dynamic>[];
+    final listLen = isGlimpsesTab ? glimpseGroups.length : filtered.length;
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
         if (notification is ScrollEndNotification &&
             notification.metrics.pixels >= notification.metrics.maxScrollExtent - 300 &&
-            _feedPage < _feedTotalPages && !_feedLoadingMore && !isReelsTab) {
+            _feedPage < _feedTotalPages && !_feedLoadingMore && !isGlimpsesTab) {
           _loadMoreFeed();
         }
         return false;
@@ -839,23 +880,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         onRefresh: () async {
           await Future.wait([
             _loadFeed(refresh: true, resetSession: true, silent: true),
-            _loadReels(silent: true),
+            _loadGlimpses(silent: true),
           ]);
         },
         child: ListView.builder(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-          itemCount: listLen + 4 + (_feedLoadingMore && !isReelsTab ? 1 : 0) + (!_feedLoading && _feedFallbackTried && listLen == 0 ? 1 : 0),
+          itemCount: listLen + 4 + (_feedLoadingMore && !isGlimpsesTab ? 1 : 0) + (!_feedLoading && _feedFallbackTried && listLen == 0 ? 1 : 0),
           itemBuilder: (context, index) {
             if (index == 0) {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),
-                child: ReelsRail(
-                  reels: _reels,
+                child: GlimpsesRail(
+                  glimpses: _glimpses,
                   loading: false,
                   myAvatar: (_profile?['avatar'] as String?),
-                  onCreateTap: _openCreateReel,
-                  onAuthorTap: _openReelViewer,
+                  onCreateTap: _openCreateGlimpse,
+                  onAuthorTap: _openGlimpseViewer,
                 ),
               );
             }
@@ -873,7 +914,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               return Padding(
                 padding: const EdgeInsets.only(bottom: 14),
                 child: PillTabs(
-                  tabs: const ['All', 'Moments', 'Events', 'Reels'],
+                  tabs: const ['All', 'Moments', 'Events', 'Glimpses'],
                   selected: _feedTab,
                   onChanged: (i) => setState(() => _feedTab = i),
                 ),
@@ -881,7 +922,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             }
             if (index == 3) return _feedTab == 3 ? const TrendingRail() : const SizedBox.shrink();
             if (index == 4 && (_feedLoading || (listLen == 0 && !_feedFallbackTried))) {
-              return const NuruSkeletonPostList(itemCount: 3);
+              return NuruSkeletonPostList(
+                itemCount: 3,
+                variant: _feedTab == 1
+                    ? FeedSkeletonVariant.moment
+                    : _feedTab == 2
+                        ? FeedSkeletonVariant.event
+                        : _feedTab == 3
+                            ? FeedSkeletonVariant.glimpse
+                            : FeedSkeletonVariant.post,
+              );
             }
             if (index == 4 && listLen == 0) {
               return EmptyState(
@@ -891,7 +941,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     : _feedTab == 2
                         ? 'No event posts'
                         : _feedTab == 3
-                            ? 'No reels in your circle'
+                            ? 'No glimpses in your circle'
                             : 'No posts yet',
                 subtitle: _feedTab == 0
                     ? 'Be the first to share something with the community!'
@@ -902,14 +952,14 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             if (itemIndex >= listLen) {
               return const Padding(padding: EdgeInsets.symmetric(vertical: 20), child: Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))));
             }
-            if (isReelsTab) {
-              final group = reelGroups[itemIndex];
+            if (isGlimpsesTab) {
+              final group = glimpseGroups[itemIndex];
               if (group is! Map) return const SizedBox.shrink();
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),
-                child: ReelGroupCard(
+                child: GlimpseGroupCard(
                   group: group,
-                  onOpen: (_) => _openReelViewer(itemIndex),
+                  onOpen: (_) => _openGlimpseViewer(itemIndex),
                 ),
               );
             }
@@ -1097,52 +1147,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // (legacy _heroStat / _heroDivider removed — Events tab now uses clean white layout)
 
   Widget _eventsSearchBar(StateSetter setLocalState) {
-    return Container(
-        height: 44,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(28),
-          border: Border.all(color: const Color(0xFFEDEDEF), width: 1),
-        ),
-        child: Row(children: [
-          const Icon(Icons.search_rounded, size: 18, color: Color(0xFF8E8E93)),
-          const SizedBox(width: 10),
-          Expanded(
-            child: TextField(
-              controller: _eventsSearchCtl,
-              onChanged: (v) {
-                _eventsSearch = v;
-                setLocalState(() {});
-              },
-              cursorColor: Colors.black,
-              textAlignVertical: TextAlignVertical.center,
-              style: GoogleFonts.inter(fontSize: 14, color: Colors.black),
-              decoration: InputDecoration(
-                isDense: true,
-                filled: false,
-                border: InputBorder.none,
-                enabledBorder: InputBorder.none,
-                focusedBorder: InputBorder.none,
-                disabledBorder: InputBorder.none,
-                errorBorder: InputBorder.none,
-                focusedErrorBorder: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                hintText: 'Search by title, location…',
-                hintStyle: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w400, color: const Color(0xFF9E9E9E)),
-              ),
-            ),
-          ),
-          if (_eventsSearchCtl.text.isNotEmpty)
-            GestureDetector(
-              onTap: () {
-                _eventsSearchCtl.clear();
-                _eventsSearch = '';
-                setLocalState(() {});
-              },
-              child: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF8E8E93)),
-            ),
-        ]),
+    return NuruSearchBar(
+      controller: _eventsSearchCtl,
+      hintText: 'Search by title, location…',
+      debounce: const Duration(milliseconds: 200),
+      onChanged: (v) {
+        _eventsSearch = v;
+        setLocalState(() {});
+      },
+      onClear: () {
+        _eventsSearch = '';
+        setLocalState(() {});
+      },
     );
   }
 

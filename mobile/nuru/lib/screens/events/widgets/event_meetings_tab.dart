@@ -181,6 +181,7 @@ class _EventMeetingsTabState extends State<EventMeetingsTab> {
     final result = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) {
         final theme = Theme.of(ctx);
@@ -352,7 +353,7 @@ class _EventMeetingsTabState extends State<EventMeetingsTab> {
   Color _statusColor(String status) {
     switch (status) {
       case 'in_progress': return const Color(0xFF10B981);
-      case 'ended': return Colors.grey;
+      case 'ended': return const Color(0xFF6D28D9);
       default: return const Color(0xFF3B82F6);
     }
   }
@@ -387,7 +388,7 @@ class _EventMeetingsTabState extends State<EventMeetingsTab> {
       child: Container(
         color: Colors.white,
         child: _loading
-            ? const Center(child: CircularProgressIndicator())
+            ? _meetingsSkeleton()
             : ListView(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                 children: [
@@ -1106,6 +1107,110 @@ class _EventMeetingsTabState extends State<EventMeetingsTab> {
           Text(text, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
         ],
       ),
+    );
+  }
+
+  Widget _meetingsSkeleton() {
+    Widget box({double? w, required double h, double r = 12}) => Container(
+          width: w,
+          height: h,
+          decoration: BoxDecoration(
+              color: AppColors.borderLight,
+              borderRadius: BorderRadius.circular(r)),
+        );
+    Widget eventHeader() => Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFEDEDF3)),
+            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 10, offset: const Offset(0, 2))],
+          ),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            box(w: 64, h: 64, r: 12),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              box(w: 170, h: 14, r: 4),
+              const SizedBox(height: 9),
+              box(w: 120, h: 12, r: 4),
+              const SizedBox(height: 8),
+              box(w: 150, h: 12, r: 4),
+              const SizedBox(height: 10),
+              Align(alignment: Alignment.centerRight, child: box(w: 108, h: 22, r: 20)),
+            ])),
+          ]),
+        );
+    Widget promoCard() => Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(20), border: Border.all(color: const Color(0xFFEDEDF3))),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              box(w: 36, h: 36, r: 10),
+              const SizedBox(height: 10),
+              box(w: 140, h: 15, r: 4),
+              const SizedBox(height: 8),
+              box(w: 190, h: 12, r: 4),
+              const SizedBox(height: 6),
+              box(w: 150, h: 12, r: 4),
+              const SizedBox(height: 10),
+              box(w: 118, h: 42, r: 14),
+            ])),
+            const SizedBox(width: 8),
+            box(w: 130, h: 110, r: 16),
+          ]),
+        );
+    Widget meetingCard() => Container(
+          margin: const EdgeInsets.only(bottom: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16), border: Border.all(color: const Color(0xFFEDEDF3))),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            box(w: 40, h: 40, r: 12),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              box(w: 150, h: 14, r: 4),
+              const SizedBox(height: 6),
+              box(w: 120, h: 12, r: 4),
+              const SizedBox(height: 5),
+              box(w: 180, h: 12, r: 4),
+            ])),
+            const SizedBox(width: 8),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, mainAxisSize: MainAxisSize.min, children: [
+              box(w: 66, h: 24, r: 20),
+              const SizedBox(height: 6),
+              box(w: 24, h: 24, r: 8),
+            ]),
+          ]),
+        );
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      children: [
+        eventHeader(),
+        const SizedBox(height: 16),
+        Container(
+          height: 44,
+          decoration: const BoxDecoration(
+            border: Border(bottom: BorderSide(color: AppColors.borderLight, width: 1)),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(children: [
+            box(w: 72, h: 13, r: 4),
+            const SizedBox(width: 28),
+            box(w: 70, h: 13, r: 4),
+            const SizedBox(width: 28),
+            box(w: 96, h: 13, r: 4),
+          ]),
+        ), // underline tabs
+        const SizedBox(height: 18),
+        if (widget.isCreator) ...[
+          promoCard(),
+          const SizedBox(height: 18),
+        ],
+        box(w: 160, h: 18, r: 6),
+        const SizedBox(height: 12),
+        for (int i = 0; i < 4; i++) ...[
+          meetingCard(),
+        ],
+      ],
     );
   }
 }

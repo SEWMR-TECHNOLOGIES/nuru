@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/services/secure_token_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/services/api_service.dart';
@@ -60,10 +61,15 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
   bool _loading = true;
   String _search = '';
 
+  /// Locally-stored "Save Draft" payload from add_service_screen, if any.
+  Map<String, dynamic>? _serviceDraft;
+  static const String _draftKey = 'add_service_draft_v2';
+
   @override
   void initState() {
     super.initState();
     _load();
+    _loadDraft();
   }
 
   Future<void> _load({bool silent = false}) async {
@@ -105,6 +111,29 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
         }
       }
     });
+  }
+
+  Future<void> _loadDraft() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString(_draftKey);
+      if (raw == null || raw.isEmpty) {
+        if (mounted) setState(() => _serviceDraft = null);
+        return;
+      }
+      final data = jsonDecode(raw);
+      if (data is Map<String, dynamic> && mounted) {
+        setState(() => _serviceDraft = data);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _discardDraft() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_draftKey);
+    } catch (_) {}
+    if (mounted) setState(() => _serviceDraft = null);
   }
 
   TextStyle _f({
@@ -159,6 +188,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
     final result = await Navigator.push(
         context, MaterialPageRoute(builder: (_) => const AddServiceScreen()));
     if (result == true) _load();
+    _loadDraft();
   }
 
   /// True when the vendor has ≥1 *approved* (verified) service in the
@@ -300,6 +330,10 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
                   ),
                   _vendorHero(),
                   const SizedBox(height: 18),
+                  if (_serviceDraft != null) ...[
+                    _draftCard(),
+                    const SizedBox(height: 18),
+                  ],
                   if (_services.isEmpty)
                     _emptyState(isFiltered: _search.trim().isNotEmpty)
                   else ...[
@@ -982,6 +1016,59 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
 
   // ─── Empty state ─────────────────────────────────────────────────
   Widget _emptyState({bool isFiltered = false}) {
+    return _emptyStateImpl(isFiltered: isFiltered);
+  }
+
+  Widget _draftCard() {
+    final d = _serviceDraft ?? const <String, dynamic>{};
+    final title = (d['title'] ?? '').toString().trim();
+    final step = (d['step'] is int) ? d['step'] as int : 0;
+    final stepLabels = ['Personal Info', 'Business Info', 'Documents'];
+    final stepLabel = stepLabels[step.clamp(0, 2)];
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.primary.withOpacity(0.25)),
+      ),
+      child: Row(children: [
+        Container(
+          width: 40, height: 40,
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
+          child: const Icon(Icons.edit_note_rounded, size: 22, color: AppColors.primary),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Continue draft', style: _f(size: 13.5, weight: FontWeight.w700)),
+          const SizedBox(height: 2),
+          Text(
+            title.isNotEmpty ? '$title · $stepLabel' : 'Unfinished service · $stepLabel',
+            style: _f(size: 12, color: AppColors.textSecondary),
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+          ),
+        ])),
+        TextButton(
+          onPressed: _discardDraft,
+          child: Text('Discard', style: _f(size: 12, weight: FontWeight.w600, color: AppColors.textSecondary)),
+        ),
+        const SizedBox(width: 4),
+        ElevatedButton(
+          onPressed: _onAddNew,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: AppColors.textPrimary,
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          ),
+          child: Text('Resume', style: _f(size: 12, weight: FontWeight.w700)),
+        ),
+      ]),
+    );
+  }
+
+  Widget _emptyStateImpl({bool isFiltered = false}) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 32, 20, 24),
       child: Container(
@@ -1155,12 +1242,71 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
           ],
         ),
       );
-  Widget _rowSkeleton() => Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        height: 100,
+  Widget _skBox(double w, double h, {double r = 6, double opacity = 1}) =>
+      Container(
+        width: w,
+        height: h,
         decoration: BoxDecoration(
-          color: const Color(0xFFF4F4F6),
-          borderRadius: BorderRadius.circular(18),
+          color: const Color(0xFFEDEEF2).withOpacity(opacity),
+          borderRadius: BorderRadius.circular(r),
+        ),
+      );
+
+  Widget _rowSkeleton() => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // 78x78 thumbnail w/ 14 radius (matches _serviceRow)
+            ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: _skBox(78, 78, r: 14),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _skBox(160, 13.5, r: 5),
+                  const SizedBox(height: 8),
+                  _skBox(100, 11.5, r: 5, opacity: 0.85),
+                  const SizedBox(height: 8),
+                  // type chips row
+                  Row(children: [
+                    _skBox(54, 18, r: 999, opacity: 0.7),
+                    const SizedBox(width: 6),
+                    _skBox(70, 18, r: 999, opacity: 0.7),
+                    const SizedBox(width: 6),
+                    _skBox(44, 18, r: 999, opacity: 0.7),
+                  ]),
+                  const SizedBox(height: 8),
+                  // rating line
+                  _skBox(110, 11, r: 5, opacity: 0.7),
+                  const SizedBox(height: 10),
+                  // price + edit pill
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _skBox(95, 12, r: 5),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                              color: const Color(0xFFE7E8EE), width: 1),
+                        ),
+                        child: _skBox(26, 10, r: 4, opacity: 0.7),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
+            _skBox(20, 20, r: 10, opacity: 0.7),
+          ],
         ),
       );
 
@@ -1200,6 +1346,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
+      useSafeArea: true,
       builder: (ctx) => DraggableScrollableSheet(
         expand: false,
         initialChildSize: 0.7,
@@ -1568,6 +1715,7 @@ class _MyServicesScreenState extends State<MyServicesScreen> {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) => SafeArea(
