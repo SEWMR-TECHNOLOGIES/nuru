@@ -75,6 +75,7 @@ def _serialize(row: WAMessageLog, *, detail: bool = False) -> dict:
     data = {
         "id": str(row.id),
         "recipient_phone": row.recipient_phone,
+        "recipient_name": row.recipient_name,
         "normalized_phone": row.normalized_phone,
         "user_id": str(row.user_id) if row.user_id else None,
         "event_id": str(row.event_id) if row.event_id else None,

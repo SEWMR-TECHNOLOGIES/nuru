@@ -24,6 +24,7 @@ class WAMessageLog(Base):
 
     # Recipient / context
     recipient_phone = Column(String(32), nullable=False, index=True)
+    recipient_name = Column(String(255), nullable=True, index=True)
     normalized_phone = Column(String(32), nullable=True, index=True)
     user_id = Column(UUID(as_uuid=True),
                      ForeignKey("users.id", ondelete="SET NULL"),

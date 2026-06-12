@@ -21,6 +21,7 @@ export type WaLogStatus =
 export interface WaLog {
   id: string;
   recipient_phone: string;
+  recipient_name: string | null;
   normalized_phone: string | null;
   user_id: string | null;
   event_id: string | null;

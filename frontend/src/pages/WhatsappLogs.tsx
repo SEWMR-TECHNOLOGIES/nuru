@@ -283,23 +283,34 @@ export default function WhatsappLogs() {
 
       {/* Filters */}
       <div className="grid grid-cols-1 md:grid-cols-12 gap-2 rounded-xl border bg-white p-3">
-        <div className="md:col-span-4 relative">
+        <div className="md:col-span-3 relative">
           <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <Input
             className="pl-9"
-            placeholder="Search summary, template, error…"
+            placeholder="Search name, summary, template, error…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && setFilters((f) => ({ ...f, page: 1 }))}
           />
         </div>
-        <div className="md:col-span-3">
+        <div className="md:col-span-2">
           <Input
             placeholder="Phone (e.g. 0712… or 2557…)"
             value={recipient}
             onChange={(e) => setRecipient(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && setFilters((f) => ({ ...f, page: 1 }))}
           />
+        </div>
+        <div className="md:col-span-2">
+          <Select value={statusFilter || "__all"} onValueChange={(v) => setStatusFilter(v === "__all" ? "" : v)}>
+            <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all">All statuses</SelectItem>
+              {STATUS_OPTIONS.map((s) => (
+                <SelectItem key={s} value={s}>{STATUS_META[s].label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="md:col-span-2">
           <Select value={filters.category ?? "__all"} onValueChange={(v) => setFilters((f) => ({ ...f, category: v === "__all" ? undefined : v, page: 1 }))}>
@@ -331,8 +342,7 @@ export default function WhatsappLogs() {
       {/* List */}
       <div className="rounded-xl border bg-white overflow-hidden">
         <div className="hidden lg:grid grid-cols-12 gap-3 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 bg-slate-50 border-b">
-          <div className="col-span-1">Card</div>
-          <div className="col-span-2">Recipient</div>
+          <div className="col-span-3">Recipient</div>
           <div className="col-span-3">Purpose</div>
           <div className="col-span-2">Type / Template</div>
           <div className="col-span-2">Status</div>
@@ -344,7 +354,7 @@ export default function WhatsappLogs() {
           <div className="p-4 space-y-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="flex gap-3">
-                <Skeleton className="h-14 w-14 rounded-md shrink-0" />
+                <Skeleton className="h-10 w-10 rounded-full shrink-0" />
                 <div className="flex-1 space-y-2">
                   <Skeleton className="h-4 w-1/3" />
                   <Skeleton className="h-3 w-2/3" />
@@ -360,23 +370,40 @@ export default function WhatsappLogs() {
           <ul className="divide-y">
             {logs.map((log) => {
               const hasImage = !!log.media_url;
+              const displayName = (log.recipient_name && log.recipient_name.trim()) || log.recipient_phone;
+              const initials = displayName
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((p) => p[0]?.toUpperCase() ?? "")
+                .join("") || "?";
               return (
                 <li key={log.id} className="px-3 sm:px-4 py-3 hover:bg-slate-50/60">
                   {/* Mobile / tablet: stacked card layout */}
                   <div className="flex gap-3 lg:hidden">
-                    <div className="w-14 h-14 rounded-md bg-slate-100 overflow-hidden shrink-0 flex items-center justify-center">
-                      {hasImage ? (
-                        <img src={log.media_url!} alt="" className="w-full h-full object-cover" loading="lazy" />
-                      ) : (
-                        <Mail className="h-5 w-5 text-slate-400" />
-                      )}
-                    </div>
+                    {hasImage ? (
+                      <img
+                        src={log.media_url!}
+                        alt=""
+                        className="w-12 h-12 rounded-md object-cover bg-slate-100 shrink-0"
+                        loading="lazy"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 text-xs font-semibold flex items-center justify-center shrink-0">
+                        {initials}
+                      </div>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-medium text-slate-900 truncate">{log.recipient_phone}</span>
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium text-slate-900 truncate">{displayName}</div>
+                          {log.recipient_name && (
+                            <div className="text-[11px] text-slate-500 truncate">{log.recipient_phone}</div>
+                          )}
+                        </div>
                         <StatusPill status={log.status} />
                       </div>
-                      <div className="text-xs text-slate-600 truncate mt-0.5">
+                      <div className="text-xs text-slate-600 truncate mt-1">
                         {CATEGORY_LABEL[log.category] ?? log.category}
                         {log.template_name ? <span className="text-slate-400"> · {log.template_name}</span> : null}
                       </div>
@@ -407,23 +434,31 @@ export default function WhatsappLogs() {
 
                   {/* Desktop: 12-col grid */}
                   <div className="hidden lg:grid grid-cols-12 gap-3 items-center">
-                    <div className="col-span-1">
-                      <div className="w-12 h-12 rounded-md bg-slate-100 overflow-hidden flex items-center justify-center">
-                        {hasImage ? (
-                          <img src={log.media_url!} alt="" className="w-full h-full object-cover" loading="lazy" />
-                        ) : (
-                          <Mail className="h-4 w-4 text-slate-400" />
-                        )}
+                    <div className="col-span-3 min-w-0 flex items-center gap-3">
+                      {hasImage ? (
+                        <img
+                          src={log.media_url!}
+                          alt=""
+                          className="w-10 h-10 rounded-md object-cover bg-slate-100 shrink-0"
+                          loading="lazy"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 text-xs font-semibold flex items-center justify-center shrink-0">
+                          {initials}
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium text-slate-900 truncate">{displayName}</div>
+                        <div className="text-[11px] text-slate-500 truncate">{log.recipient_phone}</div>
                       </div>
-                    </div>
-                    <div className="col-span-2 min-w-0">
-                      <div className="text-sm font-medium text-slate-900 truncate">{log.recipient_phone}</div>
-                      <div className="text-[11px] text-slate-500 truncate">{log.summary || "—"}</div>
                     </div>
                     <div className="col-span-3 min-w-0">
                       <div className="text-sm text-slate-800 truncate">
                         {CATEGORY_LABEL[log.category] ?? log.category}
                       </div>
+                      {log.summary && (
+                        <div className="text-[11px] text-slate-500 truncate">{log.summary}</div>
+                      )}
                       {log.failure_reason && (
                         <div className="text-[11px] text-rose-600 truncate">{log.failure_reason}</div>
                       )}
@@ -488,9 +523,9 @@ export default function WhatsappLogs() {
 
       {/* Detail dialog */}
       <Dialog open={!!activeLog} onOpenChange={(o) => !o && setActiveLog(null)}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="w-[calc(100vw-1.5rem)] sm:w-auto max-w-[min(48rem,calc(100vw-1.5rem))] max-h-[90vh] overflow-y-auto overflow-x-hidden p-4 sm:p-6">
           <DialogHeader>
-            <DialogTitle>WhatsApp message detail</DialogTitle>
+            <DialogTitle className="text-base sm:text-lg">WhatsApp message detail</DialogTitle>
           </DialogHeader>
           {activeLoading || !activeLog?.created_at ? (
             <div className="space-y-3">
@@ -499,19 +534,29 @@ export default function WhatsappLogs() {
               <Skeleton className="h-24 w-full" />
             </div>
           ) : (
-            <div className="space-y-4 text-sm">
+            <div className="space-y-4 text-sm min-w-0">
               {activeLog.media_url && (
                 <div className="rounded-lg border bg-slate-50 p-3 flex justify-center">
                   <img
                     src={activeLog.media_url}
                     alt="Card preview"
-                    className="max-h-72 w-auto rounded-md shadow-sm object-contain"
+                    className="max-h-72 w-auto max-w-full rounded-md shadow-sm object-contain"
                     loading="lazy"
                   />
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3">
-                <Info label="Recipient" value={activeLog.recipient_phone} />
+
+              <div className="rounded-lg border bg-white p-3">
+                <div className="text-[11px] uppercase tracking-wide text-slate-500 mb-1">Recipient</div>
+                <div className="text-sm font-medium text-slate-900 break-words">
+                  {activeLog.recipient_name || activeLog.recipient_phone}
+                </div>
+                {activeLog.recipient_name && (
+                  <div className="text-xs text-slate-500 break-words">{activeLog.recipient_phone}</div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Info label="Status" value={<StatusPill status={activeLog.status} />} />
                 <Info label="Purpose" value={CATEGORY_LABEL[activeLog.category] ?? activeLog.category} />
                 <Info label="Message type" value={activeLog.message_type} />
@@ -529,8 +574,8 @@ export default function WhatsappLogs() {
               {(activeLog.failure_reason || activeLog.error_code || activeLog.error_message) && (
                 <div className="rounded-lg border border-rose-200 bg-rose-50 p-3">
                   <div className="text-xs font-semibold text-rose-800 uppercase tracking-wide mb-1">Failure details</div>
-                  {activeLog.failure_reason && <div className="text-sm text-rose-900">{activeLog.failure_reason}</div>}
-                  <div className="text-xs text-rose-700 mt-1">
+                  {activeLog.failure_reason && <div className="text-sm text-rose-900 break-words">{activeLog.failure_reason}</div>}
+                  <div className="text-xs text-rose-700 mt-1 break-words">
                     {activeLog.error_code && <span className="mr-2">Code: <code>{activeLog.error_code}</code></span>}
                     {activeLog.error_message && <span className="break-all">Message: {activeLog.error_message}</span>}
                   </div>
@@ -539,7 +584,7 @@ export default function WhatsappLogs() {
 
               {activeLog.summary && (
                 <Section title="Summary">
-                  <div className="whitespace-pre-wrap text-slate-800">{activeLog.summary}</div>
+                  <div className="whitespace-pre-wrap break-words text-slate-800">{activeLog.summary}</div>
                 </Section>
               )}
 
@@ -550,7 +595,7 @@ export default function WhatsappLogs() {
                 <Json value={activeLog.response_payload} />
               </Section>
               {activeLog.webhook_payload && (
-                <Section title="Webhook update">
+                <Section title="Latest webhook update">
                   <Json value={activeLog.webhook_payload} />
                 </Section>
               )}
@@ -559,8 +604,8 @@ export default function WhatsappLogs() {
                 <Section title="Related attempts">
                   <ul className="space-y-1">
                     {activeLog.history.map((h) => (
-                      <li key={h.id} className="flex items-center justify-between text-xs border rounded px-2 py-1">
-                        <span>{new Date(h.created_at || "").toLocaleString()}</span>
+                      <li key={h.id} className="flex items-center justify-between gap-2 text-xs border rounded px-2 py-1">
+                        <span className="truncate">{new Date(h.created_at || "").toLocaleString()}</span>
                         <StatusPill status={h.status} />
                       </li>
                     ))}
@@ -569,7 +614,7 @@ export default function WhatsappLogs() {
               )}
             </div>
           )}
-          <DialogFooter>
+          <DialogFooter className="flex-col-reverse sm:flex-row gap-2">
             {activeLog?.retryable && (
               <Button variant="outline" onClick={() => { setResendTarget(activeLog); }}>
                 <RotateCcw className="h-4 w-4 mr-2" /> Resend
@@ -587,7 +632,7 @@ export default function WhatsappLogs() {
             <AlertDialogTitle>Resend this WhatsApp message?</AlertDialogTitle>
             <AlertDialogDescription>
               A brand-new send attempt will be queued to{" "}
-              <span className="font-medium">{resendTarget?.recipient_phone}</span>
+              <span className="font-medium">{resendTarget?.recipient_name || resendTarget?.recipient_phone}</span>
               {" "}using the same purpose and content. The original failure record stays in your logs for audit history.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -627,6 +672,6 @@ function Json({ value }: { value: any }) {
   let text = "";
   try { text = JSON.stringify(value, null, 2); } catch { text = String(value); }
   return (
-    <pre className="text-[11px] leading-snug text-slate-800 overflow-x-auto max-h-72">{text}</pre>
+    <pre className="text-[11px] leading-snug text-slate-800 max-h-72 overflow-y-auto whitespace-pre-wrap break-all">{text}</pre>
   );
 }

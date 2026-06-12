@@ -225,6 +225,22 @@ def log_attempt(
         except Exception:
             summary = action
 
+        # Best-effort recipient display name — covers guests, contributors,
+        # OTP recipients, committee, vendors. Falls back to None so the UI
+        # can show the phone number alone.
+        recipient_name = (
+            params.get("recipient_name")
+            or params.get("guest_name")
+            or params.get("contributor_name")
+            or params.get("full_name")
+            or params.get("user_name")
+            or params.get("contact_name")
+            or params.get("vendor_name")
+            or params.get("name")
+        )
+        if recipient_name is not None:
+            recipient_name = str(recipient_name).strip()[:255] or None
+
         # Attribute the attempt to the user (and event) that triggered it —
         # explicit kwargs win, otherwise fall back to the ambient context.
         uid = _uuid_or_none(user_id) or _uuid_or_none(_wa_log_user_id.get())
@@ -232,6 +248,7 @@ def log_attempt(
 
         row = WAMessageLog(
             recipient_phone=str(phone)[:32],
+            recipient_name=recipient_name,
             normalized_phone=_normalize_phone(phone)[:32] or None,
             user_id=uid,
             event_id=eid,
@@ -338,10 +355,18 @@ def update_from_status(provider_message_id: str, status: str, *,
                 row.status = st
             if st == "sent" and not row.sent_at:
                 row.sent_at = now
-            if st == "delivered" and not row.delivered_at:
-                row.delivered_at = now
-            if st == "read" and not row.read_at:
-                row.read_at = now
+            if st == "delivered":
+                if not row.delivered_at:
+                    row.delivered_at = now
+                if not row.sent_at:
+                    row.sent_at = now
+            if st == "read":
+                if not row.read_at:
+                    row.read_at = now
+                if not row.delivered_at:
+                    row.delivered_at = now
+                if not row.sent_at:
+                    row.sent_at = now
         if webhook_payload is not None:
             row.webhook_payload = _safe_jsonable(webhook_payload)
         db.commit()
