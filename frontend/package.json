@@ -55,6 +55,7 @@
     "html5-qrcode": "^2.3.8",
     "input-otp": "^1.4.2",
     "jspdf": "^2.5.2",
+    "jspdf-autotable": "^5.0.8",
     "jszip": "^3.10.1",
     "konva": "^10.3.0",
     "leaflet": "^1.9.4",
@@ -81,6 +82,7 @@
     "use-image": "^1.1.4",
     "vaul": "^0.9.9",
     "write-excel-file": "^2.3.10",
+    "xlsx": "^0.18.5",
     "zod": "^3.25.76"
   },
   "devDependencies": {
