@@ -64,6 +64,7 @@ from .reminder_automations import router as reminder_automations_router
 from .account_setup import router as account_setup_router
 from .meeting_redirect import router as meeting_redirect_router
 from .event_cards import router as event_cards_router
+from .whatsapp_logs import router as whatsapp_logs_router
 
 # All routers to be included in main app
 all_routers = [
@@ -129,6 +130,7 @@ all_routers = [
     account_setup_router,               # /auth/account-setup/...
     meeting_redirect_router,            # /m/{token}  (WhatsApp meeting button resolver)
     event_cards_router,                 # /cards/... + /events/.../cards/...
+    whatsapp_logs_router,               # /whatsapp/logs/...
 ]
 
 __all__ = [

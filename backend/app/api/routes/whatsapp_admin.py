@@ -28,7 +28,10 @@ router = APIRouter(tags=["WhatsApp"])
 from api.routes.admin import require_admin
 
 
-def _mirror_delivery_status(db: Session, wa_message_id: str, status: str, error_message: str | None = None):
+def _mirror_delivery_status(db: Session, wa_message_id: str, status: str,
+                            error_message: str | None = None,
+                            error_code: str | None = None,
+                            webhook_payload: dict | None = None):
     if not wa_message_id or not status:
         return
     try:
@@ -57,6 +60,16 @@ def _mirror_delivery_status(db: Session, wa_message_id: str, status: str, error_
     except Exception as e:  # noqa: BLE001
         db.rollback()
         print(f"[wa-webhook] local status mirror failed: {e}")
+
+    # Always mirror into wa_message_logs (own session inside helper).
+    try:
+        from utils.wa_logging import update_from_status
+        update_from_status(wa_message_id, status,
+                           error_code=error_code,
+                           error_message=error_message,
+                           webhook_payload=webhook_payload)
+    except Exception as e:  # noqa: BLE001
+        print(f"[wa-webhook] wa_message_logs mirror failed: {e}")
 
 EDGE_FUNCTION_URL = os.getenv("EDGE_FUNCTION_URL", "") or os.getenv("SUPABASE_URL", "")
 EDGE_FUNCTION_KEY = os.getenv("EDGE_FUNCTION_KEY", "") or os.getenv("SUPABASE_ANON_KEY", "")
@@ -141,21 +154,20 @@ def store_status_update(body: dict = Body(...), db: Session = Depends(get_db)):
     recipient_phone = body.get("recipient_phone") or body.get("recipient_id")
     errors = body.get("errors")  # webhook errors array, optional
     error_message = None
+    error_code = None
 
     if not wa_message_id or not status:
         return standard_response(False, "wa_message_id and status required")
 
+    if isinstance(errors, list) and errors:
+        first = errors[0] or {}
+        error_code = str(first.get("code")) if first.get("code") is not None else None
+        error_message = first.get("title") or first.get("message") or first.get("details")
+
     # ── 1. Update phone_whatsapp_statuses based on the REAL delivery callback.
-    #     Done first so even messages we never persisted (older sends, system
-    #     templates, etc.) still teach the availability cache.
     try:
         if recipient_phone:
             from utils.whatsapp_availability import record_delivery_outcome
-            error_code = None
-            if isinstance(errors, list) and errors:
-                first = errors[0] or {}
-                error_code = str(first.get("code")) if first.get("code") is not None else None
-                error_message = first.get("title") or first.get("message") or first.get("details")
             record_delivery_outcome(
                 db, recipient_phone,
                 delivery_status=str(status),
@@ -165,10 +177,14 @@ def store_status_update(body: dict = Body(...), db: Session = Depends(get_db)):
     except Exception as e:  # noqa: BLE001
         print(f"[whatsapp] delivery callback record skipped: {e}")
 
-    # ── 2. Local WAMessage status bump (unchanged behaviour).
-    _mirror_delivery_status(db, wa_message_id, str(status), error_message)
+    # ── 2. Local WAMessage + wa_message_logs status bump.
+    _mirror_delivery_status(db, wa_message_id, str(status),
+                            error_message=error_message,
+                            error_code=error_code,
+                            webhook_payload=body)
 
     return standard_response(True, "Status updated")
+
 
 
 
@@ -560,9 +576,13 @@ def whatsapp_webhook_receive(body: dict = Body(...), db: Session = Depends(get_d
                     except Exception as e:  # noqa: BLE001
                         print(f"[wa-webhook] availability update failed: {e}")
 
-                # Mirror the bump to local wa_messages and sent_event_cards.
+                # Mirror the bump to local wa_messages, sent_event_cards
+                # and wa_message_logs.
                 if wamid and status:
-                    _mirror_delivery_status(db, wamid, status, error_message)
+                    _mirror_delivery_status(db, wamid, status,
+                                            error_message=error_message,
+                                            error_code=error_code,
+                                            webhook_payload=st)
 
         # ── 2. Incoming messages ──────────────────────────────────────
         messages = value.get("messages") or []

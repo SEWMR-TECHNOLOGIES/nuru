@@ -64,17 +64,34 @@ def _lang(value) -> str:
     return "en" if str(value or "sw").lower() == "en" else "sw"
 
 
-def _send_whatsapp_sync(action: str, phone: str, params: dict):
+def _send_whatsapp_sync(action: str, phone: str, params: dict, log_id: str | None = None):
     """Synchronous transport — only call from Celery workers.
 
-    Returns a dict ``{ok, message_id, status, not_on_whatsapp, error}`` so
-    callers can log real WhatsApp/Meta acceptance instead of HTTP 200.
+    Returns a dict ``{ok, message_id, status, not_on_whatsapp, error}``.
+    If ``log_id`` is provided we update the existing ``wa_message_logs``
+    row; otherwise we create one here so every attempt is recorded.
     """
+    if log_id is None:
+        try:
+            from utils.wa_logging import log_attempt
+            log_id = log_attempt(action, phone, params or {})
+        except Exception as _e:  # noqa: BLE001
+            log_id = None
+            print(f"[wa_log] attempt log skipped: {_e}")
+
+    def _finish(result: dict):
+        try:
+            from utils.wa_logging import update_from_send_result
+            update_from_send_result(log_id, result)
+        except Exception as _e:  # noqa: BLE001
+            print(f"[wa_log] update failed: {_e}")
+        return result
+
     if not phone or not SUPABASE_ANON_KEY:
-        return {"ok": False, "error": "missing phone or anon key"}
+        return _finish({"ok": False, "error": "missing phone or anon key"})
     international_phone = _normalize_phone(phone)
     if not international_phone:
-        return {"ok": False, "error": "phone normalization failed"}
+        return _finish({"ok": False, "error": "phone normalization failed"})
     phone_tail = _mask_phone(international_phone)
     urls = [WHATSAPP_SEND_URL] if WHATSAPP_SEND_URL else []
     fallback_url = f"{CURRENT_FUNCTIONS_URL}/functions/v1/whatsapp-send"
@@ -98,7 +115,7 @@ def _send_whatsapp_sync(action: str, phone: str, params: dict):
                     print(f"[WhatsApp] local function missing action={action}; retrying deployed function")
                     continue
                 print(f"[WhatsApp] ←edge HTTP {resp.status_code} action={action} phone_tail={phone_tail} body={body}")
-                return {"ok": False, "status": resp.status_code, "error": body}
+                return _finish({"ok": False, "status": resp.status_code, "error": body})
             try:
                 data = resp.json()
             except Exception:
@@ -112,14 +129,14 @@ def _send_whatsapp_sync(action: str, phone: str, params: dict):
                 f"success={success} sent={sent} message_id={message_id} not_on_whatsapp={not_on_wa} body={body}"
             )
             if success is False or sent is False or not message_id:
-                return {
+                return _finish({
                     "ok": False,
                     "status": resp.status_code,
                     "message_id": message_id,
                     "not_on_whatsapp": not_on_wa,
                     "error_code": data.get("error_code"),
                     "error": body,
-                }
+                })
             try:
                 from core.database import SessionLocal
                 from api.routes.whatsapp_admin import _store_incoming
@@ -141,17 +158,30 @@ def _send_whatsapp_sync(action: str, phone: str, params: dict):
                     db.close()
             except Exception as mirror_exc:  # noqa: BLE001
                 print(f"[WhatsApp] admin mirror skipped action={action} phone_tail={phone_tail}: {mirror_exc}")
-            return {"ok": True, "status": resp.status_code, "message_id": message_id}
-        return {"ok": False, "error": "no edge URL responded"}
+            return _finish({"ok": True, "status": resp.status_code, "message_id": message_id})
+        return _finish({"ok": False, "error": "no edge URL responded"})
     except Exception as e:
         print(f"[WhatsApp] exception action={action} phone_tail={phone_tail}: {e}")
-        return {"ok": False, "error": str(e)}
+        return _finish({"ok": False, "error": str(e)})
 
 
-def _send_whatsapp(action: str, phone: str, params: dict):
-    """Enqueue via Celery in prod, fall back to synchronous in dev."""
+def _send_whatsapp(action: str, phone: str, params: dict, log_id: str | None = None):
+    """Enqueue via Celery in prod, fall back to synchronous in dev.
+
+    Always creates a ``wa_message_logs`` row up-front (when one isn't
+    supplied) so no attempt is silent — even if Celery later loses the
+    task. The log id is passed through to the worker so the same row is
+    updated after Meta responds.
+    """
     if not phone:
         return False
+    if log_id is None:
+        try:
+            from utils.wa_logging import log_attempt
+            log_id = log_attempt(action, phone, params or {})
+        except Exception as _e:  # noqa: BLE001
+            log_id = None
+            print(f"[wa_log] enqueue log skipped: {_e}")
     try:
         from core.celery_app import CELERY_ENABLED
     except Exception:
@@ -159,11 +189,11 @@ def _send_whatsapp(action: str, phone: str, params: dict):
     if CELERY_ENABLED:
         try:
             from tasks.whatsapp_dispatch import send_action
-            send_action.delay(action, phone, params or {})
+            send_action.delay(action, phone, params or {}, log_id)
             return True
         except Exception as e:
             print(f"[WhatsApp] enqueue failed, sending inline: {e}")
-    result = _send_whatsapp_sync(action, phone, params or {})
+    result = _send_whatsapp_sync(action, phone, params or {}, log_id=log_id)
     return bool(result.get("ok")) if isinstance(result, dict) else bool(result)
 
 

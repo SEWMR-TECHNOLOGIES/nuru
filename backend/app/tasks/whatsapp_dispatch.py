@@ -20,7 +20,7 @@ from core.celery_app import celery_app
     default_retry_delay=30,
     rate_limit="120/m",
 )
-def send_action(self, action: str, phone: str, params: dict):
+def send_action(self, action: str, phone: str, params: dict, log_id: str | None = None):
     """Generic WhatsApp send. ``action`` matches the edge-function dispatcher
     keys (e.g. ``"text"``, ``"invite"``, ``"contribution_recorded"``)."""
     from utils.whatsapp import _send_whatsapp_sync as _send_whatsapp, _normalize_phone, _mask_phone
@@ -28,7 +28,7 @@ def send_action(self, action: str, phone: str, params: dict):
     from core.database import SessionLocal
     tail = _mask_phone(_normalize_phone(phone or ""))
     try:
-        result = _send_whatsapp(action, phone, params or {})
+        result = _send_whatsapp(action, phone, params or {}, log_id=log_id)
         if not isinstance(result, dict):
             result = {"ok": bool(result)}
 

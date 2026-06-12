@@ -13,6 +13,7 @@ import {
   Star,
   Clock,
   StarOff,
+  MessageSquare,
 } from 'lucide-react'
 import { useLanguage } from '@/lib/i18n/LanguageContext'
 
@@ -210,6 +211,7 @@ const Sidebar = ({ onNavigate, onReplayTour, inDrawer = false }: SidebarProps) =
       id: 'account', label: 'Account', defaultOpen: false,
       items: [
         { customIcon: IssueIcon, label: t('my_issues'), path: '/my-issues', hint: 'Submit and track issues or disputes.' },
+        { lucideIcon: MessageSquare, label: 'WhatsApp Logs', path: '/whatsapp-logs', hint: 'Track every WhatsApp message Nuru sent — what worked and what failed.' },
         { lucideIcon: AlertTriangle, label: t('removed_content'), path: '/removed-content', hint: 'Removed posts, reasons, and appeals.' },
         { customIcon: HelpIcon, label: t('help'), path: '/help', hint: 'FAQs and contact support.' },
         { customIcon: SettingsIcon, label: t('settings'), path: '/settings', hint: 'Notifications, privacy, theme, and account settings.' },

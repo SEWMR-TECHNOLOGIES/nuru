@@ -733,18 +733,6 @@ class _SeenByBar extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.transparent,
-              Colors.black.withOpacity(0.55),
-              Colors.black.withOpacity(0.85),
-            ],
-            stops: const [0.0, 0.5, 1.0],
-          ),
-        ),
         child: Row(
           children: [
             SizedBox(
@@ -772,6 +760,7 @@ class _SeenByBar extends StatelessWidget {
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.white24, width: 1),
                         ),
+                        alignment: Alignment.center,
                         child: const Icon(Icons.remove_red_eye_rounded,
                             color: Colors.white70, size: 14),
                       ),
@@ -808,6 +797,19 @@ class _MiniAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const size = 28.0;
+    final fallback = Container(
+      width: size,
+      height: size,
+      color: Colors.white12,
+      alignment: Alignment.center,
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : '?',
+        style: GoogleFonts.sora(
+            color: Colors.white,
+            fontSize: 11,
+            fontWeight: FontWeight.w700),
+      ),
+    );
     return Container(
       width: size,
       height: size,
@@ -816,35 +818,21 @@ class _MiniAvatar extends StatelessWidget {
         border: Border.all(color: Colors.black, width: 1.5),
         color: Colors.white12,
       ),
-      clipBehavior: Clip.antiAlias,
-      child: (url != null && url!.isNotEmpty)
-          ? CachedNetworkImage(
-              imageUrl: url!,
-              fit: BoxFit.cover,
-              width: size,
-              height: size,
-              errorWidget: (_, __, ___) => Container(
-                color: Colors.white12,
-                alignment: Alignment.center,
-                child: Text(
-                  name.isNotEmpty ? name[0].toUpperCase() : '?',
-                  style: GoogleFonts.sora(
-                      color: Colors.white,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700),
-                ),
-              ),
-            )
-          : Container(
-              alignment: Alignment.center,
-              child: Text(
-                name.isNotEmpty ? name[0].toUpperCase() : '?',
-                style: GoogleFonts.sora(
-                    color: Colors.white,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700),
-              ),
-            ),
+      child: ClipOval(
+        child: SizedBox(
+          width: size,
+          height: size,
+          child: (url != null && url!.isNotEmpty)
+              ? CachedNetworkImage(
+                  imageUrl: url!,
+                  fit: BoxFit.cover,
+                  width: size,
+                  height: size,
+                  errorWidget: (_, __, ___) => fallback,
+                )
+              : fallback,
+        ),
+      ),
     );
   }
 }

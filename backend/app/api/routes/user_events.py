@@ -2307,6 +2307,19 @@ def add_guest(event_id: str, body: dict = Body(...), db: Session = Depends(get_d
         if existing:
             return standard_response(False, f"{contributor.name} is already on the guest list for this event.")
 
+        # Phone-based dedupe so the same number can't be added via a
+        # different contributor record or as a free-text guest.
+        if contributor.phone:
+            digits = "".join(ch for ch in str(contributor.phone) if ch.isdigit())
+            if len(digits) >= 9:
+                last9 = digits[-9:]
+                dup_phone = db.query(EventAttendee).filter(
+                    EventAttendee.event_id == eid,
+                    sa_func.right(sa_func.regexp_replace(EventAttendee.guest_phone, r'\D', '', 'g'), 9) == last9,
+                ).first()
+                if dup_phone:
+                    return standard_response(False, f"A guest with phone {contributor.phone} is already on the guest list for this event.")
+
         invitation = EventInvitation(
             id=uuid.uuid4(), event_id=eid,
             guest_type=GuestTypeEnum.contributor,
@@ -2369,9 +2382,9 @@ def add_guest(event_id: str, body: dict = Body(...), db: Session = Depends(get_d
                 attendee_user = db.query(User).filter(User.id == uuid.UUID(user_id)).first()
             except ValueError:
                 pass
+        email = body.get("email")
+        phone = body.get("phone")
         if not attendee_user:
-            email = body.get("email")
-            phone = body.get("phone")
             if email:
                 attendee_user = db.query(User).filter(User.email == email).first()
             if not attendee_user and phone:
@@ -2393,6 +2406,31 @@ def add_guest(event_id: str, body: dict = Body(...), db: Session = Depends(get_d
             if existing_invitation:
                 return standard_response(False, f"{name} has already been invited to this event.")
 
+        # Phone-based dedupe for free-text guests (no linked user/contributor).
+        # Matches by last 9 digits to ignore country-code formatting differences.
+        if phone:
+            digits = "".join(ch for ch in str(phone) if ch.isdigit())
+            if len(digits) >= 9:
+                last9 = digits[-9:]
+                dup_att = db.query(EventAttendee).filter(
+                    EventAttendee.event_id == eid,
+                    sa_func.right(sa_func.regexp_replace(EventAttendee.guest_phone, r'\D', '', 'g'), 9) == last9,
+                ).first()
+                if dup_att:
+                    return standard_response(False, f"A guest with phone {phone} is already on the guest list for this event.")
+
+        # Name-based dedupe for free-text guests with no phone, to stop
+        # accidental double-taps creating identical rows.
+        if not attendee_user and not phone and name:
+            dup_named = db.query(EventAttendee).filter(
+                EventAttendee.event_id == eid,
+                EventAttendee.attendee_id.is_(None),
+                EventAttendee.contributor_id.is_(None),
+                sa_func.lower(EventAttendee.guest_name) == name.lower(),
+            ).first()
+            if dup_named:
+                return standard_response(False, f"{name} is already on the guest list for this event.")
+
         invitation = EventInvitation(
             id=uuid.uuid4(), event_id=eid,
             guest_type=GuestTypeEnum.user,
@@ -2412,6 +2450,8 @@ def add_guest(event_id: str, body: dict = Body(...), db: Session = Depends(get_d
             guest_type=GuestTypeEnum.user,
             attendee_id=attendee_user.id if attendee_user else None,
             guest_name=name if not attendee_user else None,
+            guest_phone=phone if phone else None,
+            guest_email=email if email else None,
             common_name=(body.get("common_name") or None),
             invitation_id=invitation.id,
             rsvp_status=RSVPStatusEnum.pending,
@@ -2476,18 +2516,33 @@ def add_guests_bulk(event_id: str, body: dict = Body(...), db: Session = Depends
             continue
 
         email = guest.get("email")
+        phone = guest.get("phone")
         if body.get("skip_duplicates", True) and email:
             existing = db.query(EventAttendee).join(User, EventAttendee.attendee_id == User.id).filter(EventAttendee.event_id == eid, User.email == email).first()
             if existing:
                 skipped += 1
                 continue
 
+        # Phone-based dedupe (last 9 digits) to prevent the same phone
+        # number being added multiple times across imports.
+        if body.get("skip_duplicates", True) and phone:
+            digits = "".join(ch for ch in str(phone) if ch.isdigit())
+            if len(digits) >= 9:
+                last9 = digits[-9:]
+                dup = db.query(EventAttendee).filter(
+                    EventAttendee.event_id == eid,
+                    sa_func.right(sa_func.regexp_replace(EventAttendee.guest_phone, r'\D', '', 'g'), 9) == last9,
+                ).first()
+                if dup:
+                    skipped += 1
+                    continue
+
         attendee_user = db.query(User).filter(User.email == email).first() if email else None
 
         invitation = EventInvitation(id=uuid.uuid4(), event_id=eid, guest_type=GuestTypeEnum.user, invited_user_id=attendee_user.id if attendee_user else None, guest_name=name if not attendee_user else None, invited_by_user_id=current_user.id, invitation_code=generate_rsvp_code(), rsvp_status=RSVPStatusEnum.pending, created_at=now, updated_at=now)
         db.add(invitation)
 
-        att = EventAttendee(id=uuid.uuid4(), event_id=eid, guest_type=GuestTypeEnum.user, attendee_id=attendee_user.id if attendee_user else None, guest_name=name if not attendee_user else None, invitation_id=invitation.id, rsvp_status=RSVPStatusEnum.pending, created_at=now, updated_at=now)
+        att = EventAttendee(id=uuid.uuid4(), event_id=eid, guest_type=GuestTypeEnum.user, attendee_id=attendee_user.id if attendee_user else None, guest_name=name if not attendee_user else None, guest_phone=phone if phone else None, guest_email=email if email else None, invitation_id=invitation.id, rsvp_status=RSVPStatusEnum.pending, created_at=now, updated_at=now)
         db.add(att)
         imported.append({"id": str(att.id), "name": name})
 
@@ -2557,6 +2612,20 @@ def add_contributors_as_guests(event_id: str, body: dict = Body(...), db: Sessio
         if existing:
             skipped += 1
             continue
+
+        # Phone-based dedupe — different contributor records sharing the
+        # same phone shouldn't all land on the guest list.
+        if contributor.phone:
+            digits = "".join(ch for ch in str(contributor.phone) if ch.isdigit())
+            if len(digits) >= 9:
+                last9 = digits[-9:]
+                dup_phone = db.query(EventAttendee).filter(
+                    EventAttendee.event_id == eid,
+                    sa_func.right(sa_func.regexp_replace(EventAttendee.guest_phone, r'\D', '', 'g'), 9) == last9,
+                ).first()
+                if dup_phone:
+                    skipped += 1
+                    continue
 
         invitation = EventInvitation(
             id=uuid.uuid4(), event_id=eid,

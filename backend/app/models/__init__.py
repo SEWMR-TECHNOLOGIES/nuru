@@ -92,6 +92,7 @@ from models.feed_ranking import (
 )
 from models.page_views import PageView
 from models.whatsapp import WAConversation, WAMessage
+from models.wa_message_log import WAMessageLog
 from models.phone_whatsapp import PhoneWhatsAppStatus
 from models.issues import IssueCategory, Issue, IssueResponse
 from models.agreements import AgreementVersion, UserAgreementAcceptance
