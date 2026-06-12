@@ -13,8 +13,13 @@ import '../../core/widgets/nuru_skeleton.dart';
 import '../../core/services/social_service.dart';
 import '../../core/services/events_service.dart';
 import '../../core/services/event_extras_service.dart';
+import '../../core/services/messages_service.dart';
 import '../../core/l10n/l10n_helper.dart';
 import '../../providers/auth_provider.dart';
+import '../../core/widgets/nuru_search_bar.dart';
+import '../../core/widgets/app_icon.dart';
+import '../../core/widgets/app_snackbar.dart';
+import '../messages/messages_screen.dart';
 
 /// My Circle — pixel match to mockup.
 /// Black hero with circular avatar arrangement, underline tabs
@@ -30,6 +35,7 @@ class CircleScreen extends StatefulWidget {
 class _CircleScreenState extends State<CircleScreen> {
   static const _tabs = ['Members', 'Requests', 'Invitations'];
   int _activeTab = 0;
+  bool _privacyDismissed = false;
 
   Map<String, dynamic>? _me;
   List<dynamic> _circles = [];
@@ -130,7 +136,7 @@ class _CircleScreenState extends State<CircleScreen> {
         ],
       ),
       body: _loading
-          ? const NuruSkeletonList(itemCount: 7)
+          ? _CircleSkeleton()
           : Column(children: [
               Expanded(
                 child: NuruRefreshIndicator(
@@ -149,7 +155,7 @@ class _CircleScreenState extends State<CircleScreen> {
                       if (_activeTab == 1) ..._buildRequestsTab(),
                       if (_activeTab == 2) ..._buildInvitationsTab(),
                       const SizedBox(height: 14),
-                      _privacyNotice(),
+                      if (!_privacyDismissed) _privacyNotice(),
                     ],
                   ),
                 ),
@@ -248,8 +254,10 @@ class _CircleScreenState extends State<CircleScreen> {
         // crown above center
         Positioned(
           left: center.dx - 9,
-          top: center.dy - big / 2 - 12,
-          child: const Icon(Icons.emoji_events_rounded, size: 16, color: AppColors.primary),
+          top: center.dy - big / 2 - 14,
+          child: SvgPicture.asset('assets/icons/crown-icon.svg',
+              width: 16, height: 16,
+              colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn)),
         ),
         // center avatar
         Positioned(
@@ -399,7 +407,7 @@ class _CircleScreenState extends State<CircleScreen> {
     widgets.add(_youRow());
     if (_members.isEmpty) {
       widgets.add(const SizedBox(height: 30));
-      widgets.add(_empty('No members yet', 'Invite friends to your circle'));
+      widgets.add(_empty('users', 'No members yet', 'Invite friends to your circle'));
     } else {
       for (final m in _members) {
         widgets.add(_memberRow(m is Map<String, dynamic> ? m : <String, dynamic>{}));
@@ -410,7 +418,7 @@ class _CircleScreenState extends State<CircleScreen> {
 
   List<Widget> _buildRequestsTab() {
     if (_requests.isEmpty) {
-      return [const SizedBox(height: 30), _empty('No pending requests', 'New requests will appear here')];
+      return [const SizedBox(height: 30), _empty('bell', 'No pending requests', 'New requests will appear here')];
     }
     return _requests
         .map((r) => _requestRow(r is Map<String, dynamic> ? r : <String, dynamic>{}))
@@ -419,7 +427,7 @@ class _CircleScreenState extends State<CircleScreen> {
 
   List<Widget> _buildInvitationsTab() {
     if (_invitations.isEmpty) {
-      return [const SizedBox(height: 30), _empty('No invitations sent', 'People you invite show up here')];
+      return [const SizedBox(height: 30), _empty('email', 'No invitations sent', 'People you invite show up here')];
     }
     return _invitations
         .map((r) => _invitationRow(r is Map<String, dynamic> ? r : <String, dynamic>{}))
@@ -472,7 +480,7 @@ class _CircleScreenState extends State<CircleScreen> {
       avatarUrl: avatar,
       name: name.isNotEmpty ? name : 'Unknown',
       subtitle: subtitle,
-      trailing: _moreDots(onTap: () => _showMemberMenu(id, name)),
+      trailing: _moreDots(onTap: () => _showMemberMenu(id, name.isNotEmpty ? name : 'Unknown', avatar)),
     );
   }
 
@@ -588,39 +596,211 @@ class _CircleScreenState extends State<CircleScreen> {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-        child: Icon(Icons.more_horiz_rounded, size: 20, color: AppColors.textTertiary),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        child: SvgPicture.asset('assets/icons/more-vertical-icon.svg',
+            width: 18, height: 18,
+            colorFilter: const ColorFilter.mode(AppColors.textTertiary, BlendMode.srcIn)),
       ),
     );
   }
 
-  void _showMemberMenu(String id, String name) {
+  void _showMemberMenu(String id, String name, [String? avatar]) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const SizedBox(height: 8),
-          Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFE5E5EA), borderRadius: BorderRadius.circular(2))),
-          const SizedBox(height: 14),
-          ListTile(
-            leading: const Icon(Icons.person_outline_rounded, color: AppColors.textSecondary),
-            title: Text('View profile', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
-            onTap: () => Navigator.pop(ctx),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFE5E5EA), borderRadius: BorderRadius.circular(2)))),
+            const SizedBox(height: 14),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+              child: Text(name, style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+            ),
+            const SizedBox(height: 8),
+            _menuTile('user', 'View profile', () => Navigator.pop(ctx)),
+            _menuTile('chat', 'Send a message', () { Navigator.pop(ctx); if (id.isNotEmpty) _showComposeSheet(id, name, avatar); }),
+            _menuTile('delete', 'Remove from circle', () { Navigator.pop(ctx); if (id.isNotEmpty) _removeMember(id); }, danger: true),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  // ─── Compose & start conversation ────────────────────────────────────────
+  void _showComposeSheet(String userId, String name, String? avatar) {
+    final ctrl = TextEditingController();
+    final focus = FocusNode();
+    bool sending = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(28))),
+      builder: (ctx) {
+        return StatefulBuilder(builder: (ctx, setSheet) {
+          Future<void> doSend() async {
+            final text = ctrl.text.trim();
+            if (text.isEmpty || sending) return;
+            setSheet(() => sending = true);
+            final res = await MessagesService.startConversation(
+              recipientId: userId,
+              message: text,
+            );
+            if (!mounted) return;
+            if (res['success'] == true && res['data'] != null) {
+              final convId = res['data']['id']?.toString();
+              Navigator.pop(ctx);
+              if (convId != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ChatDetailScreen(
+                      conversationId: convId,
+                      name: name,
+                      avatar: avatar,
+                    ),
+                  ),
+                );
+              }
+            } else {
+              setSheet(() => sending = false);
+              AppSnackbar.error(context, res['message']?.toString() ?? 'Failed to send message');
+            }
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
+                child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Center(child: Container(width: 40, height: 4, decoration: BoxDecoration(color: const Color(0xFFE5E5EA), borderRadius: BorderRadius.circular(2)))),
+                  const SizedBox(height: 16),
+                  Row(children: [
+                    Container(
+                      width: 44, height: 44,
+                      decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(14)),
+                      clipBehavior: Clip.antiAlias,
+                      child: (avatar != null && avatar.isNotEmpty)
+                          ? CachedNetworkImage(imageUrl: avatar, fit: BoxFit.cover,
+                              errorWidget: (_, __, ___) => Center(child: Text(
+                                name.isNotEmpty ? name.characters.first.toUpperCase() : '?',
+                                style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: AppColors.primary))))
+                          : Center(child: Text(
+                              name.isNotEmpty ? name.characters.first.toUpperCase() : '?',
+                              style: GoogleFonts.inter(fontWeight: FontWeight.w800, color: AppColors.primary))),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('Message $name',
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                      const SizedBox(height: 2),
+                      Text('Starts a private chat',
+                          style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary)),
+                    ])),
+                    GestureDetector(
+                      onTap: () => Navigator.pop(ctx),
+                      child: Container(
+                        width: 32, height: 32,
+                        decoration: BoxDecoration(color: const Color(0xFFF2F2F4), borderRadius: BorderRadius.circular(10)),
+                        child: const Center(child: AppIcon('close', size: 14, color: AppColors.textSecondary)),
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 18),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF7F7F9),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(color: AppColors.borderLight),
+                    ),
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                    child: TextField(
+                      controller: ctrl,
+                      focusNode: focus,
+                      autofocus: true,
+                      autocorrect: true,
+                      enableSuggestions: true,
+                      maxLines: 6,
+                      minLines: 4,
+                      textInputAction: TextInputAction.newline,
+                      style: GoogleFonts.inter(fontSize: 14.5, color: AppColors.textPrimary, height: 1.45),
+                      decoration: InputDecoration.collapsed(
+                        hintText: 'Write a message…',
+                        hintStyle: GoogleFonts.inter(fontSize: 14.5, color: AppColors.textTertiary),
+                      ),
+                      onChanged: (_) => setSheet(() {}),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(children: [
+                    Expanded(child: Text(
+                      'Be kind. Your message starts a new chat with $name.',
+                      style: GoogleFonts.inter(fontSize: 11.5, color: AppColors.textTertiary),
+                    )),
+                    const SizedBox(width: 10),
+                    GestureDetector(
+                      onTap: ctrl.text.trim().isEmpty || sending ? null : doSend,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: ctrl.text.trim().isEmpty || sending
+                              ? AppColors.primary.withOpacity(0.35)
+                              : AppColors.primary,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Row(mainAxisSize: MainAxisSize.min, children: [
+                          if (sending)
+                            const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(Colors.white)))
+                          else
+                            const AppIcon('send', size: 14, color: Colors.white),
+                          const SizedBox(width: 8),
+                          Text(sending ? 'Sending…' : 'Send',
+                              style: GoogleFonts.inter(fontSize: 13.5, fontWeight: FontWeight.w800, color: Colors.white)),
+                        ]),
+                      ),
+                    ),
+                  ]),
+                ]),
+              ),
+            ),
+          );
+        });
+      },
+    );
+  }
+
+  Widget _menuTile(String icon, String label, VoidCallback onTap, {bool danger = false}) {
+    final color = danger ? AppColors.error : AppColors.textPrimary;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+        child: Row(children: [
+          Container(
+            width: 40, height: 40,
+            decoration: BoxDecoration(
+              color: danger ? AppColors.error.withOpacity(0.08) : AppColors.primarySoft,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Center(child: SvgPicture.asset('assets/icons/$icon-icon.svg',
+                width: 18, height: 18,
+                colorFilter: ColorFilter.mode(danger ? AppColors.error : AppColors.primary, BlendMode.srcIn))),
           ),
-          ListTile(
-            leading: const Icon(Icons.message_outlined, color: AppColors.textSecondary),
-            title: Text('Message', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w600)),
-            onTap: () => Navigator.pop(ctx),
-          ),
-          ListTile(
-            leading: const Icon(Icons.person_remove_alt_1_outlined, color: AppColors.error),
-            title: Text('Remove from circle', style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.error)),
-            onTap: () { Navigator.pop(ctx); if (id.isNotEmpty) _removeMember(id); },
-          ),
-          const SizedBox(height: 8),
+          const SizedBox(width: 14),
+          Expanded(child: Text(label,
+              style: GoogleFonts.inter(fontSize: 14.5, fontWeight: FontWeight.w700, color: color))),
+          SvgPicture.asset('assets/icons/chevron-right-icon.svg',
+              width: 14, height: 14,
+              colorFilter: ColorFilter.mode(color.withOpacity(0.4), BlendMode.srcIn)),
         ]),
       ),
     );
@@ -632,7 +812,7 @@ class _CircleScreenState extends State<CircleScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.fromLTRB(14, 12, 8, 12),
         decoration: BoxDecoration(
           color: const Color(0xFFFFF8E5),
           borderRadius: BorderRadius.circular(14),
@@ -640,9 +820,11 @@ class _CircleScreenState extends State<CircleScreen> {
         ),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Container(
-            width: 30, height: 30,
-            decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.18), borderRadius: BorderRadius.circular(9)),
-            child: const Icon(Icons.shield_outlined, size: 16, color: AppColors.primaryDark),
+            width: 32, height: 32,
+            decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.18), borderRadius: BorderRadius.circular(10)),
+            child: const Center(
+              child: AppIcon('shield', size: 16, color: AppColors.primaryDark),
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -652,6 +834,14 @@ class _CircleScreenState extends State<CircleScreen> {
             Text("Only members can see who's in the circle and what's shared.",
                 style: GoogleFonts.inter(fontSize: 12, color: AppColors.textSecondary, height: 1.4)),
           ])),
+          GestureDetector(
+            onTap: () => setState(() => _privacyDismissed = true),
+            behavior: HitTestBehavior.opaque,
+            child: const Padding(
+              padding: EdgeInsets.all(8),
+              child: AppIcon('close', size: 14, color: AppColors.textSecondary),
+            ),
+          ),
         ]),
       ),
     );
@@ -668,7 +858,7 @@ class _CircleScreenState extends State<CircleScreen> {
             height: 52,
             decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(14)),
             child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-              const Icon(Icons.add_rounded, color: Color(0xFF111114), size: 20),
+              const AppIcon('plus', size: 18, color: Color(0xFF111114)),
               const SizedBox(width: 6),
               Text('Invite to Circle',
                   style: GoogleFonts.inter(fontSize: 15, fontWeight: FontWeight.w800, color: const Color(0xFF111114))),
@@ -812,14 +1002,14 @@ class _CircleScreenState extends State<CircleScreen> {
     );
   }
 
-  Widget _empty(String title, String subtitle) {
+  Widget _empty(String icon, String title, String subtitle) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       child: Column(children: [
         Container(
           width: 56, height: 56,
           decoration: BoxDecoration(color: AppColors.primary.withOpacity(0.08), borderRadius: BorderRadius.circular(18)),
-          child: const Icon(Icons.group_outlined, size: 24, color: AppColors.primary),
+          child: Center(child: AppIcon(icon, size: 24, color: AppColors.primary)),
         ),
         const SizedBox(height: 12),
         Text(title, textAlign: TextAlign.center,
@@ -976,43 +1166,12 @@ class _InviteToCircleSheetState extends State<_InviteToCircleSheet> {
             Text('Search a friend by name or username.',
                 style: GoogleFonts.inter(fontSize: 12.5, color: AppColors.textSecondary)),
             const SizedBox(height: 14),
-            Container(
-              height: 44,
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF7F7F8),
-                borderRadius: BorderRadius.circular(28),
-                border: Border.all(color: const Color(0xFFEDEDF2)),
-              ),
-              child: Row(children: [
-                const Icon(Icons.search_rounded, size: 18, color: Color(0xFF8E8E93)),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: TextField(
-                    controller: _ctrl,
-                    focusNode: _focus,
-                    cursorColor: Colors.black,
-                    textAlignVertical: TextAlignVertical.center,
-                    onChanged: _onChanged,
-                    style: GoogleFonts.inter(fontSize: 14, color: Colors.black),
-                    decoration: InputDecoration(
-                      isDense: true,
-                      filled: false,
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      hintText: 'Find a friend',
-                      hintStyle: GoogleFonts.inter(fontSize: 14, color: const Color(0xFF8E8E93)),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                    ),
-                  ),
-                ),
-                if (_query.isNotEmpty)
-                  GestureDetector(
-                    onTap: () { _ctrl.clear(); _onChanged(''); },
-                    child: const Icon(Icons.close_rounded, size: 18, color: Color(0xFF8E8E93)),
-                  ),
-              ]),
+            NuruSearchBar(
+              controller: _ctrl,
+              focusNode: _focus,
+              hintText: 'Find a friend',
+              debounce: const Duration(milliseconds: 300),
+              onChanged: _onChanged,
             ),
             const SizedBox(height: 12),
             Flexible(child: _buildResults()),
@@ -1096,6 +1255,143 @@ class _InviteToCircleSheetState extends State<_InviteToCircleSheet> {
           ),
         );
       },
+    );
+  }
+}
+
+// ─── Skeleton mirroring the Circle screen layout ─────────────────────
+class _CircleSkeleton extends StatefulWidget {
+  @override
+  State<_CircleSkeleton> createState() => _CircleSkeletonState();
+}
+
+class _CircleSkeletonState extends State<_CircleSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Widget _box(double w, double h, {double r = 6}) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) => Container(
+        width: w,
+        height: h,
+        decoration: BoxDecoration(
+          color: Color.lerp(
+              const Color(0xFFEDEEF1), const Color(0xFFF6F7F9), _ctrl.value)!,
+          borderRadius: BorderRadius.circular(r),
+        ),
+      ),
+    );
+  }
+
+  Widget _circle(double d) => _box(d, d, r: d / 2);
+
+  Widget _memberRow() => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        child: Row(
+          children: [
+            _circle(44),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _box(140, 13),
+                  const SizedBox(height: 8),
+                  _box(90, 11),
+                ],
+              ),
+            ),
+            _box(22, 22, r: 6),
+          ],
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+      children: [
+        // Hero card
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            border: Border.all(color: AppColors.borderLight),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  _circle(56),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _box(160, 16),
+                        const SizedBox(height: 8),
+                        _box(110, 12),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(child: _box(double.infinity, 44, r: 12)),
+                  const SizedBox(width: 10),
+                  _box(44, 44, r: 12),
+                ],
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Tabs
+        Row(
+          children: [
+            _box(80, 28, r: 14),
+            const SizedBox(width: 10),
+            _box(96, 28, r: 14),
+            const SizedBox(width: 10),
+            _box(72, 28, r: 14),
+          ],
+        ),
+        const SizedBox(height: 12),
+        // Member rows
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            border: Border.all(color: AppColors.borderLight),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            children: List.generate(
+              6,
+              (i) => Column(
+                children: [
+                  if (i > 0)
+                    Divider(height: 1, color: AppColors.borderLight),
+                  _memberRow(),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

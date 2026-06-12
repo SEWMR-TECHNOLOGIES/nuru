@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../../widgets/app_action_sheet.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -136,16 +137,22 @@ class _HomeNotificationsTabState extends State<HomeNotificationsTab> {
                 ),
               ),
             ),
-            PopupMenuButton<String>(
+            IconButton(
               tooltip: 'More',
               icon: const Icon(Icons.more_horiz_rounded,
                   color: AppColors.textPrimary, size: 24),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
-              color: Colors.white,
-              elevation: 8,
-              onSelected: (value) async {
+              onPressed: () async {
+                final value = await AppActionSheet.show<String>(
+                  context: context,
+                  title: 'Notifications',
+                  actions: [
+                    const MenuAction(value: 'mark_all_read', label: 'Mark all as read', icon: 'double-check'),
+                    const MenuAction(value: 'refresh', label: 'Refresh', icon: 'time-fast'),
+                    if (_filter != 'All')
+                      const MenuAction(value: 'clear_filter', label: 'Clear filter', icon: 'close'),
+                  ],
+                );
+                if (value == null) return;
                 Haptics.medium();
                 switch (value) {
                   case 'mark_all_read':
@@ -166,42 +173,6 @@ class _HomeNotificationsTabState extends State<HomeNotificationsTab> {
                     break;
                 }
               },
-              itemBuilder: (ctx) => [
-                PopupMenuItem<String>(
-                  value: 'mark_all_read',
-                  child: Row(children: [
-                    const Icon(Icons.done_all_rounded,
-                        size: 18, color: AppColors.textPrimary),
-                    const SizedBox(width: 10),
-                    Text('Mark all as read',
-                        style: GoogleFonts.inter(
-                            fontSize: 13.5, fontWeight: FontWeight.w600)),
-                  ]),
-                ),
-                PopupMenuItem<String>(
-                  value: 'refresh',
-                  child: Row(children: [
-                    const Icon(Icons.refresh_rounded,
-                        size: 18, color: AppColors.textPrimary),
-                    const SizedBox(width: 10),
-                    Text('Refresh',
-                        style: GoogleFonts.inter(
-                            fontSize: 13.5, fontWeight: FontWeight.w600)),
-                  ]),
-                ),
-                if (_filter != 'All')
-                  PopupMenuItem<String>(
-                    value: 'clear_filter',
-                    child: Row(children: [
-                      const Icon(Icons.filter_alt_off_rounded,
-                          size: 18, color: AppColors.textPrimary),
-                      const SizedBox(width: 10),
-                      Text('Clear filter',
-                          style: GoogleFonts.inter(
-                              fontSize: 13.5, fontWeight: FontWeight.w600)),
-                    ]),
-                  ),
-              ],
             ),
           ],
         ),

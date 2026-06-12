@@ -599,7 +599,7 @@ class _InviteSheetState extends State<_InviteSheet> {
         hintText: hint,
         hintStyle: appText(size: 13, color: AppColors.textHint),
         prefixIcon: Padding(padding: const EdgeInsets.all(12), child: AppIcon(icon, size: 16, color: AppColors.textTertiary)),
-        filled: true, fillColor: const Color(0xFFF9FAFB),
+        filled: true, fillColor: Colors.white,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppColors.borderLight)),
         enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppColors.borderLight)),
         focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: AppColors.primary.withOpacity(0.5))),

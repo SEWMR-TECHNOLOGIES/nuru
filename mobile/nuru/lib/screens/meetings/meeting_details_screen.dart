@@ -1,4 +1,6 @@
 import 'dart:io';
+import '../../widgets/app_action_sheet.dart';
+import '../../widgets/app_checkbox.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -230,21 +232,17 @@ END:VCALENDAR''';
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: options.entries
-                    .map((e) => CheckboxListTile(
+                    .map((e) => AppCheckbox(
                           dense: true,
-                          contentPadding: EdgeInsets.zero,
-                          controlAffinity:
-                              ListTileControlAffinity.leading,
+                          label: e.value,
                           value: selected.contains(e.key),
                           onChanged: (v) => setStateDialog(() {
-                            if (v == true) {
+                            if (v) {
                               selected.add(e.key);
                             } else {
                               selected.remove(e.key);
                             }
                           }),
-                          title: Text(e.value,
-                              style: const TextStyle(fontSize: 13.5)),
                         ))
                     .toList(),
               ),
@@ -324,19 +322,24 @@ END:VCALENDAR''';
             style: TextStyle(fontWeight: FontWeight.w700, letterSpacing: -0.3)),
         centerTitle: true,
         actions: [
-          PopupMenuButton<String>(
+          IconButton(
             icon: Icon(Icons.more_horiz_rounded,
                 color: isDark ? Colors.white : Colors.black87),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-            onSelected: _onMenuAction,
-            itemBuilder: (ctx) => [
-              PopupMenuItem(value: 'share', child: _menuItemRow('assets/icons/share-icon.svg', 'Share invite')),
-              PopupMenuItem(value: 'copy', child: _menuItemRow('assets/icons/share-upload-icon.svg', 'Copy meeting link')),
-              PopupMenuItem(value: 'calendar', child: _menuItemRow('assets/icons/calendar-icon.svg', 'Add to calendar')),
-              PopupMenuItem(value: 'agenda', child: _menuItemRow('assets/icons/chat-icon.svg', 'Agenda & Minutes')),
-              if (widget.isCreator)
-                PopupMenuItem(value: 'cancel', child: _menuItemRow('assets/icons/close-circle-icon.svg', 'Cancel meeting', color: Colors.red)),
-            ],
+            onPressed: () async {
+              final v = await AppActionSheet.show<String>(
+                context: context,
+                title: 'Meeting actions',
+                actions: [
+                  const MenuAction(value: 'share', label: 'Share invite', icon: 'share'),
+                  const MenuAction(value: 'copy', label: 'Copy meeting link', icon: 'share-upload'),
+                  const MenuAction(value: 'calendar', label: 'Add to calendar', icon: 'calendar'),
+                  const MenuAction(value: 'agenda', label: 'Agenda & Minutes', icon: 'chat'),
+                  if (widget.isCreator)
+                    const MenuAction(value: 'cancel', label: 'Cancel meeting', icon: 'close-circle', destructive: true),
+                ],
+              );
+              if (v != null) _onMenuAction(v);
+            },
           ),
         ],
       ),
@@ -992,15 +995,6 @@ END:VCALENDAR''';
       height: 1,
       color: isDark ? Colors.white10 : const Color(0xFFF0F0F4));
 
-  Widget _menuItemRow(String svg, String label, {Color? color}) {
-    return Row(children: [
-      SvgPicture.asset(svg,
-          width: 16, height: 16,
-          colorFilter: ColorFilter.mode(color ?? Colors.black87, BlendMode.srcIn)),
-      const SizedBox(width: 12),
-      Text(label, style: TextStyle(color: color, fontSize: 13.5)),
-    ]);
-  }
 }
 
 class _GridAction {

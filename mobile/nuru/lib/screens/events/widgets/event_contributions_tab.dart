@@ -1,4 +1,5 @@
 import '../../../core/widgets/nuru_refresh_indicator.dart';
+import '../../../widgets/app_action_sheet.dart';
 import '../../../core/widgets/nuru_search_bar.dart';
 import '../../../core/utils/money_format.dart';
 import 'dart:io';
@@ -23,6 +24,8 @@ import '../../../core/theme/text_styles.dart';
 import '../../contributors/verify_contribution_scanner_screen.dart';
 import '../../../core/l10n/l10n_helper.dart';
 import '../../../core/widgets/app_icon.dart';
+import '../../../widgets/app_select.dart';
+import '../../../widgets/app_checkbox.dart';
 
 const _kPaymentMethods = [
   {'id': 'cash', 'name': 'Cash'},
@@ -786,32 +789,27 @@ class _EventContributionsTabState extends State<EventContributionsTab>
                 ),
               ),
               if (canManage)
-                PopupMenuButton<String>(
+                IconButton(
                   padding: EdgeInsets.zero,
                   icon: const AppIcon('more-vertical',
                       size: 20, color: AppColors.textHint),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                  onSelected: (action) =>
-                      _handleContributorAction(action, ec),
-                  itemBuilder: (_) => [
-                    _menuItem('payment', 'money',
-                        'Record payment'),
-                    _menuItem('pledge', 'pen', 'Update pledge'),
-                    _menuItem('history', 'time-fast',
-                        'Payment history'),
-                    _menuItem('share_link', 'link',
-                        'Share payment link'),
-                    if (paid > 0)
-                      _menuItem('thankyou', 'heart',
-                          'Send thank you',
-                          color: Colors.pinkAccent),
-                    _menuItem('guest', 'user-add',
-                        'Add as guest'),
-                    _menuItem('remove', 'delete',
-                        'Remove contributor',
-                        color: AppColors.error),
-                  ],
+                  onPressed: () async {
+                    final action = await AppActionSheet.show<String>(
+                      context: context,
+                      title: 'Contributor',
+                      actions: [
+                        const MenuAction(value: 'payment', label: 'Record payment', icon: 'money'),
+                        const MenuAction(value: 'pledge', label: 'Update pledge', icon: 'pen'),
+                        const MenuAction(value: 'history', label: 'Payment history', icon: 'time-fast'),
+                        const MenuAction(value: 'share_link', label: 'Share payment link', icon: 'link'),
+                        if (paid > 0)
+                          const MenuAction(value: 'thankyou', label: 'Send thank you', icon: 'heart'),
+                        const MenuAction(value: 'guest', label: 'Add as guest', icon: 'user-add'),
+                        const MenuAction(value: 'remove', label: 'Remove contributor', icon: 'delete', destructive: true),
+                      ],
+                    );
+                    if (action != null) _handleContributorAction(action, ec);
+                  },
                 ),
             ],
           ),
@@ -853,21 +851,6 @@ class _EventContributionsTabState extends State<EventContributionsTab>
     );
   }
 
-  PopupMenuItem<String> _menuItem(String value, String icon, String label,
-      {Color? color}) {
-    return PopupMenuItem<String>(
-      value: value,
-      child: Row(children: [
-        AppIcon(icon, size: 18, color: color ?? AppColors.textSecondary),
-        const SizedBox(width: 10),
-        Text(label,
-            style: appText(
-                size: 13,
-                weight: FontWeight.w500,
-                color: color ?? AppColors.textPrimary)),
-      ]),
-    );
-  }
 
   Widget _tileStat(String label, String value, Color color) {
     return Column(
@@ -3076,17 +3059,15 @@ class _EventContributionsTabState extends State<EventContributionsTab>
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.border), color: Colors.white),
-                    child: Row(children: [
-                      SizedBox(
-                        width: 24, height: 24,
-                        child: Checkbox(
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: AppCheckbox.box(
                           value: bulkSendSms,
-                          onChanged: (v) => setSheetState(() => bulkSendSms = v ?? false),
-                          activeColor: AppColors.primary,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                          onChanged: (v) => setSheetState(() => bulkSendSms = v),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 12),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text('Send notifications', style: appText(size: 13, weight: FontWeight.w600)),
                         Text(
@@ -3628,33 +3609,26 @@ class _EventContributionsTabState extends State<EventContributionsTab>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _label('Payment Method'),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: method,
-                              isExpanded: true,
-                              style: appText(size: 14),
-                              items: _kPaymentMethods
-                                  .map(
-                                    (m) => DropdownMenuItem(
-                                      value: m['id'] as String,
-                                      child: Text(
-                                        m['name'] as String,
-                                        style: appText(size: 14),
-                                      ),
-                                    ),
-                                  )
-                                  .toList(),
-                              onChanged: (v) {
-                                if (v != null) setSheetState(() => method = v);
-                              },
-                            ),
-                          ),
+                        AppSelect.fromItems<String>(
+                          value: method,
+                          hint: 'Payment Method',
+                          title: 'Payment Method',
+                          borderRadius: 12,
+                          fontSize: 14,
+                          items: _kPaymentMethods
+                              .map(
+                                (m) => DropdownMenuItem<String>(
+                                  value: m['id'] as String,
+                                  child: Text(
+                                    m['name'] as String,
+                                    style: appText(size: 14),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (v) {
+                            if (v != null) setSheetState(() => method = v);
+                          },
                         ),
                       ],
                     ),

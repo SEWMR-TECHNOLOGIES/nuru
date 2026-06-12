@@ -1,4 +1,5 @@
 import '../../core/widgets/nuru_refresh_indicator.dart';
+import '../../widgets/app_action_sheet.dart';
 import '../../core/widgets/nuru_skeleton.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -313,32 +314,28 @@ class _MyMomentsScreenState extends State<MyMomentsScreen> {
                 if (createdAt.isNotEmpty)
                   Text(SocialService.getTimeAgo(createdAt), style: GoogleFonts.inter(fontSize: 11, color: AppColors.textTertiary)),
                 const SizedBox(width: 4),
-                PopupMenuButton<String>(
+                IconButton(
                   icon: const Icon(Icons.more_horiz, size: 18, color: AppColors.textHint),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  onSelected: (v) {
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  onPressed: () async {
+                    final v = await AppActionSheet.show<String>(
+                      context: context,
+                      title: context.tr('post_actions'),
+                      actions: [
+                        MenuAction(value: 'edit', label: context.tr('edit'), icon: 'pen'),
+                        MenuAction(
+                          value: 'visibility',
+                          label: visibility == 'circle' ? context.tr('make_public') : context.tr('circle_only'),
+                          icon: visibility == 'circle' ? 'earth' : 'users',
+                        ),
+                        MenuAction(value: 'delete', label: context.tr('delete'), icon: 'delete', destructive: true),
+                      ],
+                    );
                     if (v == 'delete' && id.isNotEmpty) _deletePost(id);
                     if (v == 'edit') _showEditSheet(p);
                     if (v == 'visibility') _toggleVisibility(id, visibility);
                   },
-                  itemBuilder: (_) => [
-                    PopupMenuItem(value: 'edit', child: Row(children: [
-                      const Icon(Icons.edit_rounded, size: 16, color: AppColors.textSecondary),
-                      const SizedBox(width: 8),
-                      Text(context.tr('edit'), style: GoogleFonts.inter(fontSize: 13)),
-                    ])),
-                    PopupMenuItem(value: 'visibility', child: Row(children: [
-                      Icon(visibility == 'circle' ? Icons.public_rounded : Icons.group_rounded, size: 16, color: AppColors.textSecondary),
-                      const SizedBox(width: 8),
-                      Text(visibility == 'circle' ? context.tr('make_public') : context.tr('circle_only'), style: GoogleFonts.inter(fontSize: 13)),
-                    ])),
-                    const PopupMenuDivider(),
-                    PopupMenuItem(value: 'delete', child: Row(children: [
-                      const Icon(Icons.delete_rounded, size: 16, color: AppColors.error),
-                      const SizedBox(width: 8),
-                      Text(context.tr('delete'), style: GoogleFonts.inter(fontSize: 13, color: AppColors.error)),
-                    ])),
-                  ],
                 ),
               ],
             ),

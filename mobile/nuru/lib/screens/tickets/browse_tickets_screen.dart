@@ -13,6 +13,7 @@ import '../../core/l10n/l10n_helper.dart';
 import '../home/home_tab_controller.dart';
 import '../../core/widgets/empty_state_illustration.dart';
 import '../wallet/make_payment_screen.dart';
+import '../../core/widgets/app_snackbar.dart';
 import 'select_tickets_screen.dart';
 
 class BrowseTicketsScreen extends StatefulWidget {
@@ -151,17 +152,11 @@ class _BrowseTicketsScreenState extends State<BrowseTicketsScreen> {
   Widget _buildLoadingSkeleton() {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      itemCount: 6,
-      itemBuilder: (_, __) => Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        height: 200,
-        decoration: BoxDecoration(
-          color: AppColors.surfaceVariant,
-          borderRadius: BorderRadius.circular(14),
-        ),
-      ),
+      itemCount: 4,
+      itemBuilder: (_, __) => _BrowseTicketCardSkeleton(),
     );
   }
+
 
   Widget _buildEmptyState() {
     return const EmptyStateIllustration(
@@ -518,6 +513,27 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
             summarySubtitle: '${_selectedClassName()} × $_quantity',
             summaryMeta: widget.eventName,
             showFee: true,
+            onReserve: () async {
+              final r = await TicketingService.reserveTicket(
+                ticketClassId: _selectedId!,
+                quantity: _quantity,
+              );
+              if (!mounted) return;
+              if (r['success'] == true) {
+                Navigator.pop(context); // close MakePayment
+                Navigator.pop(context); // close sheet
+                AppSnackbar.show(context,
+                  type: AppSnackbarType.success,
+                  title: 'Ticket reserved',
+                  message:
+                      'Find it in My Tickets and pay before the hold expires.');
+              } else {
+                AppSnackbar.show(context,
+                  type: AppSnackbarType.error,
+                  title: 'Unable to reserve',
+                  message: r['message']?.toString() ?? 'Please try again in a moment.');
+              }
+            },
             onSuccess: (_) {
               if (mounted) {
                 Navigator.pop(context);
@@ -529,6 +545,7 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
           ),
         ),
       );
+
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message'] ?? 'Purchase failed')));
     }
@@ -894,5 +911,87 @@ class _TicketClassesSheetState extends State<_TicketClassesSheet> {
     if (amount == null) return '0';
     final n = amount is int ? amount : (amount is double ? amount : num.tryParse(amount.toString()) ?? 0);
     return n.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+  }
+}
+
+// ─── Skeleton shaped like the real ticket card ───────────────────────
+class _BrowseTicketCardSkeleton extends StatefulWidget {
+  @override
+  State<_BrowseTicketCardSkeleton> createState() => _BrowseTicketCardSkeletonState();
+}
+
+class _BrowseTicketCardSkeletonState extends State<_BrowseTicketCardSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))
+        ..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Widget _box(double w, double h, {double r = 6}) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) => Container(
+        width: w,
+        height: h,
+        decoration: BoxDecoration(
+          color: Color.lerp(
+              const Color(0xFFEDEEF1), const Color(0xFFF6F7F9), _ctrl.value)!,
+          borderRadius: BorderRadius.circular(r),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Cover area with floating "price" pill
+          Stack(
+            children: [
+              _box(double.infinity, 150, r: 0),
+              Positioned(bottom: 10, left: 10, child: _box(86, 22, r: 6)),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Date stub
+                _box(48, 56, r: 10),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _box(double.infinity, 14),
+                      const SizedBox(height: 8),
+                      _box(160, 11),
+                      const SizedBox(height: 6),
+                      _box(110, 11),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

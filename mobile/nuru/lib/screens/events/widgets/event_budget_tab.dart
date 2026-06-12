@@ -12,6 +12,7 @@ import '../../../core/widgets/app_snackbar.dart';
 import '../../../core/widgets/deleting_overlay.dart';
 import '../../../core/l10n/l10n_helper.dart';
 import '../report_preview_screen.dart';
+import '../../../widgets/app_select.dart';
 
 /// Full redesign — Budget tab.
 /// Flat surfaces, project SVG icons, skeleton loader, header summary with
@@ -1388,26 +1389,14 @@ class _EventBudgetTabState extends State<EventBudgetTab>
     required List<DropdownMenuItem<T>> items,
     required ValueChanged<T?> onChanged,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.borderLight),
-      ),
-      child: DropdownButtonFormField<T>(
-        value: value,
-        decoration: InputDecoration(
-          border: InputBorder.none,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-          hintText: hint,
-          hintStyle: appText(size: 13, color: AppColors.textHint),
-        ),
-        style: appText(size: 13),
-        isExpanded: true,
-        items: items,
-        onChanged: onChanged,
-      ),
+    return AppSelect.fromItems<T>(
+      value: value,
+      items: items,
+      onChanged: onChanged,
+      hint: hint,
+      title: hint,
+      borderRadius: 14,
+      fontSize: 13,
     );
   }
 }

@@ -283,7 +283,7 @@ class _CommunityDetailScreenState extends State<CommunityDetailScreen> {
           TextField(
             controller: ctl, maxLines: 6, autofocus: true,
             decoration: InputDecoration(
-              filled: true, fillColor: const Color(0xFFF7F7F8),
+              filled: true, fillColor: Colors.white,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
             ),
           ),
@@ -1268,7 +1268,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                     decoration: InputDecoration(
                       hintText: 'Add a comment…',
                       hintStyle: GoogleFonts.inter(fontSize: 13.5, color: AppColors.textTertiary),
-                      filled: true, fillColor: const Color(0xFFF7F7F8),
+                      filled: true, fillColor: Colors.white,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide.none),
                     ),

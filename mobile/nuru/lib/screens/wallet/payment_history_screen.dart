@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../core/services/wallet_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/nuru_loader.dart';
+import '../../core/widgets/app_icon.dart';
 import '../../providers/wallet_provider.dart';
 
 import '../../core/widgets/app_snackbar.dart';
@@ -56,6 +57,9 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
   String _sortBy = 'newest'; // newest | oldest | highest | lowest
 
   final ScrollController _scrollCtrl = ScrollController();
+  final ScrollController _tabScrollCtrl = ScrollController();
+  final List<GlobalKey> _tabKeys =
+      List.generate(_categories.length, (_) => GlobalKey());
 
   @override
   void initState() {
@@ -74,8 +78,36 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
   @override
   void dispose() {
     _scrollCtrl.dispose();
+    _tabScrollCtrl.dispose();
     super.dispose();
   }
+
+  void _scrollActiveTabIntoView() {
+    final i = _categories.indexWhere((c) => c.key == _category);
+    if (i < 0 || i >= _tabKeys.length) return;
+    final ctx = _tabKeys[i].currentContext;
+    if (ctx == null || !_tabScrollCtrl.hasClients) return;
+    final box = ctx.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final viewport = _tabScrollCtrl.position.viewportDimension;
+    final tabOffset = box
+        .localToGlobal(Offset.zero, ancestor: context.findRenderObject())
+        .dx;
+    final tabWidth = box.size.width;
+    final currentScroll = _tabScrollCtrl.offset;
+    final centerAbs = currentScroll + tabOffset + tabWidth / 2;
+    final target = (centerAbs - viewport / 2).clamp(
+      _tabScrollCtrl.position.minScrollExtent,
+      _tabScrollCtrl.position.maxScrollExtent,
+    );
+    _tabScrollCtrl.animateTo(
+      target,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOut,
+    );
+  }
+
+
 
   Future<void> _load({bool refresh = false}) async {
     if (refresh) _page = 1;
@@ -138,8 +170,11 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
   void _setCategory(String c) {
     if (_category == c) return;
     setState(() => _category = c);
+    WidgetsBinding.instance
+        .addPostFrameCallback((_) => _scrollActiveTabIntoView());
     _load(refresh: true);
   }
+
 
   // ─── Filtering / sorting (client-side over current page set) ──────
   List<dynamic> get _visibleTxs {
@@ -236,8 +271,8 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
         leadingWidth: 56,
         leading: IconButton(
           onPressed: () => Navigator.of(context).maybePop(),
-          icon: const Icon(Icons.arrow_back_rounded,
-              size: 24, color: AppColors.textPrimary),
+          icon: const AppIcon('chevron-left',
+              size: 22, color: AppColors.textPrimary),
         ),
         title: Text(
           'Payment History',
@@ -246,7 +281,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
         actions: [
           IconButton(
             tooltip: 'Filter',
-            icon: const Icon(Icons.tune_rounded, color: AppColors.textPrimary),
+            icon: const AppIcon('filter', size: 20, color: AppColors.textPrimary),
             onPressed: _openFilterSheet,
           ),
         ],
@@ -321,47 +356,54 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
     );
   }
 
-  // ─── Category tabs row (matches Vendors page chip style) ─────────
+  // ─── Category tabs row (auto-scrolls active chip into view) ──────
   Widget _categoryTabs() {
     return SizedBox(
       height: 36,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: SingleChildScrollView(
+        controller: _tabScrollCtrl,
         scrollDirection: Axis.horizontal,
-        itemCount: _categories.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (_, i) {
-          final c = _categories[i];
-          final selected = c.key == _category;
-          return GestureDetector(
-            onTap: () => _setCategory(c.key),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
-              decoration: BoxDecoration(
-                color: selected ? AppColors.primary : const Color(0xFFF9F9F9),
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(
-                  color: selected ? AppColors.primary : const Color(0xFFEFEFEF),
-                  width: 1,
-                ),
-              ),
-              child: Center(
-                child: Text(
-                  c.label,
-                  style: _f(
-                    size: 11,
-                    weight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Row(
+          children: List.generate(_categories.length, (i) {
+            final c = _categories[i];
+            final selected = c.key == _category;
+            return Padding(
+              key: _tabKeys[i],
+              padding: EdgeInsets.only(right: i == _categories.length - 1 ? 0 : 10),
+              child: GestureDetector(
+                onTap: () => _setCategory(c.key),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+                  decoration: BoxDecoration(
+                    color: selected ? AppColors.primary : const Color(0xFFF9F9F9),
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: selected ? AppColors.primary : const Color(0xFFEFEFEF),
+                      width: 1,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      c.label,
+                      style: _f(
+                        size: 11,
+                        weight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
-          );
-        },
+            );
+          }),
+        ),
       ),
     );
   }
+
 
   // ─── Total Spent hero card (yellow on the mockup uses neutral grey) ──
   // The mockup screen shows a soft grey hero card; only navigation
@@ -478,14 +520,12 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   alignment: Alignment.center,
-                  child: visual.svg != null
-                      ? SvgPicture.asset(
-                          visual.svg!,
-                          width: 22,
-                          height: 22,
-                          colorFilter: ColorFilter.mode(visual.fg, BlendMode.srcIn),
-                        )
-                      : Icon(visual.icon, color: visual.fg, size: 22),
+                  child: SvgPicture.asset(
+                    visual.svg,
+                    width: 22,
+                    height: 22,
+                    colorFilter: ColorFilter.mode(visual.fg, BlendMode.srcIn),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -529,8 +569,8 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
                   ],
                 ),
                 const SizedBox(width: 4),
-                const Icon(Icons.chevron_right_rounded,
-                    color: AppColors.textTertiary, size: 20),
+                const AppIcon('chevron-right',
+                    color: AppColors.textTertiary, size: 18),
               ],
             ),
           ),
@@ -568,7 +608,7 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
     );
   }
 
-  // ─── Visual mapping per target type ──────────────────────────────
+  // ─── Visual mapping per target type (project SVGs only) ──────────
   _Visual _visualForTarget(String t) {
     switch (t) {
       case 'ticket':
@@ -581,28 +621,29 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
         return _Visual(
           bg: AppColors.success.withOpacity(0.12),
           fg: AppColors.success,
-          icon: Icons.card_giftcard_rounded,
+          svg: 'assets/icons/heart-icon.svg',
         );
       case 'booking':
         return _Visual(
           bg: AppColors.blue.withOpacity(0.10),
           fg: AppColors.blue,
-          icon: Icons.storefront_rounded,
+          svg: 'assets/icons/bag-icon.svg',
         );
       case 'wallet_topup':
         return _Visual(
           bg: AppColors.primary.withOpacity(0.12),
           fg: const Color(0xFFB45309),
-          icon: Icons.account_balance_wallet_rounded,
+          svg: 'assets/icons/wallet-icon.svg',
         );
       default:
         return _Visual(
           bg: const Color(0xFFEFF1F5),
           fg: AppColors.textSecondary,
-          icon: Icons.payments_rounded,
+          svg: 'assets/icons/card-icon.svg',
         );
     }
   }
+
 
   String _titleForTx(String t, String desc) {
     switch (t) {
@@ -631,9 +672,61 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
   }
 
   // ─── Empty state ──────────────────────────────────────────────────
-  Widget _emptyState() {
+  /// Per-category copy. Avoids awkward "No <tab-label> payments" strings.
+  /// Icons are project SVG stems (resolved via AppIcon → assets/icons/*-icon.svg).
+  ({String title, String body, String iconSvg}) _emptyCopy() {
     final isVirtual = _emptyReason == 'no_promotion_payments_yet';
-    final cat = _categories.firstWhere((c) => c.key == _category, orElse: () => _categories.first);
+    switch (_category) {
+      case 'all':
+        return (
+          title: "You haven't made any payments yet",
+          body:
+              'When you buy a ticket, contribute, or pay a vendor, the receipt will land here.',
+          iconSvg: 'wallet',
+        );
+      case 'tickets':
+        return (
+          title: 'No ticket purchases yet',
+          body: 'Tickets you buy from events will show up here.',
+          iconSvg: 'ticket',
+        );
+      case 'contributions':
+        return (
+          title: 'No contributions yet',
+          body:
+              'Money you contribute to events you support will be listed here.',
+          iconSvg: 'heart',
+        );
+      case 'vendors':
+        return (
+          title: 'No vendor payments yet',
+          body: 'Payments for services you booked will appear here.',
+          iconSvg: 'bag',
+        );
+      case 'promotions':
+        return (
+          title: isVirtual ? 'No promotion payments yet' : 'Nothing here yet',
+          body:
+              'When you boost an event or post, those payments will appear here.',
+          iconSvg: 'trending-up',
+        );
+      case 'ads':
+        return (
+          title: isVirtual ? 'No ad payments yet' : 'Nothing here yet',
+          body: 'Ads you run on Nuru will be billed and listed here.',
+          iconSvg: 'star',
+        );
+      default:
+        return (
+          title: 'No payments yet',
+          body: 'Your receipts will appear here.',
+          iconSvg: 'wallet',
+        );
+    }
+  }
+
+  Widget _emptyState() {
+    final c = _emptyCopy();
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 60, 24, 60),
       child: Column(
@@ -646,22 +739,16 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
               color: AppColors.primary.withOpacity(0.10),
               borderRadius: BorderRadius.circular(28),
             ),
-            child: Icon(
-              isVirtual ? Icons.campaign_rounded : Icons.receipt_long_rounded,
-              size: 38,
-              color: const Color(0xFFB45309),
-            ),
+            alignment: Alignment.center,
+            child: AppIcon(c.iconSvg, size: 34, color: const Color(0xFFB45309)),
           ),
           const SizedBox(height: 18),
-          Text(
-            isVirtual ? 'Nothing here yet' : 'No ${cat.label.toLowerCase()} payments',
-            style: _f(size: 17, weight: FontWeight.w800),
-          ),
+          Text(c.title,
+              textAlign: TextAlign.center,
+              style: _f(size: 17, weight: FontWeight.w800)),
           const SizedBox(height: 8),
           Text(
-            isVirtual
-                ? '${cat.label} payments will appear here once you start running them.'
-                : 'When you make a payment in this category it will appear here.',
+            c.body,
             textAlign: TextAlign.center,
             style: _f(
               size: 13,
@@ -675,170 +762,345 @@ class _PaymentHistoryScreenState extends State<PaymentHistoryScreen> {
     );
   }
 
-  // ─── Skeletons ───────────────────────────────────────────────────
+
+  // ─── Skeletons (mirror the real layout, animated shimmer) ────────
+  Widget _shimmerBox(double w, double h, {double r = 8, Color? color}) {
+    return _ShimmerBox(width: w, height: h, radius: r, color: color);
+  }
+
   Widget _skeletonHero() {
     return Container(
-      height: 100,
+      padding: const EdgeInsets.fromLTRB(20, 18, 16, 18),
       decoration: BoxDecoration(
-        color: const Color(0xFFF1F2F6),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFEFEFF3)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _shimmerBox(86, 12, r: 6),
+                const SizedBox(height: 12),
+                _shimmerBox(170, 24, r: 8),
+                const SizedBox(height: 10),
+                _shimmerBox(120, 11, r: 6),
+              ],
+            ),
+          ),
+          _shimmerBox(54, 20, r: 999),
+        ],
       ),
     );
   }
 
   Widget _skeletonRow() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-      child: Container(
-        height: 72,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-        ),
+      padding: const EdgeInsets.fromLTRB(20, 6, 20, 6),
+      child: Row(
+        children: [
+          _shimmerBox(44, 44, r: 12),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _shimmerBox(140, 13, r: 6),
+                const SizedBox(height: 8),
+                _shimmerBox(180, 11, r: 6),
+                const SizedBox(height: 6),
+                _shimmerBox(90, 10, r: 6),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              _shimmerBox(72, 13, r: 6),
+              const SizedBox(height: 8),
+              _shimmerBox(46, 14, r: 999),
+            ],
+          ),
+          const SizedBox(width: 8),
+          _shimmerBox(14, 14, r: 4),
+        ],
       ),
     );
   }
+
 
   // ─── Filter sheet ────────────────────────────────────────────────
   void _openFilterSheet() {
     String tmpStatus = _statusFilter;
     String tmpSort = _sortBy;
+
+    const statusOpts = [
+      ['all', 'All payments', 'See everything in this category'],
+      ['paid', 'Paid', 'Successfully completed payments'],
+      ['pending', 'Pending', 'Still being processed'],
+      ['failed', 'Failed', 'Did not go through'],
+    ];
+    const sortOpts = [
+      ['newest', 'Newest first', 'Most recent at the top'],
+      ['oldest', 'Oldest first', 'Earliest at the top'],
+      ['highest', 'Highest amount', 'Largest payments first'],
+      ['lowest', 'Lowest amount', 'Smallest payments first'],
+    ];
+
+    Widget optionRow({
+      required String label,
+      required String subtitle,
+      required bool selected,
+      required VoidCallback onTap,
+    }) {
+      return Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: selected ? AppColors.primary : const Color(0xFFEFEFF3),
+                width: selected ? 1.4 : 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(label,
+                          style: _f(
+                            size: 14,
+                            weight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          )),
+                      const SizedBox(height: 2),
+                      Text(subtitle,
+                          style: _f(
+                            size: 11.5,
+                            weight: FontWeight.w500,
+                            color: AppColors.textTertiary,
+                          )),
+                    ],
+                  ),
+                ),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 160),
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: selected ? AppColors.primary : Colors.white,
+                    border: Border.all(
+                      color: selected
+                          ? AppColors.primary
+                          : const Color(0xFFD1D5DB),
+                      width: 2,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: selected
+                      ? const AppIcon('check', size: 12, color: Colors.white)
+                      : null,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    Widget sectionHeader(String title, String iconName) => Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: AppColors.primarySoft,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                alignment: Alignment.center,
+                child: AppIcon(iconName, size: 14, color: AppColors.primary),
+              ),
+              const SizedBox(width: 10),
+              Text(title,
+                  style: _f(
+                    size: 13,
+                    weight: FontWeight.w800,
+                    color: AppColors.textPrimary,
+                  )),
+            ],
+          ),
+        );
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
       useSafeArea: true,
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setSheet) => Container(
-          padding: const EdgeInsets.fromLTRB(20, 14, 20, 26),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFE7E8EE),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text('Filter & Sort',
-                  style: _f(size: 17, weight: FontWeight.w800)),
-              const SizedBox(height: 18),
-              Text('Status',
-                  style: _f(
-                    size: 12,
-                    weight: FontWeight.w700,
-                    color: AppColors.textSecondary,
-                    letterSpacing: 0.4,
-                  )),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: const [
-                  _ChoiceChip(value: 'all', label: 'All'),
-                  _ChoiceChip(value: 'paid', label: 'Paid'),
-                  _ChoiceChip(value: 'pending', label: 'Pending'),
-                  _ChoiceChip(value: 'failed', label: 'Failed'),
-                ]
-                    .map((c) => ChoiceChip(
-                          label: Text(c.label),
-                          selected: tmpStatus == c.value,
-                          onSelected: (_) => setSheet(() => tmpStatus = c.value),
-                          labelStyle: _f(
-                            size: 12,
-                            weight: FontWeight.w700,
-                            color: tmpStatus == c.value
-                                ? const Color(0xFF1C1C24)
-                                : AppColors.textPrimary,
-                          ),
-                          selectedColor: AppColors.primary,
-                          backgroundColor: const Color(0xFFF1F2F6),
-                          side: BorderSide.none,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                        ))
-                    .toList(),
-              ),
-              const SizedBox(height: 18),
-              Text('Sort by',
-                  style: _f(
-                    size: 12,
-                    weight: FontWeight.w700,
-                    color: AppColors.textSecondary,
-                    letterSpacing: 0.4,
-                  )),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: const [
-                  _ChoiceChip(value: 'newest', label: 'Newest first'),
-                  _ChoiceChip(value: 'oldest', label: 'Oldest first'),
-                  _ChoiceChip(value: 'highest', label: 'Highest amount'),
-                  _ChoiceChip(value: 'lowest', label: 'Lowest amount'),
-                ]
-                    .map((c) => ChoiceChip(
-                          label: Text(c.label),
-                          selected: tmpSort == c.value,
-                          onSelected: (_) => setSheet(() => tmpSort = c.value),
-                          labelStyle: _f(
-                            size: 12,
-                            weight: FontWeight.w700,
-                            color: tmpSort == c.value
-                                ? const Color(0xFF1C1C24)
-                                : AppColors.textPrimary,
-                          ),
-                          selectedColor: AppColors.primary,
-                          backgroundColor: const Color(0xFFF1F2F6),
-                          side: BorderSide.none,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                        ))
-                    .toList(),
-              ),
-              const SizedBox(height: 22),
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: const Color(0xFF1C1C24),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+        builder: (ctx, setSheet) {
+          final dirty =
+              tmpStatus != _statusFilter || tmpSort != _sortBy;
+          return Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 10),
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFE5E7EB),
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  onPressed: () {
-                    setState(() {
-                      _statusFilter = tmpStatus;
-                      _sortBy = tmpSort;
-                    });
-                    Navigator.pop(ctx);
-                  },
-                  child: Text('Apply',
-                      style: _f(
-                        size: 14,
-                        weight: FontWeight.w800,
-                        color: const Color(0xFF1C1C24),
-                      )),
                 ),
-              ),
-            ],
-          ),
-        ),
+                const SizedBox(height: 10),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 6, 12, 4),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Filter & sort',
+                                style: _f(size: 18, weight: FontWeight.w800)),
+                            const SizedBox(height: 2),
+                            Text('Tune what you see in your history',
+                                style: _f(
+                                  size: 12.5,
+                                  weight: FontWeight.w500,
+                                  color: AppColors.textTertiary,
+                                )),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        icon: const AppIcon('close',
+                            size: 16, color: AppColors.textSecondary),
+                        style: IconButton.styleFrom(
+                          backgroundColor: const Color(0xFFF6F6F8),
+                          shape: const CircleBorder(),
+                          padding: const EdgeInsets.all(8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        sectionHeader('Payment status', 'filter'),
+                        for (int i = 0; i < statusOpts.length; i++) ...[
+                          optionRow(
+                            label: statusOpts[i][1],
+                            subtitle: statusOpts[i][2],
+                            selected: tmpStatus == statusOpts[i][0],
+                            onTap: () =>
+                                setSheet(() => tmpStatus = statusOpts[i][0]),
+                          ),
+                          if (i != statusOpts.length - 1)
+                            const SizedBox(height: 8),
+                        ],
+                        const SizedBox(height: 22),
+                        sectionHeader('Sort order', 'chevron-down'),
+                        for (int i = 0; i < sortOpts.length; i++) ...[
+                          optionRow(
+                            label: sortOpts[i][1],
+                            subtitle: sortOpts[i][2],
+                            selected: tmpSort == sortOpts[i][0],
+                            onTap: () =>
+                                setSheet(() => tmpSort = sortOpts[i][0]),
+                          ),
+                          if (i != sortOpts.length - 1)
+                            const SizedBox(height: 8),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                Container(
+                  padding: EdgeInsets.fromLTRB(
+                      20, 12, 20, 14 + MediaQuery.of(ctx).padding.bottom),
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    border: Border(top: BorderSide(color: Color(0xFFEFEFF3))),
+                  ),
+                  child: Row(
+                    children: [
+                      TextButton(
+                        onPressed: () => setSheet(() {
+                          tmpStatus = 'all';
+                          tmpSort = 'newest';
+                        }),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.textSecondary,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 14),
+                        ),
+                        child: Text('Reset',
+                            style: _f(size: 13.5, weight: FontWeight.w700)),
+                      ),
+                      const Spacer(),
+                      SizedBox(
+                        height: 50,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primary,
+                            foregroundColor: AppColors.textOnPrimary,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(horizontal: 22),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16)),
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _statusFilter = tmpStatus;
+                              _sortBy = tmpSort;
+                            });
+                            Navigator.pop(ctx);
+                          },
+                          child: Text(
+                            dirty ? 'Apply filters' : 'Done',
+                            style: _f(
+                              size: 14,
+                              weight: FontWeight.w800,
+                              color: AppColors.textOnPrimary,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -853,13 +1115,74 @@ class _CategoryDef {
 class _Visual {
   final Color bg;
   final Color fg;
-  final String? svg;
-  final IconData? icon;
-  const _Visual({required this.bg, required this.fg, this.svg, this.icon});
+  final String svg;
+  const _Visual({required this.bg, required this.fg, required this.svg});
 }
 
-class _ChoiceChip {
-  final String value;
-  final String label;
-  const _ChoiceChip({required this.value, required this.label});
+/// Animated shimmer block used by the payment-history skeletons.
+class _ShimmerBox extends StatefulWidget {
+  final double width;
+  final double height;
+  final double radius;
+  final Color? color;
+  const _ShimmerBox({
+    required this.width,
+    required this.height,
+    required this.radius,
+    this.color,
+  });
+
+  @override
+  State<_ShimmerBox> createState() => _ShimmerBoxState();
+}
+
+class _ShimmerBoxState extends State<_ShimmerBox>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final base = widget.color ?? const Color(0xFFEFF0F3);
+    final highlight = const Color(0xFFF8F9FB);
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) {
+        final t = _ctrl.value;
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(widget.radius),
+          child: ShaderMask(
+            shaderCallback: (rect) {
+              return LinearGradient(
+                begin: Alignment(-1 + 2 * t, 0),
+                end: Alignment(1 + 2 * t, 0),
+                colors: [base, highlight, base],
+                stops: const [0.35, 0.5, 0.65],
+              ).createShader(rect);
+            },
+            blendMode: BlendMode.srcATop,
+            child: Container(
+              width: widget.width,
+              height: widget.height,
+              color: base,
+            ),
+          ),
+        );
+      },
+    );
+  }
 }

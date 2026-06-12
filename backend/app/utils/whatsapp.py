@@ -64,17 +64,18 @@ def _lang(value) -> str:
     return "en" if str(value or "sw").lower() == "en" else "sw"
 
 
-def _send_whatsapp_sync(action: str, phone: str, params: dict, log_id: str | None = None):
+def _send_whatsapp_sync(action: str, phone: str, params: dict, log_id: str | None = None, meta: dict | None = None):
     """Synchronous transport — only call from Celery workers.
 
-    Returns a dict ``{ok, message_id, status, not_on_whatsapp, error}``.
-    If ``log_id`` is provided we update the existing ``wa_message_logs``
-    row; otherwise we create one here so every attempt is recorded.
+    Returns a dict ``{ok, message_id, status, not_on_whatsapp, error,
+    error_code, error_title, error_details, fbtrace_id}``. ``meta`` is
+    forwarded to ``log_attempt`` when this function has to create the
+    log row itself (no ``log_id`` supplied).
     """
     if log_id is None:
         try:
             from utils.wa_logging import log_attempt
-            log_id = log_attempt(action, phone, params or {})
+            log_id = log_attempt(action, phone, params or {}, meta=meta)
         except Exception as _e:  # noqa: BLE001
             log_id = None
             print(f"[wa_log] attempt log skipped: {_e}")
@@ -93,6 +94,34 @@ def _send_whatsapp_sync(action: str, phone: str, params: dict, log_id: str | Non
     if not international_phone:
         return _finish({"ok": False, "error": "phone normalization failed"})
     phone_tail = _mask_phone(international_phone)
+
+
+    # ── WhatsApp-safe media normalization ────────────────────────────────
+    # Meta rejects large/alpha PNG headers with error 131053. For every
+    # outgoing template that carries an image URL (image_url / media_url /
+    # header_image), swap a .png URL for its .wa.jpg sibling — generated
+    # on-demand if it does not already exist. This single guard covers
+    # first sends, prepared-cards send, send-all, sent-cards resend AND
+    # the WhatsApp Logs resend endpoint (which replays params verbatim).
+    try:
+        if isinstance(params, dict):
+            from utils.whatsapp_media import ensure_whatsapp_media_for_png_url
+            params = dict(params)  # don't mutate the caller's dict
+            for k in ("image_url", "media_url", "header_image"):
+                v = params.get(k)
+                if isinstance(v, str) and v.lower().endswith(".png"):
+                    info = ensure_whatsapp_media_for_png_url(v) or {}
+                    safe = info.get("url")
+                    if safe and safe != v:
+                        print(
+                            f"[WhatsApp] media-safe swap action={action} key={k} "
+                            f"png={v} jpg={safe} reused={info.get('reused')} "
+                            f"size={info.get('size')} err={info.get('error')!r}"
+                        )
+                        params[k] = safe
+    except Exception as _media_exc:  # noqa: BLE001
+        print(f"[WhatsApp] media-safe swap skipped: {_media_exc}")
+
     urls = [WHATSAPP_SEND_URL] if WHATSAPP_SEND_URL else []
     fallback_url = f"{CURRENT_FUNCTIONS_URL}/functions/v1/whatsapp-send"
     if fallback_url not in urls:
@@ -135,8 +164,12 @@ def _send_whatsapp_sync(action: str, phone: str, params: dict, log_id: str | Non
                     "message_id": message_id,
                     "not_on_whatsapp": not_on_wa,
                     "error_code": data.get("error_code"),
+                    "error_title": data.get("error_title"),
+                    "error_details": data.get("error_details"),
+                    "fbtrace_id": data.get("fbtrace_id"),
                     "error": body,
                 })
+
             try:
                 from core.database import SessionLocal
                 from api.routes.whatsapp_admin import _store_incoming
@@ -165,20 +198,25 @@ def _send_whatsapp_sync(action: str, phone: str, params: dict, log_id: str | Non
         return _finish({"ok": False, "error": str(e)})
 
 
-def _send_whatsapp(action: str, phone: str, params: dict, log_id: str | None = None):
+def _send_whatsapp(action: str, phone: str, params: dict, log_id: str | None = None, meta: dict | None = None):
     """Enqueue via Celery in prod, fall back to synchronous in dev.
 
     Always creates a ``wa_message_logs`` row up-front (when one isn't
     supplied) so no attempt is silent — even if Celery later loses the
     task. The log id is passed through to the worker so the same row is
     updated after Meta responds.
+
+    ``meta`` (optional) carries per-recipient logging metadata:
+      ``event_id``, ``event_name``, ``recipient_type``, ``recipient_id``,
+      ``recipient_name``, ``message_purpose``, ``source_module``,
+      ``related_entity_type``, ``related_entity_id``.
     """
     if not phone:
         return False
     if log_id is None:
         try:
             from utils.wa_logging import log_attempt
-            log_id = log_attempt(action, phone, params or {})
+            log_id = log_attempt(action, phone, params or {}, meta=meta)
         except Exception as _e:  # noqa: BLE001
             log_id = None
             print(f"[wa_log] enqueue log skipped: {_e}")
@@ -193,8 +231,9 @@ def _send_whatsapp(action: str, phone: str, params: dict, log_id: str | None = N
             return True
         except Exception as e:
             print(f"[WhatsApp] enqueue failed, sending inline: {e}")
-    result = _send_whatsapp_sync(action, phone, params or {}, log_id=log_id)
+    result = _send_whatsapp_sync(action, phone, params or {}, log_id=log_id, meta=meta)
     return bool(result.get("ok")) if isinstance(result, dict) else bool(result)
+
 
 
 def _whatsapp_admin_summary(action: str, params: dict) -> str:
@@ -240,7 +279,7 @@ def wa_guest_invited(
     rsvp_code: str = "",
     event_venue: str = "",
     lang: str = "sw",
-):
+    meta: dict | None = None,):
     _send_whatsapp("guest_invitation", phone, {
         "guest_name": guest_name,
         "organizer_name": organizer_name,
@@ -249,7 +288,7 @@ def wa_guest_invited(
         "event_venue": event_venue or "TBA",
         "rsvp_code": rsvp_code,
         "lang": _lang(lang),
-    })
+    }, meta=meta)
 
 
 # ──────────────────────────────────────────────
@@ -263,7 +302,7 @@ def wa_committee_invite(
     event_name: str,
     custom_message: str = "",
     lang: str = "sw",
-):
+    meta: dict | None = None,):
     _send_whatsapp("committee_invite", phone, {
         "member_name": member_name,
         "organizer_name": organizer_name,
@@ -271,7 +310,7 @@ def wa_committee_invite(
         "event_name": event_name,
         "custom_message": custom_message or "",
         "lang": _lang(lang),
-    })
+    }, meta=meta)
 
 
 # ──────────────────────────────────────────────
@@ -304,7 +343,7 @@ def wa_meeting_invitation(
     meeting_link: str = "",
     meeting_redirect_token: str = "",
     lang: str = "sw",
-):
+    meta: dict | None = None,):
     return _send_whatsapp("meeting_invitation", phone, {
         "event_name": event_name,
         "meeting_title": meeting_title,
@@ -312,7 +351,7 @@ def wa_meeting_invitation(
         "meeting_redirect_token": meeting_redirect_token or "",
         "meeting_link": meeting_link,
         "lang": _lang(lang),
-    })
+    }, meta=meta)
 
 
 # ──────────────────────────────────────────────
@@ -329,7 +368,7 @@ def wa_contribution_recorded(
     organizer_phone: str = "",
     recorder_name: str = "",
     lang: str = "sw",
-):
+    meta: dict | None = None,):
     balance = max(0, (target or 0) - (total_paid or 0))
     pledge_complete = bool(target and target > 0 and balance <= 0)
 
@@ -364,7 +403,7 @@ def wa_contribution_target_set(
     organizer_phone: str = "",
     lang: str = "sw",
     payment_instructions: str | None = None,
-):
+    meta: dict | None = None,):
     from utils.payment_instructions import resolve_payment_instructions
     instr = (payment_instructions or "").strip() or resolve_payment_instructions(None, lang)
     _send_whatsapp("contribution_target_set", phone, {
@@ -374,7 +413,7 @@ def wa_contribution_target_set(
         "payment_instructions": instr,
         "organizer_phone": organizer_phone or "Nuru",
         "lang": _lang(lang),
-    })
+    }, meta=meta)
 
 
 # ──────────────────────────────────────────────
@@ -390,7 +429,7 @@ def wa_contribution_target_updated(
     organizer_phone: str = "",
     lang: str = "sw",
     payment_instructions: str | None = None,
-):
+    meta: dict | None = None,):
     from utils.payment_instructions import resolve_payment_instructions
     instr = (payment_instructions or "").strip() or resolve_payment_instructions(None, lang)
     _send_whatsapp("contribution_target_updated", phone, {
@@ -401,7 +440,7 @@ def wa_contribution_target_updated(
         "payment_instructions": instr,
         "organizer_phone": organizer_phone or "Nuru",
         "lang": _lang(lang),
-    })
+    }, meta=meta)
 
 
 # ──────────────────────────────────────────────
@@ -418,7 +457,7 @@ def wa_thank_you(
     # legacy kwarg kept for backward-compat (was passed as the amount)
     total_paid: float = None,
     lang: str = "sw",
-):
+    meta: dict | None = None,):
     eff_amount = amount if amount else (total_paid or 0)
     L = _lang(lang)
     _send_whatsapp("contribution_thank_you", phone, {
@@ -428,7 +467,7 @@ def wa_thank_you(
         "custom_message": custom_message or ("Tunakushukuru kwa ukarimu wako." if L == "sw" else "We deeply appreciate your generosity."),
         "organizer_phone": organizer_phone or "Nuru",
         "lang": L,
-    })
+    }, meta=meta)
 
 
 # ──────────────────────────────────────────────
@@ -443,7 +482,7 @@ def wa_guest_contribution_invite(
     share_token: str,
     currency: str = "TZS",
     lang: str = "sw",
-):
+    meta: dict | None = None,):
     _send_whatsapp("guest_contribution_invite", phone, {
         "contributor_name": contributor_name,
         "organiser_name": organiser_name,
@@ -451,7 +490,7 @@ def wa_guest_contribution_invite(
         "pledge_amount_text": _money(pledge_amount, currency),
         "share_token": share_token,
         "lang": _lang(lang),
-    })
+    }, meta=meta)
 
 
 # ──────────────────────────────────────────────
@@ -468,7 +507,7 @@ def wa_guest_contribution_receipt(
     receipt_path: str,
     currency: str = "TZS",
     lang: str = "sw",
-):
+    meta: dict | None = None,):
     _send_whatsapp("guest_contribution_receipt", phone, {
         "contributor_name": contributor_name,
         "amount_text": _money(amount, currency),
@@ -478,7 +517,7 @@ def wa_guest_contribution_receipt(
         "transaction_code": transaction_code,
         "receipt_path": receipt_path,
         "lang": _lang(lang),
-    })
+    }, meta=meta)
 
 
 # ──────────────────────────────────────────────
@@ -613,27 +652,29 @@ def wa_expense_recorded(phone, recipient_first_name, recorder_name, amount, cate
 # ──────────────────────────────────────────────
 # #43/44 — service_booking_notification
 # ──────────────────────────────────────────────
-def wa_booking_notification(phone, provider_name, event_title, client_name, service_name="service", lang="sw"):
+def wa_booking_notification(phone, provider_name, event_title, client_name, service_name="service", lang="sw",
+    meta: dict | None = None):
     _send_whatsapp("service_booking_notification", phone, {
         "provider_name": provider_name,
         "client_name": client_name,
         "service_name": service_name or "service",
         "event_name": event_title,
         "lang": _lang(lang),
-    })
+    }, meta=meta)
 
 
 # ──────────────────────────────────────────────
 # #45/46 — booking_accepted
 # ──────────────────────────────────────────────
-def wa_booking_accepted(phone, requester_first_name, vendor_name, service_name, event_title, lang="sw"):
+def wa_booking_accepted(phone, requester_first_name, vendor_name, service_name, event_title, lang="sw",
+    meta: dict | None = None):
     _send_whatsapp("booking_accepted", phone, {
         "requester_first_name": requester_first_name,
         "vendor_name": vendor_name,
         "service_name": service_name,
         "event_name": event_title,
         "lang": _lang(lang),
-    })
+    }, meta=meta)
 
 
 # ──────────────────────────────────────────────
@@ -672,13 +713,13 @@ def wa_pledge_thank_you_card(
     event_name: str,
     image_url: str,
     lang: str = "sw",
-):
+    meta: dict | None = None,):
     return _send_whatsapp("pledge_thank_you_card", phone, {
         "contributor_name": contributor_name or "Friend",
         "event_name": event_name or "the event",
         "image_url": image_url or "",
         "lang": _lang(lang),
-    })
+    }, meta=meta)
 
 
 # ──────────────────────────────────────────────
@@ -697,7 +738,7 @@ def wa_event_invitation_card(
     event_date: str = "",
     venue: str = "",
     lang: str = "sw",
-):
+    meta: dict | None = None,):
     return _send_whatsapp("invitation_card_message", phone, {
         "guest_name": guest_name or "Guest",
         "organizer_name": organizer_name or "Your host",
@@ -707,4 +748,4 @@ def wa_event_invitation_card(
         "organizer_phone": organizer_phone or "—",
         "image_url": image_url or "",
         "lang": _lang(lang),
-    })
+    }, meta=meta)

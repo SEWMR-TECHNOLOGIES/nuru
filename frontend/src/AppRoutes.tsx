@@ -331,6 +331,7 @@ function InnerRoutes() {
           <Route path="analytics" element={<AdminAnalytics />} />
           <Route path="whatsapp" element={<AdminWhatsApp />} />
           <Route path="whatsapp/templates" element={<AdminWhatsAppTemplates />} />
+          <Route path="whatsapp-logs" element={<WhatsappLogs />} />
           <Route path="issues" element={<AdminIssues />} />
           <Route path="issues/:id" element={<AdminIssueDetail />} />
           <Route path="issue-categories" element={<AdminIssueCategories />} />

@@ -49,7 +49,7 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   final _whatToExpectNotesCtrl = TextEditingController();
   final List<Map<String, String>> _whatToExpectItems = [];
   static const List<String> _wteIconChoices = [
-    'sparkle','calendar','clock','heart','camera','star','users','microphone','user'
+    'star','calendar','clock','heart','camera','users','microphone','user'
   ];
   String? _eventTypeId;
   String _visibility = 'private';
@@ -1839,68 +1839,83 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       ..._whatToExpectItems.asMap().entries.map((entry) {
         final i = entry.key;
         final item = entry.value;
+        final iconName = (item['icon'] ?? 'star').toString();
+        final isDefaultIcon = iconName == 'star' || iconName == 'sparkle';
         return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(12),
+          margin: const EdgeInsets.only(bottom: 12),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppColors.border, width: 1),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              GestureDetector(
-                onTap: () => _pickWteIcon(i),
-                child: Container(
-                  width: 40, height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.primarySoft,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Center(
-                    child: SvgPicture.asset(
-                      'assets/icons/${item['icon']}-icon.svg',
-                      width: 18, height: 18,
-                      colorFilter: const ColorFilter.mode(AppColors.primary, BlendMode.srcIn),
+            // Header row: number badge + label input + remove
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 8, 8),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+                // Number / icon badge
+                GestureDetector(
+                  onTap: () => _pickWteIcon(i),
+                  child: Container(
+                    width: 36, height: 36,
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.border, width: 1),
+                    ),
+                    child: Center(
+                      child: isDefaultIcon
+                          ? Text('${i + 1}',
+                              style: appText(size: 14, weight: FontWeight.w800, color: AppColors.textPrimary))
+                          : SvgPicture.asset(
+                              'assets/icons/$iconName-icon.svg',
+                              width: 16, height: 16,
+                              colorFilter: const ColorFilter.mode(AppColors.textPrimary, BlendMode.srcIn),
+                            ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: TextFormField(
-                  initialValue: item['label'],
-                  onChanged: (v) => item['label'] = v,
-                  style: appText(size: 14, weight: FontWeight.w700),
-                  decoration: InputDecoration(
-                    hintText: 'e.g. Live music',
-                    hintStyle: appText(size: 13, color: AppColors.textHint),
-                    isDense: true,
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextFormField(
+                    initialValue: item['label'],
+                    onChanged: (v) => item['label'] = v,
+                    style: appText(size: 15, weight: FontWeight.w700, color: AppColors.textPrimary),
+                    decoration: InputDecoration(
+                      hintText: 'e.g. Live music',
+                      hintStyle: appText(size: 14, color: AppColors.textHint, weight: FontWeight.w500),
+                      isDense: true,
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                    ),
                   ),
                 ),
-              ),
-              GestureDetector(
-                onTap: () => setState(() => _whatToExpectItems.removeAt(i)),
-                child: const Padding(
-                  padding: EdgeInsets.all(6),
-                  child: Icon(Icons.close, size: 18, color: AppColors.textTertiary),
+                GestureDetector(
+                  onTap: () => setState(() => _whatToExpectItems.removeAt(i)),
+                  behavior: HitTestBehavior.opaque,
+                  child: const Padding(
+                    padding: EdgeInsets.all(8),
+                    child: Icon(Icons.close_rounded, size: 18, color: AppColors.textTertiary),
+                  ),
                 ),
-              ),
-            ]),
-            const SizedBox(height: 6),
-            TextFormField(
-              initialValue: item['description'],
-              onChanged: (v) => item['description'] = v,
-              style: appText(size: 13, color: AppColors.textSecondary),
-              maxLines: 2,
-              decoration: InputDecoration(
-                hintText: 'Short description (optional)',
-                hintStyle: appText(size: 12, color: AppColors.textHint),
-                isDense: true,
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.zero,
+              ]),
+            ),
+            Container(height: 1, color: AppColors.border),
+            // Description row
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 12),
+              child: TextFormField(
+                initialValue: item['description'],
+                onChanged: (v) => item['description'] = v,
+                style: appText(size: 13, color: AppColors.textSecondary, height: 1.4),
+                maxLines: 2,
+                decoration: InputDecoration(
+                  hintText: 'Add a short description (optional)',
+                  hintStyle: appText(size: 13, color: AppColors.textHint),
+                  isDense: true,
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.zero,
+                ),
               ),
             ),
           ]),
@@ -1908,25 +1923,33 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
       }),
       if (_whatToExpectItems.length < 12)
         GestureDetector(
-          onTap: () => setState(() => _whatToExpectItems.add({'icon': 'sparkle', 'label': '', 'description': ''})),
+          onTap: () => setState(() => _whatToExpectItems.add({'icon': 'star', 'label': '', 'description': ''})),
+          behavior: HitTestBehavior.opaque,
           child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 14),
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 14),
             decoration: BoxDecoration(
-              color: AppColors.primarySoft,
-              borderRadius: BorderRadius.circular(12),
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: AppColors.border,
+                width: 1,
+                style: BorderStyle.solid,
+              ),
             ),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.add, size: 16, color: AppColors.primary),
-              const SizedBox(width: 6),
-              Text('Add item', style: appText(size: 13, weight: FontWeight.w700, color: AppColors.primary)),
+            child: Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
+              const Icon(Icons.add_rounded, size: 18, color: AppColors.textPrimary),
+              const SizedBox(width: 8),
+              Text('Add item', style: appText(size: 14, weight: FontWeight.w700, color: AppColors.textPrimary)),
             ]),
           ),
         ),
-      const SizedBox(height: 14),
+      const SizedBox(height: 18),
       _label('Notes (optional)'),
       _input(_whatToExpectNotesCtrl, 'Anything else guests should know — schedule notes, parking, dress code reminders, etc.', maxLines: 3),
     ]);
   }
+
 
   Future<void> _pickWteIcon(int index) async {
     final picked = await showModalBottomSheet<String>(

@@ -8,6 +8,7 @@ import '../../../core/theme/text_styles.dart';
 import '../../../core/services/events_service.dart';
 import '../../../core/widgets/app_snackbar.dart';
 import '../../../core/l10n/l10n_helper.dart';
+import '../../../widgets/app_select.dart';
 
 /// Full redesign — Checklist tab.
 /// Flat surfaces, project SVG icons, skeleton loaders, background refresh,
@@ -1872,26 +1873,14 @@ class _EventChecklistTabState extends State<EventChecklistTab>
     required List<DropdownMenuItem<T>> items,
     required ValueChanged<T?> onChanged,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.borderLight),
-      ),
-      child: DropdownButtonFormField<T>(
-        value: value,
-        decoration: InputDecoration(
-          border: InputBorder.none,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-          hintText: hint,
-          hintStyle: appText(size: 13, color: AppColors.textHint),
-        ),
-        style: appText(size: 13),
-        isExpanded: true,
-        items: items,
-        onChanged: onChanged,
-      ),
+    return AppSelect.fromItems<T>(
+      value: value,
+      items: items,
+      onChanged: onChanged,
+      hint: hint,
+      title: hint,
+      borderRadius: 14,
+      fontSize: 13,
     );
   }
 }

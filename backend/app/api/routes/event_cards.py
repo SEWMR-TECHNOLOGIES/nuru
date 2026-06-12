@@ -735,7 +735,8 @@ async def upload_browser_rendered_card(
     if len(content) > 8 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Card image is too large")
 
-    unique_name = f"{uuid.uuid4().hex}.png"
+    base_name = uuid.uuid4().hex
+    unique_name = f"{base_name}.png"
     target_path = f"nuru/uploads/cards/{event.id}/{active_card.id}/{recipient_id}/"
     try:
         async with httpx.AsyncClient() as client:
@@ -754,7 +755,50 @@ async def upload_browser_rendered_card(
     url = (result.get("data") or {}).get("url")
     if not url:
         raise HTTPException(status_code=502, detail="Card upload returned no URL")
-    return standard_response(True, "Card image uploaded.", {"url": url, "path": target_path + unique_name})
+
+    # Generate the WhatsApp-safe JPEG sibling now so dispatch can send it
+    # without any extra latency. Meta rejects large/alpha PNG headers
+    # with error 131053 — the flattened JPG fixes that.
+    whatsapp_url = url
+    wa_size = None
+    wa_width = None
+    wa_height = None
+    wa_error = None
+    try:
+        from utils.whatsapp_media import prepare_whatsapp_jpeg_bytes
+        jpg_bytes, wa_width, wa_height = prepare_whatsapp_jpeg_bytes(content)
+        wa_filename = f"{base_name}.wa.jpg"
+        async with httpx.AsyncClient() as client:
+            wa_resp = await client.post(
+                UPLOAD_SERVICE_URL,
+                data={"target_path": target_path},
+                files={"file": (wa_filename, jpg_bytes, "image/jpeg")},
+                timeout=30,
+            )
+        wa_result = wa_resp.json() if wa_resp is not None else {}
+        if wa_resp.is_success and wa_result.get("success"):
+            whatsapp_url = (wa_result.get("data") or {}).get("url") or url
+            wa_size = len(jpg_bytes)
+        else:
+            wa_error = (wa_result.get("message")
+                        or f"http {getattr(wa_resp, 'status_code', '?')}")
+    except Exception as e:  # noqa: BLE001
+        wa_error = str(e)
+    print(
+        f"[event_cards] card upload ok png_url={url} whatsapp_url={whatsapp_url} "
+        f"png_bytes={len(content)} wa_bytes={wa_size} wa_dim={wa_width}x{wa_height} "
+        f"wa_error={wa_error!r}"
+    )
+
+    return standard_response(True, "Card image uploaded.", {
+        "url": url,
+        "path": target_path + unique_name,
+        "whatsapp_url": whatsapp_url,
+        "whatsapp_bytes": wa_size,
+        "whatsapp_dimensions": (
+            {"width": wa_width, "height": wa_height} if wa_width and wa_height else None
+        ),
+    })
 
 
 @router.get("/events/{event_id}/cards/{category}/preview.svg")
@@ -1285,7 +1329,26 @@ def send_pledge_thank_you_cards(
                 )
                 text_card_url = stable_result.get("public_url") or landing_url
                 whatsapp_image_url = direct_image_url
-                image_url = direct_image_url  # used by WhatsApp template + logs
+                # Resolve (or lazily generate) the WhatsApp-safe JPEG sibling
+                # so Meta does not reject the header with error 131053.
+                # Falls back to the original PNG URL on any failure.
+                wa_media_info = {}
+                try:
+                    from utils.whatsapp_media import ensure_whatsapp_media_for_png_url
+                    wa_media_info = ensure_whatsapp_media_for_png_url(direct_image_url) or {}
+                    if wa_media_info.get("url"):
+                        whatsapp_image_url = wa_media_info["url"]
+                except Exception as _wa_exc:  # noqa: BLE001
+                    print(f"[event_card_dispatch] whatsapp media prepare failed: {_wa_exc!r}")
+                image_url = whatsapp_image_url  # used by WhatsApp template + logs
+                print(
+                    f"[event_card_dispatch] media original_png={direct_image_url} "
+                    f"whatsapp_url={whatsapp_image_url} "
+                    f"wa_bytes={wa_media_info.get('size')} "
+                    f"wa_dim={wa_media_info.get('width')}x{wa_media_info.get('height')} "
+                    f"wa_reused={wa_media_info.get('reused')} "
+                    f"wa_prepare_error={wa_media_info.get('error')!r}"
+                )
 
                 row.rendered_card_url = direct_image_url
                 s.commit()

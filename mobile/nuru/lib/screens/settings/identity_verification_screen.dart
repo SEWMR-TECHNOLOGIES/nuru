@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../core/theme/app_colors.dart';
@@ -8,7 +9,7 @@ import '../../core/widgets/app_snackbar.dart';
 import '../../core/services/event_extras_service.dart';
 import '../../core/l10n/l10n_helper.dart';
 
-/// Identity Verification — premium redesign mirroring web flow.
+/// Identity Verification — premium redesign per Nuru mockup.
 class IdentityVerificationScreen extends StatefulWidget {
   const IdentityVerificationScreen({super.key});
 
@@ -21,6 +22,16 @@ enum _Slot { idFront, idBack }
 class _IdentityVerificationScreenState extends State<IdentityVerificationScreen> {
   static const _maxBytes = 5 * 1024 * 1024;
   static const _allowedExt = {'jpg', 'jpeg', 'png', 'webp'};
+
+  // Mockup palette
+  static const _navy = Color(0xFF0A1C40);
+  static const _navySoft = Color(0xFF1A2A4F);
+  static const _orange = Color(0xFFFF7A2D);
+  static const _orangeSoft = Color(0x1FFF7A2D);
+  static const _greenSoft = Color(0x14169B5C);
+  static const _green = Color(0xFF169B5C);
+  static const _cardBorder = Color(0xFFE6E9F2);
+  static const _muted = Color(0xFF6B7891);
 
   String _status = 'unverified';
   String? _rejectionReason;
@@ -36,11 +47,6 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
   void initState() {
     super.initState();
     _loadStatus();
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
   }
 
   Future<void> _loadStatus() async {
@@ -61,28 +67,29 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
     final source = await showModalBottomSheet<ImageSource>(
       context: context,
       backgroundColor: Colors.white,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (_) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 12, 16),
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 20),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Container(
-              width: 44, height: 4,
-              margin: const EdgeInsets.only(bottom: 14),
-              decoration: BoxDecoration(color: AppColors.borderLight, borderRadius: BorderRadius.circular(4)),
+              width: 40, height: 4,
+              margin: const EdgeInsets.only(bottom: 18),
+              decoration: BoxDecoration(color: _cardBorder, borderRadius: BorderRadius.circular(4)),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text('Upload from', style: _f(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
-              ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text('Choose source', style: _f(size: 17, weight: FontWeight.w700)),
             ),
-            _sheetTile(Icons.photo_camera_rounded, 'Take photo', 'Use your camera', () => Navigator.pop(context, ImageSource.camera)),
-            const SizedBox(height: 4),
-            _sheetTile(Icons.photo_library_rounded, 'Choose from gallery', 'Pick a saved image', () => Navigator.pop(context, ImageSource.gallery)),
+            const SizedBox(height: 16),
+            _sheetTile('assets/icons/camera-icon.svg', 'Take a photo', 'Capture with your camera',
+                () => Navigator.pop(context, ImageSource.camera)),
+            const SizedBox(height: 10),
+            _sheetTile('assets/icons/gallery-icon.svg', 'Choose from gallery', 'Pick a saved image',
+                () => Navigator.pop(context, ImageSource.gallery)),
           ]),
         ),
       ),
@@ -100,12 +107,14 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
       final file = File(picked.path);
       final size = await file.length();
       if (size > _maxBytes) {
-        AppSnackbar.error(context, 'File must be 5MB or smaller');
+        AppSnackbar.show(context, type: AppSnackbarType.error,
+          title: 'File too large', message: 'Please choose an image 5MB or smaller.');
         return;
       }
       final ext = picked.path.split('.').last.toLowerCase();
       if (!_allowedExt.contains(ext)) {
-        AppSnackbar.error(context, 'Only JPG, PNG, or WEBP images are allowed');
+        AppSnackbar.show(context, type: AppSnackbarType.error,
+          title: 'Unsupported format', message: 'Only JPG, PNG, or WEBP images are allowed.');
         return;
       }
 
@@ -120,40 +129,51 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
     }
   }
 
-  Widget _sheetTile(IconData icon, String label, String subtitle, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
+  Widget _sheetTile(String iconAsset, String label, String subtitle, VoidCallback onTap) {
+    return Material(
+      color: Colors.white,
       borderRadius: BorderRadius.circular(14),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-        child: Row(children: [
-          Container(
-            width: 44, height: 44,
-            decoration: BoxDecoration(
-              color: AppColors.primarySoft,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: AppColors.primary, size: 22),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _cardBorder),
           ),
-          const SizedBox(width: 14),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(label, style: _f(size: 14.5, weight: FontWeight.w600)),
-            const SizedBox(height: 2),
-            Text(subtitle, style: _f(size: 12, color: AppColors.textTertiary)),
-          ])),
-          const Icon(Icons.chevron_right_rounded, color: AppColors.textTertiary),
-        ]),
+          child: Row(children: [
+            Container(
+              width: 42, height: 42,
+              decoration: BoxDecoration(color: _orangeSoft, borderRadius: BorderRadius.circular(12)),
+              alignment: Alignment.center,
+              child: SvgPicture.asset(iconAsset, width: 20, height: 20,
+                  colorFilter: const ColorFilter.mode(_orange, BlendMode.srcIn)),
+            ),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(label, style: _f(size: 14.5, weight: FontWeight.w700)),
+              const SizedBox(height: 2),
+              Text(subtitle, style: _f(size: 12, color: _muted)),
+            ])),
+            SvgPicture.asset('assets/icons/chevron-right-icon.svg', width: 18, height: 18,
+                colorFilter: const ColorFilter.mode(_muted, BlendMode.srcIn)),
+          ]),
+        ),
       ),
     );
   }
 
   Future<void> _submit() async {
     if (_idFrontPath == null) {
-      AppSnackbar.error(context, 'Please upload the front of your ID');
+      AppSnackbar.show(context, type: AppSnackbarType.warning,
+        title: 'Front of ID required', message: 'Please upload the front side of your ID first.');
       return;
     }
     if (_idBackPath == null) {
-      AppSnackbar.error(context, 'Please upload the back of your ID');
+      AppSnackbar.show(context, type: AppSnackbarType.warning,
+        title: 'Back of ID required', message: 'Please upload the back side of your ID first.');
       return;
     }
     setState(() => _submitting = true);
@@ -171,26 +191,30 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
         _idFrontPath = null;
         _idBackPath = null;
       });
-      AppSnackbar.success(context, 'Verification submitted for review');
+      AppSnackbar.show(context, type: AppSnackbarType.success,
+        title: 'Submitted for review',
+        message: 'We\u2019ll get back to you within 1-3 business days.');
     } else {
       final errors = (res['data'] is Map) ? (res['data']['errors'] as Map?) : null;
       final firstErr = errors?.values.first?.toString();
-      AppSnackbar.error(context, firstErr ?? res['message']?.toString() ?? 'Submission failed');
+      AppSnackbar.show(context, type: AppSnackbarType.error,
+        title: 'Submission failed',
+        message: firstErr ?? res['message']?.toString() ?? 'Please try again in a moment.');
     }
   }
 
-  TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = AppColors.textPrimary, double height = 1.3}) =>
-      GoogleFonts.plusJakartaSans(fontSize: size, fontWeight: weight, color: color, height: height);
+  TextStyle _f({required double size, FontWeight weight = FontWeight.w500, Color color = _navy, double height = 1.3, double letterSpacing = 0}) =>
+      GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color, height: height, letterSpacing: letterSpacing);
 
   bool get _canEdit => _status == 'unverified' || _status == 'rejected';
 
   int get _completedCount {
+    if (!_canEdit) return 2;
     int c = 0;
     if (_idFrontPath != null) c++;
     if (_idBackPath != null) c++;
     return c;
   }
-  int get _requiredTotal => 2;
 
   @override
   Widget build(BuildContext context) {
@@ -198,9 +222,9 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
       backgroundColor: AppColors.background,
       appBar: NuruSubPageAppBar(title: context.tr('identity_verification')),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primary))
+          ? _skeleton()
           : ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
               children: [
                 _heroCard(),
                 if (_status == 'rejected' && (_rejectionReason ?? '').isNotEmpty) ...[
@@ -213,324 +237,321 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
                       border: Border.all(color: AppColors.error.withOpacity(0.18)),
                     ),
                     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Icon(Icons.info_outline_rounded, size: 16, color: AppColors.error),
+                      SvgPicture.asset('assets/icons/info-icon.svg', width: 16, height: 16,
+                          colorFilter: ColorFilter.mode(AppColors.error, BlendMode.srcIn)),
                       const SizedBox(width: 10),
-                      Expanded(child: Text(
-                        _rejectionReason!,
-                        style: _f(size: 12.5, color: AppColors.error, height: 1.4),
-                      )),
+                      Expanded(child: Text(_rejectionReason!,
+                        style: _f(size: 12.5, color: AppColors.error, height: 1.4))),
                     ]),
                   ),
                 ],
                 if (_canEdit) ...[
                   const SizedBox(height: 22),
-                  _sectionHeader('ID document', 'Required', required: true),
-                  const SizedBox(height: 10),
+                  _uploadHeader(),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Please provide clear, unedited images of both sides of your ID.',
+                    style: _f(size: 12.5, color: _muted, height: 1.45),
+                  ),
+                  const SizedBox(height: 14),
                   Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Expanded(child: _uploadCard('Front of ID', _idFrontPath, true, () => _pickFor(_Slot.idFront))),
+                    Expanded(child: _uploadCard(
+                      label: 'Front of ID',
+                      hint: 'Upload a clear photo of\nthe front side of your ID.',
+                      illustration: 'assets/icons/id-front-icon.svg',
+                      path: _idFrontPath,
+                      onTap: () => _pickFor(_Slot.idFront),
+                    )),
                     const SizedBox(width: 12),
-                    Expanded(child: _uploadCard('Back of ID', _idBackPath, true, () => _pickFor(_Slot.idBack))),
+                    Expanded(child: _uploadCard(
+                      label: 'Back of ID',
+                      hint: 'Upload a clear photo of\nthe back side of your ID.',
+                      illustration: 'assets/icons/id-back-icon.svg',
+                      path: _idBackPath,
+                      onTap: () => _pickFor(_Slot.idBack),
+                    )),
                   ]),
-
                   const SizedBox(height: 18),
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.borderLight),
-                    ),
-                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Container(
-                        width: 32, height: 32,
-                        decoration: BoxDecoration(
-                          color: AppColors.success.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(9),
-                        ),
-                        child: const Icon(Icons.lock_rounded, size: 16, color: AppColors.success),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('End-to-end encrypted', style: _f(size: 13, weight: FontWeight.w700)),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Documents are used only for verification and reviewed within 1-3 business days.',
-                          style: _f(size: 11.5, color: AppColors.textSecondary, height: 1.45),
-                        ),
-                      ])),
-                    ]),
-                  ),
-
-                  const SizedBox(height: 22),
-                  SizedBox(
-                    width: double.infinity, height: 54,
-                    child: ElevatedButton(
-                      onPressed: (_submitting || _idFrontPath == null || _idBackPath == null) ? null : _submit,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor: AppColors.primary.withOpacity(0.35),
-                        disabledForegroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        elevation: 0,
-                      ),
-                      child: _submitting
-                          ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.4))
-                          : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                              Text('Submit for verification', style: _f(size: 15, weight: FontWeight.w700, color: Colors.white)),
-                              const SizedBox(width: 8),
-                              const Icon(Icons.arrow_forward_rounded, size: 18, color: Colors.white),
-                            ]),
-                    ),
-                  ),
+                  _secureCard(),
+                  const SizedBox(height: 18),
+                  _submitButton(),
                 ],
               ],
             ),
     );
   }
 
+  // ── HERO ─────────────────────────────────────────────────────────────
   Widget _heroCard() {
-    final isVerified = _status == 'verified';
-    final isPending = _status == 'pending';
-    final isRejected = _status == 'rejected';
-
-    final bg = isVerified
-        ? const LinearGradient(colors: [Color(0xFF0E2A18), Color(0xFF134A26)], begin: Alignment.topLeft, end: Alignment.bottomRight)
-        : isPending
-            ? const LinearGradient(colors: [Color(0xFF2A1F08), Color(0xFF4A360E)], begin: Alignment.topLeft, end: Alignment.bottomRight)
-            : isRejected
-                ? const LinearGradient(colors: [Color(0xFF2A0E0E), Color(0xFF4A1818)], begin: Alignment.topLeft, end: Alignment.bottomRight)
-                : const LinearGradient(colors: [Color(0xFF0A1C40), Color(0xFF12284F)], begin: Alignment.topLeft, end: Alignment.bottomRight);
-
-    final accent = isVerified
-        ? AppColors.accent
-        : isPending
-            ? AppColors.primary
-            : isRejected
-                ? AppColors.error
-                : AppColors.primary;
-
     return Container(
       decoration: BoxDecoration(
-        gradient: bg,
-        borderRadius: BorderRadius.circular(20),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _cardBorder),
       ),
-      child: Stack(children: [
-        Positioned(
-          right: -30, top: -30,
-          child: Container(
-            width: 160, height: 160,
-            decoration: BoxDecoration(
-              color: accent.withOpacity(0.08),
-              shape: BoxShape.circle,
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        IntrinsicHeight(
+          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            // shield icon chip
+            Container(
+              width: 52, height: 52,
+              decoration: BoxDecoration(color: _orangeSoft, shape: BoxShape.circle),
+              alignment: Alignment.center,
+              child: SvgPicture.asset('assets/icons/verified-icon.svg', width: 26, height: 26,
+                  colorFilter: const ColorFilter.mode(_orange, BlendMode.srcIn)),
             ),
-          ),
-        ),
-        Positioned(
-          right: 30, bottom: -50,
-          child: Container(
-            width: 120, height: 120,
-            decoration: BoxDecoration(
-              color: accent.withOpacity(0.06),
-              shape: BoxShape.circle,
-            ),
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: accent.withOpacity(0.18),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: accent.withOpacity(0.35), width: 0.8),
-                ),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(_statusIcon, size: 12, color: accent),
-                  const SizedBox(width: 6),
-                  Text(_statusTitle.toUpperCase(),
-                      style: _f(size: 10, weight: FontWeight.w700, color: accent, height: 1)),
+            const SizedBox(width: 14),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+              Text(_heroTitle, style: _f(size: 17, weight: FontWeight.w700)),
+              const SizedBox(height: 4),
+              Text(_heroDesc, style: _f(size: 12.5, color: _muted, height: 1.5)),
+            ])),
+            const SizedBox(width: 12),
+            Container(width: 1, color: _cardBorder),
+            const SizedBox(width: 12),
+            Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.center, children: [
+              RichText(
+                text: TextSpan(children: [
+                  TextSpan(text: '$_completedCount ',
+                    style: _f(size: 28, weight: FontWeight.w800, height: 1)),
+                  TextSpan(text: 'of 2',
+                    style: _f(size: 13, color: _muted, height: 1)),
                 ]),
               ),
-              const Spacer(),
-              if (_canEdit)
-                Text('${_completedCount}/$_requiredTotal uploaded',
-                    style: _f(size: 11, weight: FontWeight.w600, color: Colors.white.withOpacity(0.7))),
+              const SizedBox(height: 4),
+              Text('uploaded', style: _f(size: 11.5, color: _muted)),
             ]),
-            const SizedBox(height: 18),
-            Text(
-              isVerified ? 'You\u2019re verified' : isPending ? 'Under review' : isRejected ? 'Verification rejected' : 'Verify your identity',
-              style: _f(size: 24, weight: FontWeight.w700, color: Colors.white, height: 1.15),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _statusDesc,
-              style: _f(size: 13, color: Colors.white.withOpacity(0.78), height: 1.5),
-            ),
-            if (_canEdit) ...[
-              const SizedBox(height: 16),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: LinearProgressIndicator(
-                  value: _completedCount / _requiredTotal,
-                  minHeight: 6,
-                  backgroundColor: Colors.white.withOpacity(0.12),
-                  valueColor: AlwaysStoppedAnimation<Color>(accent),
-                ),
-              ),
-            ],
           ]),
+        ),
+        if (_canEdit) ...[
+          const SizedBox(height: 18),
+          Divider(height: 1, color: _cardBorder),
+          const SizedBox(height: 14),
+          _stepper(),
+        ],
+      ]),
+    );
+  }
+
+  Widget _stepper() {
+    final s1Done = _idFrontPath != null;
+    final s2Done = _idBackPath != null;
+    final s2Active = s1Done;
+    return Row(children: [
+      _step(index: 1, label: 'Front of ID', done: s1Done, active: true),
+      Expanded(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: CustomPaint(
+            painter: _DashPainter(color: _cardBorder),
+            size: const Size(double.infinity, 1),
+          ),
+        ),
+      ),
+      _step(index: 2, label: 'Back of ID', done: s2Done, active: s2Active),
+    ]);
+  }
+
+  Widget _step({required int index, required String label, required bool done, required bool active}) {
+    final fillColor = done ? _green : (active ? Colors.white : Colors.white);
+    final borderColor = done ? _green : (active ? _navy : _cardBorder);
+    final textColor = done ? Colors.white : (active ? _navy : _muted);
+    return Column(mainAxisSize: MainAxisSize.min, children: [
+      Container(
+        width: 28, height: 28,
+        decoration: BoxDecoration(
+          color: fillColor,
+          shape: BoxShape.circle,
+          border: Border.all(color: borderColor, width: 1.4),
+        ),
+        alignment: Alignment.center,
+        child: done
+            ? SvgPicture.asset('assets/icons/check-icon.svg', width: 14, height: 14,
+                colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn))
+            : Text('$index', style: _f(size: 12, weight: FontWeight.w700, color: textColor, height: 1)),
+      ),
+      const SizedBox(height: 6),
+      Text(label, style: _f(size: 11.5, weight: FontWeight.w600, color: active ? _navy : _muted)),
+    ]);
+  }
+
+  // ── UPLOAD SECTION ───────────────────────────────────────────────────
+  Widget _uploadHeader() {
+    return Row(children: [
+      Text('Upload your ID', style: _f(size: 16, weight: FontWeight.w700)),
+      const SizedBox(width: 8),
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        decoration: BoxDecoration(color: _orangeSoft, borderRadius: BorderRadius.circular(20)),
+        child: Text('REQUIRED',
+          style: _f(size: 9.5, weight: FontWeight.w800, color: _orange, height: 1, letterSpacing: 0.7)),
+      ),
+    ]);
+  }
+
+  Widget _uploadCard({
+    required String label,
+    required String hint,
+    required String illustration,
+    required String? path,
+    required VoidCallback onTap,
+  }) {
+    final hasFile = path != null;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: hasFile ? _orange : _cardBorder, width: hasFile ? 1.4 : 1),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // Illustration with upload bubble
+        SizedBox(
+          height: 70,
+          child: Stack(clipBehavior: Clip.none, children: [
+            Align(
+              alignment: Alignment.center,
+              child: hasFile
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Image.file(File(path), width: 84, height: 60, fit: BoxFit.cover))
+                  : SvgPicture.asset(illustration, width: 84, height: 60,
+                      colorFilter: const ColorFilter.mode(_navy, BlendMode.srcIn)),
+            ),
+            Positioned(
+              right: 12, top: 6,
+              child: Container(
+                width: 28, height: 28,
+                decoration: BoxDecoration(color: _orange, shape: BoxShape.circle),
+                alignment: Alignment.center,
+                child: SvgPicture.asset(
+                    hasFile ? 'assets/icons/check-icon.svg' : 'assets/icons/upload-icon.svg',
+                    width: 14, height: 14,
+                    colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn)),
+              ),
+            ),
+          ]),
+        ),
+        const SizedBox(height: 12),
+        Center(child: Text(label, style: _f(size: 14.5, weight: FontWeight.w800))),
+        const SizedBox(height: 6),
+        Text(hint, textAlign: TextAlign.center,
+          style: _f(size: 11.5, color: _muted, height: 1.45)),
+        const SizedBox(height: 12),
+        // Dashed divider
+        SizedBox(
+          height: 1,
+          child: CustomPaint(painter: _DashPainter(color: _cardBorder), size: const Size(double.infinity, 1)),
+        ),
+        const SizedBox(height: 10),
+        Center(
+          child: Text('JPG, PNG, WEBP  •  Max 5MB',
+            style: _f(size: 10.5, color: _muted, letterSpacing: 0.2)),
+        ),
+        const SizedBox(height: 10),
+        // Choose file button
+        Material(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: _cardBorder),
+              ),
+              alignment: Alignment.center,
+              child: Row(mainAxisAlignment: MainAxisAlignment.center, mainAxisSize: MainAxisSize.min, children: [
+                SvgPicture.asset(
+                    hasFile ? 'assets/icons/upload-icon.svg' : 'assets/icons/plus-icon.svg',
+                    width: 14, height: 14,
+                    colorFilter: const ColorFilter.mode(_navy, BlendMode.srcIn)),
+                const SizedBox(width: 6),
+                Text(hasFile ? 'Replace' : 'Choose file',
+                  style: _f(size: 12.5, weight: FontWeight.w700)),
+              ]),
+            ),
+          ),
         ),
       ]),
     );
   }
 
-  Widget _sectionHeader(String title, String tag, {required bool required}) {
-    return Row(children: [
-      Text(title, style: _f(size: 14.5, weight: FontWeight.w700)),
-      const SizedBox(width: 8),
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-        decoration: BoxDecoration(
-          color: required ? AppColors.error.withOpacity(0.08) : AppColors.borderLight,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Text(
-          tag.toUpperCase(),
-          style: _f(size: 9.5, weight: FontWeight.w700, color: required ? AppColors.error : AppColors.textTertiary, height: 1),
-        ),
+  // ── SECURE CARD ──────────────────────────────────────────────────────
+  Widget _secureCard() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: _cardBorder),
       ),
-    ]);
+      child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+        Container(
+          width: 40, height: 40,
+          decoration: BoxDecoration(color: _greenSoft, shape: BoxShape.circle),
+          alignment: Alignment.center,
+          child: SvgPicture.asset('assets/icons/lock-icon.svg', width: 20, height: 20,
+              colorFilter: const ColorFilter.mode(_green, BlendMode.srcIn)),
+        ),
+        const SizedBox(width: 12),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          Text('Your data is secure', style: _f(size: 13.5, weight: FontWeight.w700)),
+          const SizedBox(height: 3),
+          Text(
+            'End-to-end encrypted. Documents are used only for verification and reviewed within 1-3 business days.',
+            style: _f(size: 11.5, color: _muted, height: 1.5),
+          ),
+        ])),
+        const SizedBox(width: 8),
+        SvgPicture.asset('assets/icons/secure-shield-icon.svg', width: 22, height: 22,
+            colorFilter: const ColorFilter.mode(_navy, BlendMode.srcIn)),
+      ]),
+    );
   }
 
-  Widget _uploadCard(String label, String? path, bool required, VoidCallback onTap, {bool tall = false}) {
-    final h = tall ? 200.0 : 150.0;
-    final hasFile = path != null;
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        height: h,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: hasFile ? AppColors.primary : AppColors.borderLight,
-            width: hasFile ? 1.5 : 1,
-          ),
-          boxShadow: hasFile
-              ? [BoxShadow(color: AppColors.primary.withOpacity(0.10), blurRadius: 12, offset: const Offset(0, 3))]
-              : [const BoxShadow(color: Color(0x06000000), blurRadius: 8, offset: Offset(0, 1))],
+  // ── SUBMIT BUTTON ────────────────────────────────────────────────────
+  Widget _submitButton() {
+    final ready = !_submitting && _idFrontPath != null && _idBackPath != null;
+    return SizedBox(
+      width: double.infinity, height: 56,
+      child: ElevatedButton(
+        onPressed: ready ? _submit : null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: _navy,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: _navySoft.withOpacity(0.6),
+          disabledForegroundColor: Colors.white.withOpacity(0.85),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          elevation: 0,
         ),
-        clipBehavior: Clip.antiAlias,
-        child: hasFile
-            ? Stack(fit: StackFit.expand, children: [
-                Image.file(File(path), fit: BoxFit.cover),
-                Positioned.fill(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [Colors.transparent, Colors.black.withOpacity(0.55)],
-                        stops: const [0.55, 1.0],
-                      ),
-                    ),
-                  ),
-                ),
-                Positioned(
-                  top: 8, right: 8,
-                  child: Row(children: [
-                    GestureDetector(
-                      onTap: onTap,
-                      child: Container(
-                        width: 30, height: 30,
-                        decoration: BoxDecoration(color: Colors.black.withOpacity(0.55), shape: BoxShape.circle),
-                        child: const Icon(Icons.refresh_rounded, size: 16, color: Colors.white),
-                      ),
-                    ),
-                    const SizedBox(width: 6),
-                    GestureDetector(
-                      onTap: () => setState(() {
-                        if (path == _idFrontPath) _idFrontPath = null;
-                        else if (path == _idBackPath) _idBackPath = null;
-                      }),
-                      child: Container(
-                        width: 30, height: 30,
-                        decoration: BoxDecoration(color: Colors.black.withOpacity(0.55), shape: BoxShape.circle),
-                        child: const Icon(Icons.close_rounded, size: 16, color: Colors.white),
-                      ),
-                    ),
-                  ]),
-                ),
-                Positioned(
-                  top: 8, left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: AppColors.success,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      const Icon(Icons.check_rounded, size: 12, color: Colors.white),
-                      const SizedBox(width: 3),
-                      Text('Uploaded', style: _f(size: 10, weight: FontWeight.w700, color: Colors.white, height: 1)),
-                    ]),
-                  ),
-                ),
-                Positioned(
-                  bottom: 10, left: 12, right: 12,
-                  child: Text(label, style: _f(size: 12, weight: FontWeight.w600, color: Colors.white)),
-                ),
-              ])
-            : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Container(
-                  width: 52, height: 52,
-                  decoration: BoxDecoration(
-                    color: AppColors.primarySoft,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(Icons.cloud_upload_rounded, size: 24, color: AppColors.primary),
-                ),
-                const SizedBox(height: 12),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Text(
-                    label,
-                    style: _f(size: 12.5, weight: FontWeight.w600, color: AppColors.textPrimary),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text('Tap to upload', style: _f(size: 11, weight: FontWeight.w500, color: AppColors.primary)),
-                const SizedBox(height: 4),
-                Text('JPG · PNG · WEBP · 5MB', style: _f(size: 9.5, color: AppColors.textHint)),
+        child: _submitting
+            ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.4))
+            : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                SvgPicture.asset('assets/icons/lock-icon.svg', width: 16, height: 16,
+                    colorFilter: const ColorFilter.mode(_orange, BlendMode.srcIn)),
+                const SizedBox(width: 10),
+                Text('Submit for verification',
+                  style: _f(size: 15, weight: FontWeight.w700, color: Colors.white)),
               ]),
       ),
     );
   }
 
-  IconData get _statusIcon {
+  String get _heroTitle {
     switch (_status) {
-      case 'verified': return Icons.verified_rounded;
-      case 'pending': return Icons.hourglass_top_rounded;
-      case 'rejected': return Icons.error_outline_rounded;
-      default: return Icons.shield_outlined;
+      case 'verified': return 'You\u2019re verified';
+      case 'pending': return 'Under review';
+      case 'rejected': return 'Verification rejected';
+      default: return 'Verify your identity';
     }
   }
 
-  String get _statusTitle {
-    switch (_status) {
-      case 'verified': return 'Verified';
-      case 'pending': return 'Pending';
-      case 'rejected': return 'Action needed';
-      default: return 'Not verified';
-    }
-  }
-
-  String get _statusDesc {
+  String get _heroDesc {
     switch (_status) {
       case 'verified': return 'Your identity has been confirmed. You now have full access to trusted features.';
       case 'pending': return 'Our team is reviewing your documents. This typically takes 1-3 business days.';
@@ -538,4 +559,150 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
       default: return 'Confirm your identity to build trust, unlock advanced features, and access higher limits.';
     }
   }
+
+  // ── SKELETON LOADER ──────────────────────────────────────────────────
+  Widget _skeleton() {
+    Widget bar({double w = double.infinity, double h = 12, double r = 6}) => Container(
+          width: w, height: h,
+          decoration: BoxDecoration(color: _cardBorder, borderRadius: BorderRadius.circular(r)),
+        );
+    Widget uploadSkel() => Container(
+          padding: const EdgeInsets.fromLTRB(14, 16, 14, 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: _cardBorder),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            SizedBox(
+              height: 70,
+              child: Stack(clipBehavior: Clip.none, children: [
+                Align(alignment: Alignment.center, child: bar(w: 84, h: 60, r: 10)),
+                Positioned(
+                  right: 12, top: 6,
+                  child: Container(width: 28, height: 28,
+                    decoration: BoxDecoration(color: _cardBorder, shape: BoxShape.circle)),
+                ),
+              ]),
+            ),
+            const SizedBox(height: 14),
+            bar(w: 90, h: 12),
+            const SizedBox(height: 8),
+            bar(w: 140, h: 10),
+            const SizedBox(height: 4),
+            bar(w: 110, h: 10),
+            const SizedBox(height: 14),
+            bar(h: 1, r: 0),
+            const SizedBox(height: 10),
+            bar(w: 130, h: 9),
+            const SizedBox(height: 12),
+            bar(h: 40, r: 12),
+          ]),
+        );
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+      children: [
+        // Hero skeleton
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: _cardBorder),
+          ),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Container(width: 52, height: 52,
+                decoration: BoxDecoration(color: _cardBorder, shape: BoxShape.circle)),
+              const SizedBox(width: 14),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                bar(w: 170, h: 14),
+                const SizedBox(height: 8),
+                bar(w: double.infinity, h: 10),
+                const SizedBox(height: 4),
+                bar(w: 220, h: 10),
+              ])),
+              const SizedBox(width: 12),
+              Container(width: 1, height: 44, color: _cardBorder),
+              const SizedBox(width: 12),
+              Column(children: [
+                bar(w: 44, h: 22),
+                const SizedBox(height: 6),
+                bar(w: 50, h: 10),
+              ]),
+            ]),
+            const SizedBox(height: 18),
+            Divider(height: 1, color: _cardBorder),
+            const SizedBox(height: 14),
+            Row(children: [
+              Column(children: [
+                Container(width: 28, height: 28,
+                  decoration: BoxDecoration(color: _cardBorder, shape: BoxShape.circle)),
+                const SizedBox(height: 6),
+                bar(w: 60, h: 10),
+              ]),
+              const SizedBox(width: 8),
+              Expanded(child: bar(h: 1, r: 0)),
+              const SizedBox(width: 8),
+              Column(children: [
+                Container(width: 28, height: 28,
+                  decoration: BoxDecoration(color: _cardBorder, shape: BoxShape.circle)),
+                const SizedBox(height: 6),
+                bar(w: 60, h: 10),
+              ]),
+            ]),
+          ]),
+        ),
+        const SizedBox(height: 22),
+        bar(w: 140, h: 14),
+        const SizedBox(height: 10),
+        bar(w: 260, h: 10),
+        const SizedBox(height: 14),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: uploadSkel()),
+          const SizedBox(width: 12),
+          Expanded(child: uploadSkel()),
+        ]),
+        const SizedBox(height: 18),
+        Container(
+          height: 70,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: _cardBorder),
+          ),
+        ),
+        const SizedBox(height: 18),
+        bar(h: 56, r: 16),
+      ]
+        .map((w) => Padding(padding: EdgeInsets.zero, child: w))
+        .toList(),
+    );
+  }
+}
+
+
+/// Dashed horizontal line painter used in the stepper connector and the
+/// dotted divider inside each upload card.
+class _DashPainter extends CustomPainter {
+  final Color color;
+  _DashPainter({required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1
+      ..strokeCap = StrokeCap.round;
+    const dash = 4.0, gap = 4.0;
+    double x = 0;
+    final y = size.height / 2;
+    while (x < size.width) {
+      canvas.drawLine(Offset(x, y), Offset(x + dash, y), paint);
+      x += dash + gap;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _DashPainter oldDelegate) => oldDelegate.color != color;
 }

@@ -1636,6 +1636,12 @@ async def create_event(
                 if provider_user.phone:
                     try:
                         from utils.whatsapp import wa_booking_notification
+                        try:
+                            from utils.wa_logging import set_wa_log_context
+                            set_wa_log_context(event_id=str(new_event.id), event_name=new_event.name,
+                                               source_module="event_create", purpose="booking_request",
+                                               recipient_type="vendor")
+                        except Exception: pass
                         wa_booking_notification(provider_user.phone, provider_user.first_name, new_event.name, organizer_name, service_name, lang=lang)
                     except Exception:
                         pass
@@ -2368,6 +2374,14 @@ def add_guest(event_id: str, body: dict = Body(...), db: Session = Depends(get_d
                 event, db=db,
                 fallback=f"{current_user.first_name} {current_user.last_name}".strip(),
             )
+            try:
+                from utils.wa_logging import set_wa_log_context
+                set_wa_log_context(event_id=str(event.id), event_name=event.name,
+                                   source_module="event_guests", purpose="invitation_card",
+                                   recipient_type="contributor",
+                                   related_entity_type="event_attendee",
+                                   related_entity_id=str(att.id))
+            except Exception: pass
             sms_guest_added(contributor.phone, contributor.name.split(" ")[0], event.name, event_date, organizer_name, invitation.invitation_code)
             wa_send_invitation_card(contributor.phone, str(event.id), str(invitation.id), contributor.name, event.name, event_date, organizer_name, invitation.invitation_code, getattr(event, "cover_image_url", None) or "", event_time=getattr(event, "start_time", None).isoformat() if getattr(event, "start_time", None) else "", venue=getattr(event, "location", None) or "")
 
@@ -2485,6 +2499,14 @@ def add_guest(event_id: str, body: dict = Body(...), db: Session = Depends(get_d
                 event, db=db,
                 fallback=f"{current_user.first_name} {current_user.last_name}".strip(),
             )
+            try:
+                from utils.wa_logging import set_wa_log_context
+                set_wa_log_context(event_id=str(event.id), event_name=event.name,
+                                   source_module="event_guests", purpose="invitation_card",
+                                   recipient_type="user",
+                                   related_entity_type="event_attendee",
+                                   related_entity_id=str(att.id))
+            except Exception: pass
             sms_guest_added(attendee_user.phone, f"{attendee_user.first_name}", event.name, event_date, organizer_name, invitation.invitation_code)
             guest_full_name = f"{attendee_user.first_name or ''} {attendee_user.last_name or ''}".strip() or f"{attendee_user.first_name}"
             wa_send_invitation_card(attendee_user.phone, str(event.id), str(invitation.id), guest_full_name, event.name, event_date, organizer_name, invitation.invitation_code, getattr(event, "cover_image_url", None) or "", event_time=getattr(event, "start_time", None).isoformat() if getattr(event, "start_time", None) else "", venue=getattr(event, "location", None) or "")
@@ -2662,6 +2684,14 @@ def add_contributors_as_guests(event_id: str, body: dict = Body(...), db: Sessio
                 event, db=db,
                 fallback=f"{current_user.first_name} {current_user.last_name}".strip(),
             )
+            try:
+                from utils.wa_logging import set_wa_log_context
+                set_wa_log_context(event_id=str(event.id), event_name=event.name,
+                                   source_module="event_guests_bulk", purpose="invitation_card",
+                                   recipient_type="contributor",
+                                   related_entity_type="event_attendee",
+                                   related_entity_id=str(att.id))
+            except Exception: pass
             try:
                 sms_guest_added(contributor.phone, contributor.name.split(" ")[0], event.name, event_date, organizer_name, invitation.invitation_code)
                 wa_send_invitation_card(contributor.phone, str(event.id), str(invitation.id), contributor.name, event.name, event_date, organizer_name, invitation.invitation_code, getattr(event, "cover_image_url", None) or "", event_time=getattr(event, "start_time", None).isoformat() if getattr(event, "start_time", None) else "", venue=getattr(event, "location", None) or "")
@@ -2854,6 +2884,14 @@ def send_invitation(event_id: str, guest_id: str, body: dict = Body(default={}),
     first_name = guest_name.split(" ")[0] if guest_name else "Guest"
     delivered = False
     try:
+        try:
+            from utils.wa_logging import set_wa_log_context
+            set_wa_log_context(event_id=str(event.id), event_name=event.name,
+                               source_module="send_invitation", purpose="invitation_card",
+                               recipient_type="guest",
+                               related_entity_type="event_invitation",
+                               related_entity_id=str(invitation.id))
+        except Exception: pass
         if method == "whatsapp" and guest_phone:
             wa_send_invitation_card(guest_phone, str(event.id), str(invitation.id), guest_name, event.name or "your event", event_date_str, organizer_name, invitation.invitation_code or "", event_cover_image, event_time=getattr(event, "start_time", None).isoformat() if getattr(event, "start_time", None) else "", venue=getattr(event, "location", None) or "")
             delivered = True
@@ -4341,6 +4379,12 @@ def add_event_service(event_id: str, body: dict = Body(...), db: Session = Depen
                 if provider_user.phone:
                     try:
                         from utils.whatsapp import wa_booking_notification
+                        try:
+                            from utils.wa_logging import set_wa_log_context
+                            set_wa_log_context(event_id=str(event.id), event_name=event.name,
+                                               source_module="event_services", purpose="booking_request",
+                                               recipient_type="vendor")
+                        except Exception: pass
                         wa_booking_notification(provider_user.phone, provider_user.first_name, event.name, organizer_name, service_name, lang=lang)
                     except Exception:
                         pass

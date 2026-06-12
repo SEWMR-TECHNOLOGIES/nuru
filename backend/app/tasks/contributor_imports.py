@@ -350,6 +350,12 @@ def process_contributor_import_job(self, job_id: str) -> Dict[str, Any]:
                 from utils.payment_instructions import resolve_payment_instructions
                 from utils.sms import sms_contribution_recorded, sms_contribution_target_set, sms_contribution_target_updated
                 from utils.whatsapp import wa_contribution_recorded, wa_contribution_target_set, wa_contribution_target_updated
+                try:
+                    from utils.wa_logging import set_wa_log_context
+                    set_wa_log_context(event_id=str(event.id), event_name=event.name,
+                                       source_module="contributor_imports", purpose="contribution_target",
+                                       recipient_type="contributor")
+                except Exception: pass
                 pay_instr = resolve_payment_instructions(event)
                 for item in notifications:
                     ec = item["event_contributor"]

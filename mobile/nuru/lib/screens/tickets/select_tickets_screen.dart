@@ -9,6 +9,7 @@ import '../../core/services/ticketing_service.dart';
 import '../../core/services/wallet_service.dart';
 import '../../core/widgets/nuru_loader.dart';
 import '../wallet/make_payment_screen.dart';
+import '../../core/widgets/app_snackbar.dart';
 
 /// Full-screen ticket selection page (replaces the old bottom sheet).
 /// Mirrors the "Select Tickets" mockup: header with back + Secure Checkout,
@@ -160,6 +161,12 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
             .join(' · ')
         : '$_totalQty ticket${_totalQty > 1 ? "s" : ""} • ${widget.eventName}';
 
+    // Reserve flow — supported only for single-class single-line carts
+    // (mirrors what the backend's /ticketing/reserve route accepts).
+    final canReserve = items.length == 1;
+    final reserveClassId = canReserve ? items.first['ticket_class_id'] as String : null;
+    final reserveQty = canReserve ? items.first['quantity'] as int : 0;
+
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -176,6 +183,29 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
               .where((s) => s != null && s.toString().trim().isNotEmpty)
               .join(' • '),
           showFee: true,
+          onReserve: canReserve
+              ? () async {
+                  final r = await TicketingService.reserveTicket(
+                    ticketClassId: reserveClassId!,
+                    quantity: reserveQty,
+                  );
+                  if (!mounted) return;
+                  if (r['success'] == true) {
+                    Navigator.pop(context); // close MakePayment
+                    Navigator.pop(context); // close SelectTickets
+                    AppSnackbar.show(context,
+                      type: AppSnackbarType.success,
+                      title: 'Ticket reserved',
+                      message:
+                          'Find it in My Tickets and pay before the hold expires.');
+                  } else {
+                    AppSnackbar.show(context,
+                      type: AppSnackbarType.error,
+                      title: 'Unable to reserve',
+                      message: r['message']?.toString() ?? 'Please try again in a moment.');
+                  }
+                }
+              : null,
           onSuccess: (_) {
             if (mounted) {
               Navigator.pop(context);
@@ -190,6 +220,7 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
     );
   }
 
+
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -201,7 +232,7 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
         backgroundColor: const Color(0xFFFAFAFA),
         appBar: _appBar(),
         body: _loading
-            ? const Center(child: NuruLoader(size: 42))
+            ? const _SelectTicketsSkeleton()
             : Column(
                 children: [
                   Expanded(
@@ -556,4 +587,159 @@ class _SelectTicketsScreenState extends State<SelectTicketsScreen> {
   String _weekday(int wd) => const ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'][wd - 1];
 
   String _fmt(num n) => n.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]},');
+}
+
+// ─── Skeleton mirroring the real Select Tickets layout ───────────────
+class _SelectTicketsSkeleton extends StatefulWidget {
+  const _SelectTicketsSkeleton();
+
+  @override
+  State<_SelectTicketsSkeleton> createState() => _SelectTicketsSkeletonState();
+}
+
+class _SelectTicketsSkeletonState extends State<_SelectTicketsSkeleton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl =
+      AnimationController(vsync: this, duration: const Duration(milliseconds: 1100))
+        ..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Widget _box(double w, double h, {double r = 6}) {
+    return AnimatedBuilder(
+      animation: _ctrl,
+      builder: (_, __) => Container(
+        width: w,
+        height: h,
+        decoration: BoxDecoration(
+          color: Color.lerp(
+              const Color(0xFFEDEEF1), const Color(0xFFF6F7F9), _ctrl.value)!,
+          borderRadius: BorderRadius.circular(r),
+        ),
+      ),
+    );
+  }
+
+  Widget _card({required Widget child}) => Container(
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          border: Border.all(color: AppColors.borderLight),
+          borderRadius: BorderRadius.circular(18),
+          boxShadow: AppColors.cardShadow,
+        ),
+        child: child,
+      );
+
+  Widget _ticketRow() => Padding(
+        padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _box(120, 14),
+                  const SizedBox(height: 8),
+                  _box(double.infinity, 11),
+                  const SizedBox(height: 6),
+                  _box(80, 14),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            _box(96, 34, r: 10),
+          ],
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            children: [
+              // Event card
+              _card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _box(70, 80, r: 12),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _box(double.infinity, 15),
+                            const SizedBox(height: 8),
+                            _box(60, 16, r: 20),
+                            const SizedBox(height: 10),
+                            _box(140, 11),
+                            const SizedBox(height: 6),
+                            _box(120, 11),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 18),
+              _box(140, 14),
+              const SizedBox(height: 10),
+              _card(
+                child: Column(
+                  children: [
+                    _ticketRow(),
+                    Divider(height: 1, color: AppColors.borderLight),
+                    _ticketRow(),
+                    Divider(height: 1, color: AppColors.borderLight),
+                    _ticketRow(),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              // Order summary
+              _card(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _box(120, 14),
+                      const SizedBox(height: 12),
+                      _box(double.infinity, 11),
+                      const SizedBox(height: 8),
+                      _box(double.infinity, 11),
+                      const SizedBox(height: 12),
+                      Divider(color: AppColors.borderLight, height: 14),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [_box(100, 14), _box(110, 18)],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        // Bottom CTA placeholder
+        SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 14),
+            child: _box(double.infinity, 54, r: 16),
+          ),
+        ),
+      ],
+    );
+  }
 }

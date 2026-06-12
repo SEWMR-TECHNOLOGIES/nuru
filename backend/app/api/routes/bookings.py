@@ -381,6 +381,15 @@ def respond_to_booking(booking_id: str, body: dict = Body(...), db: Session = De
                 if requester and requester.phone:
                     try:
                         from utils.whatsapp import wa_booking_accepted
+                        try:
+                            from utils.wa_logging import set_wa_log_context
+                            set_wa_log_context(event_id=str(b.event_id) if b.event_id else None,
+                                               event_name=event_name,
+                                               source_module="bookings", purpose="booking_accepted",
+                                               recipient_type="user",
+                                               related_entity_type="booking",
+                                               related_entity_id=str(b.id))
+                        except Exception: pass
                         wa_booking_accepted(requester.phone, requester.first_name, f"{current_user.first_name} {current_user.last_name}", service_name, event_name, lang=lang)
                     except Exception:
                         pass

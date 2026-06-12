@@ -2262,7 +2262,7 @@ class _SecuritySectionState extends State<_SecuritySection> {
               decoration: InputDecoration(
                 hintText: '123456',
                 filled: true,
-                fillColor: const Color(0xFFF5F7FA),
+                fillColor: Colors.white,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                   borderSide: BorderSide.none,

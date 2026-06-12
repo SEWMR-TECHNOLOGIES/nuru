@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../../widgets/app_action_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -374,15 +375,20 @@ class MyContributionsTabState extends State<MyContributionsTab>
       case _Sort.amountDesc: label = 'Amount ↓'; break;
       case _Sort.amountAsc: label = 'Amount ↑'; break;
     }
-    return PopupMenuButton<_Sort>(
-      onSelected: (v) => setState(() => _sort = v),
-      itemBuilder: (_) => const [
-        PopupMenuItem(value: _Sort.latest, child: Text('Latest')),
-        PopupMenuItem(value: _Sort.oldest, child: Text('Oldest')),
-        PopupMenuItem(value: _Sort.amountDesc, child: Text('Amount: high to low')),
-        PopupMenuItem(value: _Sort.amountAsc, child: Text('Amount: low to high')),
-      ],
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    return GestureDetector(
+      onTap: () async {
+        final v = await AppActionSheet.show<_Sort>(
+          context: context,
+          title: 'Sort by',
+          actions: [
+            MenuAction(value: _Sort.latest, label: 'Latest', icon: 'time-fast', selected: _sort == _Sort.latest),
+            MenuAction(value: _Sort.oldest, label: 'Oldest', icon: 'time-fast', selected: _sort == _Sort.oldest),
+            MenuAction(value: _Sort.amountDesc, label: 'Amount: high to low', icon: 'money', selected: _sort == _Sort.amountDesc),
+            MenuAction(value: _Sort.amountAsc, label: 'Amount: low to high', icon: 'money', selected: _sort == _Sort.amountAsc),
+          ],
+        );
+        if (v != null) setState(() => _sort = v);
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
         decoration: BoxDecoration(

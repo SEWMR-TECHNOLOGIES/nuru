@@ -26,7 +26,7 @@ class AppColors {
   static const Color blueSoft = Color(0x0A2471E7);
 
   // ─── Surfaces (crisp, no noise) ───
-  static const Color background = Color(0xFFF8F8FA);
+  static const Color background = Color(0xFFFFFFFF);
   static const Color surface = Color(0xFFFFFFFF);
   static const Color surfaceElevated = Color(0xFFFFFFFF);
   static const Color surfaceVariant = Color(0xFFFFFFFF);
@@ -65,7 +65,7 @@ class AppColors {
 
   // ─── Overlay ───
   static const Color overlay = Color(0x40000000);
-  static const Color splashBg = Color(0xFFF8F8FA);
+  static const Color splashBg = Color(0xFFFFFFFF);
 
   // ─── Minimal shadows (use sparingly) ───
   static List<BoxShadow> get subtleShadow => [

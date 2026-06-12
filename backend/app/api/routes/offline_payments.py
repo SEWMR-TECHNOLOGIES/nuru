@@ -229,6 +229,14 @@ def log_offline_payment(
         service_title=service_title, event_name=event.name,
         code=code, minutes=str(OTP_TTL_MINUTES),
     )
+    try:
+        from utils.wa_logging import set_wa_log_context
+        set_wa_log_context(event_id=str(event.id), event_name=event.name,
+                           source_module="offline_payments", purpose="vendor_otp_claim",
+                           recipient_type="vendor",
+                           related_entity_type="offline_payment",
+                           related_entity_id=str(p.id))
+    except Exception: pass
     # WhatsApp uses Meta AUTHENTICATION-category template — code only.
     # SMS fallback keeps the full detailed body unchanged.
     _wa_or_sms("vendor_otp_claim", vendor_user.phone, {
@@ -474,6 +482,15 @@ def confirm_offline_payment(
             balance=f"{float(max(0, remaining or 0)):,.0f}",
         )
         wa_action = "vendor_confirmation_receipt_full" if full else "vendor_confirmation_receipt"
+        try:
+            from utils.wa_logging import set_wa_log_context
+            set_wa_log_context(event_id=str(eid) if 'eid' in dir() else None,
+                               event_name=event_name,
+                               source_module="offline_payments", purpose="vendor_receipt",
+                               recipient_type="user",
+                               related_entity_type="offline_payment",
+                               related_entity_id=str(p.id))
+        except Exception: pass
         _wa_or_sms(wa_action, current_user.phone, {
             "vendor_first_name": vendor_first,
             "amount_text": amt_str,
@@ -647,6 +664,15 @@ def resend_offline_payment_otp(
         )
         # WhatsApp uses Meta AUTHENTICATION-category template — code only.
         # SMS fallback keeps the full detailed resend body unchanged.
+        try:
+            from utils.wa_logging import set_wa_log_context
+            set_wa_log_context(event_id=str(event.id) if event else None,
+                               event_name=getattr(event, "name", None),
+                               source_module="offline_payments", purpose="vendor_otp_resend",
+                               recipient_type="vendor",
+                               related_entity_type="offline_payment",
+                               related_entity_id=str(p.id))
+        except Exception: pass
         _wa_or_sms("vendor_otp_resend", vendor.phone, {
             "otp": code,
             "lang": v_lang,

@@ -286,6 +286,14 @@ def confirm_ticket_offline_claim(
     try:
         if claim.claimant_phone:
             from utils.whatsapp_cards import wa_send_ticket
+            try:
+                from utils.wa_logging import set_wa_log_context
+                set_wa_log_context(event_id=str(event.id), event_name=event.name,
+                                   source_module="ticket_offline_claims", purpose="ticket_receipt",
+                                   recipient_type="external",
+                                   related_entity_type="ticket_claim",
+                                   related_entity_id=str(claim.id))
+            except Exception: pass
             ev_date = ""
             try:
                 if getattr(event, "start_date", None):

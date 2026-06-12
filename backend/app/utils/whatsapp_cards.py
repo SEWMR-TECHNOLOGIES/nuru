@@ -134,7 +134,11 @@ def upload_card_svg_url(path: str, svg_url: str) -> str | None:
     return None
 
 
-def _send(action: str, phone: str, params: dict) -> bool:
+def _send(action: str, phone: str, params: dict, meta: dict | None = None) -> bool:
+    """Send a WhatsApp template via the edge function and update the
+    ``wa_message_logs`` row. ``meta`` carries per-recipient logging context
+    (event_id, recipient_type, recipient_id, recipient_name, etc.) so the
+    log entry is traceable back to the originating event/guest."""
     urls = [SEND_URL] if SEND_URL else []
     fallback_url = f"{CURRENT_FUNCTIONS_URL}/functions/v1/whatsapp-send"
     if fallback_url not in urls:
@@ -146,15 +150,21 @@ def _send(action: str, phone: str, params: dict) -> bool:
     print(f"[wa_cards] send action={action} phone_tail={phone_tail} param_keys={sorted(list((params or {}).keys()))}")
 
     # Pre-create a wa_message_logs row so this attempt shows up on the
-    # WhatsApp Logs page even before Meta replies. We update it below with
-    # the outcome (provider_message_id on success, error on failure).
+    # WhatsApp Logs page even before Meta replies.
     log_id: str | None = None
     try:
         from utils.wa_logging import log_attempt
-        log_id = log_attempt(action, phone, params or {})
+        log_id = log_attempt(action, phone, params or {}, meta=meta)
     except Exception as _e:  # noqa: BLE001
         print(f"[wa_cards] log_attempt failed: {_e}")
         log_id = None
+
+    def _record_failure(payload: dict) -> None:
+        try:
+            from utils.wa_logging import update_from_send_result
+            update_from_send_result(log_id, {"ok": False, **payload})
+        except Exception:  # noqa: BLE001
+            pass
 
     for url in urls:
         try:
@@ -165,30 +175,29 @@ def _send(action: str, phone: str, params: dict) -> bool:
                 headers=_HEADERS,
                 timeout=15,
             )
-            if not r.ok:
-                print(f"[wa_cards] send failed ({r.status_code}): {r.text[:200]}")
-                try:
-                    from utils.wa_logging import update_from_send_result
-                    update_from_send_result(log_id, {
-                        "ok": False,
-                        "status": r.status_code,
-                        "error": r.text[:500],
-                    })
-                except Exception:
-                    pass
-                continue
-            print(f"[wa_cards] send response: {r.text[:300]}")
-            data = {}
             try:
                 data = r.json() or {}
             except Exception:
                 data = {}
+            if not r.ok:
+                print(f"[wa_cards] send failed ({r.status_code}): {r.text[:200]}")
+                _record_failure({
+                    "status": r.status_code,
+                    "error": r.text[:500],
+                    "error_code": data.get("error_code"),
+                    "error_title": data.get("error_title"),
+                    "error_details": data.get("error_details"),
+                    "fbtrace_id": data.get("fbtrace_id"),
+                    "not_on_whatsapp": bool(data.get("not_on_whatsapp")),
+                })
+                continue
+            print(f"[wa_cards] send response: {r.text[:300]}")
             wa_message_id = (
                 data.get("message_id")
                 or data.get("wa_message_id")
                 or (((data.get("response") or {}).get("messages") or [{}])[0].get("id"))
             )
-            # Update wa_message_logs with the outcome
+            # Update wa_message_logs with the outcome (structured success or failure)
             try:
                 from utils.wa_logging import update_from_send_result
                 update_from_send_result(log_id, {
@@ -197,11 +206,15 @@ def _send(action: str, phone: str, params: dict) -> bool:
                     "response": data,
                     "error": data.get("error") if not wa_message_id else None,
                     "error_code": data.get("error_code") if not wa_message_id else None,
+                    "error_title": data.get("error_title") if not wa_message_id else None,
+                    "error_details": data.get("error_details") if not wa_message_id else None,
+                    "fbtrace_id": data.get("fbtrace_id") if not wa_message_id else None,
+                    "not_on_whatsapp": bool(data.get("not_on_whatsapp")) if not wa_message_id else False,
                 })
             except Exception as _e:  # noqa: BLE001
                 print(f"[wa_cards] update_from_send_result failed: {_e}")
 
-            # Mirror this template/card send into the admin WhatsApp inbox
+            # Mirror outbound into the admin WhatsApp inbox (best-effort)
             try:
                 if wa_message_id:
                     from core.database import SessionLocal as _SL
@@ -229,15 +242,12 @@ def _send(action: str, phone: str, params: dict) -> bool:
                         _s.close()
             except Exception as _e:  # noqa: BLE001
                 print(f"[wa_cards] mirror outbound failed: {_e}")
-            return True
+            return bool(wa_message_id)
         except Exception as e:
             print(f"[wa_cards] send exception url={url}: {e}")
-            try:
-                from utils.wa_logging import update_from_send_result
-                update_from_send_result(log_id, {"ok": False, "error": str(e)[:500]})
-            except Exception:
-                pass
+            _record_failure({"error": str(e)[:500]})
     return False
+
 
 
 
@@ -411,13 +421,18 @@ def wa_send_invitation_card(
                 "event_time": (event_time or "").strip() or "TBA",
                 "venue": (venue or "").strip() or "TBA",
                 "rsvp_code": invite_code or "—",
+            }, meta={
+                "event_id": str(event_id),
+                "event_name": safe_event,
+                "recipient_type": "guest",
+                "recipient_id": str(guest_id) if guest_id else None,
+                "recipient_name": safe_name,
+                "message_purpose": "invitation_text_fallback",
+                "source_module": "whatsapp_cards",
+                "related_entity_type": "invitation",
+                "related_entity_id": str(guest_id) if guest_id else None,
             })
             return
-        # image_url passed exactly like pledge_thank_you_card: full public URL
-        # consumed as Meta template image header. Approved template
-        # invitation_card_{sw,en} expects six body params:
-        # {{1}} guest_name · {{2}} organizer_name · {{3}} event_name ·
-        # {{4}} event_date · {{5}} venue · {{6}} organizer_phone.
         try:
             from utils.datetime_format import format_event_datetime
             formatted_date = format_event_datetime(event_date, lang=(lang or "sw").lower()) or safe_date
@@ -432,13 +447,21 @@ def wa_send_invitation_card(
             "event_date": formatted_date,
             "venue": (venue or "").strip() or "TBA",
             "organizer_phone": (organizer_phone or "").strip() or "—",
-            # Powers the WhatsApp quick-reply RSVP buttons (confirm/maybe/decline).
-            # Same code used by the /rsvp/{code} URL flow so the webhook can
-            # update the existing EventInvitation row.
             "rsvp_code": invite_code or "—",
+        }, meta={
+            "event_id": str(event_id),
+            "event_name": safe_event,
+            "recipient_type": "guest",
+            "recipient_id": str(guest_id) if guest_id else None,
+            "recipient_name": safe_name,
+            "message_purpose": "invitation_card",
+            "source_module": "whatsapp_cards",
+            "related_entity_type": "invitation",
+            "related_entity_id": str(guest_id) if guest_id else None,
         })
 
     threading.Thread(target=_run, daemon=True).start()
+
 
 
 def wa_send_invitation_text(
@@ -450,6 +473,8 @@ def wa_send_invitation_text(
     event_time: str = "",
     venue: str = "",
     rsvp_code: str = "",
+    event_id: str | None = None,
+    guest_id: str | None = None,
 ):
     """Send the plain-text WhatsApp invitation (no image). Fire-and-forget."""
     intl = _normalize_phone(phone)
@@ -465,9 +490,20 @@ def wa_send_invitation_text(
             "event_time": (event_time or "").strip() or "TBA",
             "venue": (venue or "").strip() or "TBA",
             "rsvp_code": (rsvp_code or "").strip() or "—",
+        }, meta={
+            "event_id": str(event_id) if event_id else None,
+            "event_name": (event_name or "").strip() or None,
+            "recipient_type": "guest",
+            "recipient_id": str(guest_id) if guest_id else None,
+            "recipient_name": (guest_name or "").strip() or None,
+            "message_purpose": "invitation_text",
+            "source_module": "whatsapp_cards",
+            "related_entity_type": "invitation",
+            "related_entity_id": str(guest_id) if guest_id else None,
         })
 
     threading.Thread(target=_run, daemon=True).start()
+
 
 
 def wa_send_ticket(
@@ -522,6 +558,16 @@ def wa_send_ticket(
             "event_date": safe_date,
             "ticket_class": safe_class,
             "ticket_code": ticket_code,
+        }, meta={
+            "event_id": str(event_id),
+            "event_name": safe_event,
+            "recipient_type": "ticket_buyer",
+            "recipient_name": safe_name,
+            "message_purpose": "ticket_delivery",
+            "source_module": "whatsapp_cards",
+            "related_entity_type": "ticket",
+            "related_entity_id": str(ticket_code) if ticket_code else None,
         })
 
     threading.Thread(target=_run, daemon=True).start()
+

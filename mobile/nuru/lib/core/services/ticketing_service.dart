@@ -180,6 +180,28 @@ class TicketingService {
 
   // ─── Reservations (airline-style holds) ───────────────────────────────────
 
+  /// Create a temporary hold on a ticket class so the user can pay later.
+  /// Backend mirrors the web `/ticketing/reserve` route.
+  static Future<Map<String, dynamic>> reserveTicket({
+    required String ticketClassId,
+    required int quantity,
+  }) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$_baseUrl/ticketing/reserve'),
+        headers: await _headers(),
+        body: jsonEncode({
+          'ticket_class_id': ticketClassId,
+          'quantity': quantity,
+        }),
+      );
+      return jsonDecode(res.body);
+    } catch (e) {
+      return {'success': false, 'message': 'Unable to reserve ticket'};
+    }
+  }
+
+
   /// Current user's active ticket reservations awaiting payment.
   static Future<Map<String, dynamic>> getMyReservations() async {
     try {

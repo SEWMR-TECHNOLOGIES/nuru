@@ -191,6 +191,14 @@ async def signup(request: Request, db: Session = Depends(get_db)):
                 created_by=None,
                 ttl_minutes=24 * 60,
             )
+            try:
+                from utils.wa_logging import set_wa_log_context
+                set_wa_log_context(user_id=str(user.id),
+                                   source_module="register", purpose="account_setup",
+                                   recipient_type="user",
+                                   related_entity_type="user",
+                                   related_entity_id=str(user.id))
+            except Exception: pass
             wa_welcome_registered_by(
                 phone=formatted_phone,
                 new_user_name=first_name,

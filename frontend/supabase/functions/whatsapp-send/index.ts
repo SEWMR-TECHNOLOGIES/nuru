@@ -488,28 +488,26 @@ Deno.serve(async (req) => {
   const WHATSAPP_ACCESS_TOKEN = Deno.env.get("WHATSAPP_ACCESS_TOKEN");
   const WHATSAPP_PHONE_NUMBER_ID = Deno.env.get("WHATSAPP_PHONE_NUMBER_ID");
   if (!WHATSAPP_ACCESS_TOKEN || !WHATSAPP_PHONE_NUMBER_ID) {
-    return json({ error: "WhatsApp not configured" }, 500);
+    return json({ success: false, sent: false, error: "WhatsApp not configured", error_title: "Configuration", error_code: "no_config" }, 500);
   }
 
   try {
     const body = await req.json();
     const { action: rawAction, phone, params = {} } = body || {};
-    if (!rawAction || !phone) return json({ error: "Missing action or phone" }, 400);
+    if (!rawAction || !phone) {
+      return json({ success: false, sent: false, error: "Missing action or phone", error_title: "Bad request", error_code: "bad_request" }, 400);
+    }
 
-    // Resolve legacy aliases
     const action = ALIASES[rawAction] || rawAction;
     const lang = pickLang(params?.lang);
 
     let result: any;
 
-    // 1) Catalogue UTILITY templates
     if (BUILDERS[action]) {
       const built = BUILDERS[action](lang, params);
       result = await sendTemplate(phone, built.name, built.components, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, built.lang);
     } else {
-      // 2) Non-catalogue actions (OTP, reminder-automation, rich media, freeform)
       switch (action) {
-        // AUTHENTICATION-category OTPs — code-only payload
         case "vendor_otp_claim":
         case "vendor_otp_resend": {
           const name = action === "vendor_otp_claim"
@@ -520,12 +518,7 @@ Deno.serve(async (req) => {
         }
         case "otp_verification":
           result = await sendOtpTemplate(phone, params, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
-          if (result?.not_on_whatsapp) {
-            return json({ success: false, not_on_whatsapp: true, error_code: result.error_code }, 200);
-          }
           break;
-
-        // Reminder-automation templates (separate doc, kept as-is)
         case "fundraise_attend": {
           const built = buildFundraiseAttend(lang, params);
           result = await sendTemplate(phone, built.name, built.components, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, built.lang);
@@ -544,14 +537,10 @@ Deno.serve(async (req) => {
         case "reminder":
           result = await sendTemplate(phone, "event_reminder", buildLegacyReminder(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
           break;
-
-        // Rich-media invitation/ticket templates (driven by whatsapp_cards.py)
         case "send_invitation_text":
           result = await sendTemplate(phone, "event_invitation_text", buildInvitationTextComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
           break;
         case "send_invitation_card": {
-          // Per-lang template pair invitation_card_{sw,en}
-          // (replaces legacy nuru_invitation_card_message_{sw,en} / event_invitation_card).
           const built = BUILDERS["invitation_card_message"](lang, params);
           result = await sendTemplate(phone, built.name, built.components, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, built.lang);
           break;
@@ -559,8 +548,6 @@ Deno.serve(async (req) => {
         case "send_ticket":
           result = await sendTemplate(phone, "event_ticket_delivery", buildTicketDeliveryComponents(params), WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
           break;
-
-        // Freeform fallbacks
         case "text":
           result = await sendTextMessage(phone, params?.message || "", WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
           break;
@@ -568,40 +555,52 @@ Deno.serve(async (req) => {
           result = await sendImageMessage(phone, params?.image_url || "", params?.caption || "", WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
           break;
         case "check_whatsapp":
-          // POLICY: active WhatsApp probing is disabled. Meta has no silent
-          // lookup and we will not spam users with hello_world. Availability
-          // is learned opportunistically from real Nuru sends.
-          result = {
-            is_whatsapp: "unknown",
-            wa_id: null,
-            disabled: true,
-            error: "active probing disabled — availability learned from real sends",
-          };
+          result = { sent: false, is_whatsapp: "unknown", wa_id: null, disabled: true, error: "active probing disabled" };
           break;
-
         default:
-          return json({ error: `Unknown action: ${rawAction}` }, 400);
+          return json({ success: false, sent: false, error: `Unknown action: ${rawAction}`, error_title: "Unknown action", error_code: "unknown_action" }, 400);
       }
     }
 
-    return json({ success: true, ...result }, 200);
+    // Senders always return a structured object — success is derived from sent/message_id.
+    const ok = !!(result && (result.sent || result.message_id));
+    return json({ success: ok, ...result }, 200);
   } catch (error) {
-    console.error("WhatsApp send error:", error);
+    // Last-resort: should be rare because every sender returns structured errors.
+    console.error("WhatsApp send unexpected error:", error);
     const msg = error instanceof Error ? error.message : "Unknown error";
-    return json({ success: false, error: msg }, 500);
+    return json({
+      success: false, sent: false, error: msg,
+      error_title: "Edge function exception", error_code: "edge_exception",
+    }, 500);
   }
 });
 
 const json = (b: unknown, status = 200) =>
   new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+// Map a Meta error payload into the structured shape the backend expects.
+function metaErrorPayload(status: number, data: any, templateName?: string) {
+  const err = (data && data.error) || {};
+  return {
+    sent: false,
+    status,
+    error: typeof data === "string" ? data : JSON.stringify(data),
+    error_code: err.code != null ? String(err.code) : (err.error_subcode != null ? String(err.error_subcode) : null),
+    error_subcode: err.error_subcode != null ? String(err.error_subcode) : null,
+    error_title: err.error_user_title || err.type || (templateName ? `Template "${templateName}" rejected` : "Meta API error"),
+    error_message: err.error_user_msg || err.message || null,
+    error_details: err.error_data || null,
+    fbtrace_id: err.fbtrace_id || null,
+    not_on_whatsapp: err.code === 131026 || err.error_subcode === 131026 || err.code === 131047 || err.code === 133010,
+  };
+}
+
 // ── Senders ────────────────────────────────────────────
 async function sendTemplate(
-  phone: string,
-  templateName: string,
+  phone: string, templateName: string,
   components: Array<Record<string, unknown>>,
-  accessToken: string,
-  phoneNumberId: string,
+  accessToken: string, phoneNumberId: string,
   langOverride?: string,
 ) {
   const url = `${GRAPH_API}/${phoneNumberId}/messages`;
@@ -611,23 +610,16 @@ async function sendTemplate(
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "template",
+      messaging_product: "whatsapp", to: phone, type: "template",
       template: { name: templateName, language: { code: languageCode }, components },
     }),
   });
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    const errorCode = data?.error?.code;
-    const errorSubCode = data?.error?.error_subcode;
     console.error(`WhatsApp template API error [${res.status}] tpl="${templateName}":`, JSON.stringify(data));
-    if (errorCode === 131026 || errorSubCode === 131026 || errorCode === 131047) {
-      return { sent: false, not_on_whatsapp: true, error_code: errorCode };
-    }
-    throw new Error(`WhatsApp template API failed [${res.status}]: ${JSON.stringify(data)}`);
+    return metaErrorPayload(res.status, data, templateName);
   }
-  console.log(`[WhatsApp] OK tpl="${templateName}" to=${phone} msg_id=${data.messages?.[0]?.id} contacts=${JSON.stringify(data.contacts || [])}`);
+  console.log(`[WhatsApp] OK tpl="${templateName}" msg_id=${data.messages?.[0]?.id}`);
   return { sent: true, message_id: data.messages?.[0]?.id };
 }
 
@@ -641,17 +633,14 @@ async function sendOtpTemplate(phone: string, params: { otp_code?: string }, acc
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "template",
+      messaging_product: "whatsapp", to: phone, type: "template",
       template: { name: "otp_verification", language: { code: "en" }, components },
     }),
   });
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   if (res.ok) return { sent: true, message_id: data.messages?.[0]?.id };
-  const errorCode = data?.error?.code;
-  if (errorCode === 131026 || errorCode === 131047) return { sent: false, not_on_whatsapp: true, error_code: errorCode };
-  throw new Error(`WhatsApp OTP API failed [${res.status}]: ${JSON.stringify(data)}`);
+  console.error(`[WhatsApp] OTP API error [${res.status}]:`, JSON.stringify(data));
+  return metaErrorPayload(res.status, data, "otp_verification");
 }
 
 async function sendAuthOtpTemplate(phone: string, templateName: string, langCode: string, code: string, accessToken: string, phoneNumberId: string) {
@@ -663,17 +652,14 @@ async function sendAuthOtpTemplate(phone: string, templateName: string, langCode
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "template",
+      messaging_product: "whatsapp", to: phone, type: "template",
       template: { name: templateName, language: { code: langCode }, components },
     }),
   });
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   if (res.ok) return { sent: true, message_id: data.messages?.[0]?.id };
-  const errorCode = data?.error?.code;
-  if (errorCode === 131026 || errorCode === 131047) return { sent: false, not_on_whatsapp: true, error_code: errorCode };
-  throw new Error(`WhatsApp Auth OTP API failed [${res.status}]: ${JSON.stringify(data)}`);
+  console.error(`[WhatsApp] Auth OTP API error [${res.status}]:`, JSON.stringify(data));
+  return metaErrorPayload(res.status, data, templateName);
 }
 
 async function sendTextMessage(phone: string, text: string, token: string, phoneId: string) {
@@ -682,9 +668,12 @@ async function sendTextMessage(phone: string, text: string, token: string, phone
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({ messaging_product: "whatsapp", to: phone, type: "text", text: { body: text } }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(`WhatsApp text API failed [${res.status}]: ${JSON.stringify(data)}`);
-  return { message_id: data.messages?.[0]?.id };
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    console.error(`[WhatsApp] text API error [${res.status}]:`, JSON.stringify(data));
+    return metaErrorPayload(res.status, data, "text");
+  }
+  return { sent: true, message_id: data.messages?.[0]?.id };
 }
 
 async function sendImageMessage(phone: string, imageUrl: string, caption: string, token: string, phoneId: string) {
@@ -692,20 +681,18 @@ async function sendImageMessage(phone: string, imageUrl: string, caption: string
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "image",
+      messaging_product: "whatsapp", to: phone, type: "image",
       image: { link: imageUrl, caption: caption || undefined },
     }),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(`WhatsApp image API failed [${res.status}]: ${JSON.stringify(data)}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    console.error(`[WhatsApp] image API error [${res.status}]:`, JSON.stringify(data));
+    return metaErrorPayload(res.status, data, "image");
+  }
   return { sent: true, message_id: data.messages?.[0]?.id };
 }
 
-// checkWhatsAppBySending was removed. We no longer probe with hello_world
-// or any other template — availability is learned only from real Nuru sends
-// (OTP, invitation, contribution receipt, pledge reminder, etc.).
 
 // ── Legacy/Rich-media builders (kept verbatim — out of catalogue scope) ──
 function buildLegacyReminder(p: any) {

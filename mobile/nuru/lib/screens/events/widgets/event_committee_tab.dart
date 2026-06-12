@@ -1,4 +1,5 @@
 import '../../../core/widgets/nuru_refresh_indicator.dart';
+import '../../../widgets/app_action_sheet.dart';
 import 'dart:async';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -7,9 +8,12 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/services/events_service.dart';
 import '../../../core/services/report_generator.dart';
 import '../../../core/widgets/app_snackbar.dart';
+import '../../../core/widgets/nuru_search_bar.dart';
 import '../report_preview_screen.dart';
 import '../../../core/theme/text_styles.dart';
 import '../../../core/l10n/l10n_helper.dart';
+import '../../../widgets/app_select.dart';
+import '../../../widgets/app_checkbox.dart';
 
 /// Mirrors web EventCommittee.tsx — user search, role picker, permissions, edit/remove
 class EventCommitteeTab extends StatefulWidget {
@@ -141,18 +145,23 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
               boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6)],
             ),
             child: Row(children: [
-              Expanded(child: PopupMenuButton<String>(
-                onSelected: (v) => setState(() => _roleFilter = v),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                itemBuilder: (_) => [
-                  const PopupMenuItem(value: 'all', child: Text('All Roles')),
-                  ..._roles.where((r) => r['id'] != 'custom').map((r) =>
-                    PopupMenuItem(value: r['name'], child: Text(r['name']!))),
-                ],
+              Expanded(child: GestureDetector(
+                onTap: () async {
+                  final v = await AppActionSheet.show<String>(
+                    context: context,
+                    title: 'Filter by role',
+                    actions: [
+                      MenuAction(value: 'all', label: 'All Roles', icon: 'users', selected: _roleFilter == 'all'),
+                      ..._roles.where((r) => r['id'] != 'custom').map((r) =>
+                        MenuAction(value: r['name']!, label: r['name']!, icon: 'user', selected: _roleFilter == r['name'])),
+                    ],
+                  );
+                  if (v != null) setState(() => _roleFilter = v);
+                },
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
                   child: Row(children: [
-                    const AppIcon('settings', size: 16, color: AppColors.primary),
+                    const AppIcon('filter', size: 16, color: AppColors.primary),
                     const SizedBox(width: 8),
                     Expanded(child: Text(_roleFilter == 'all' ? 'All Roles' : _roleFilter,
                       style: appText(size: 13, weight: FontWeight.w700, color: AppColors.textPrimary),
@@ -294,20 +303,23 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
             if (role.isNotEmpty) Text(role, style: appText(size: 12, weight: FontWeight.w700, color: AppColors.primary)),
           ])),
           if (_canManage)
-            PopupMenuButton<String>(
+            IconButton(
               icon: const AppIcon('menu', size: 18, color: AppColors.textTertiary),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              onSelected: (val) {
+              onPressed: () async {
+                final val = await AppActionSheet.show<String>(
+                  context: context,
+                  title: name.isNotEmpty ? name : 'Member',
+                  actions: [
+                    const MenuAction(value: 'edit', label: 'Edit', icon: 'pen'),
+                    if (status == 'invited')
+                      const MenuAction(value: 'resend', label: 'Resend Invite', icon: 'send'),
+                    const MenuAction(value: 'remove', label: 'Remove', icon: 'delete', destructive: true),
+                  ],
+                );
                 if (val == 'edit') _showEditMemberSheet(member);
                 if (val == 'remove') _confirmRemove(memberId, name);
                 if (val == 'resend') _resendInvite(memberId);
               },
-              itemBuilder: (_) => [
-                const PopupMenuItem(value: 'edit', child: ListTile(dense: true, leading: AppIcon('pen', size: 18), title: Text('Edit'))),
-                if (status == 'invited')
-                  const PopupMenuItem(value: 'resend', child: ListTile(dense: true, leading: AppIcon('send', size: 18), title: Text('Resend Invite'))),
-                PopupMenuItem(value: 'remove', child: ListTile(dense: true, leading: AppIcon('delete', size: 18, color: AppColors.error), title: Text('Remove', style: TextStyle(color: AppColors.error)))),
-              ],
             ),
         ]),
 
@@ -439,18 +451,11 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
                     ]),
                   )
                 else ...[
-                  TextField(
+                  NuruSearchBar(
+                    value: searchQuery,
+                    hintText: 'Search by name, email or phone...',
+                    debounce: Duration.zero,
                     onChanged: (v) { searchQuery = v; searchUsers(v); },
-                    autocorrect: false,
-                    style: appText(size: 14),
-                    decoration: InputDecoration(
-                      hintText: 'Search by name, email or phone...', hintStyle: appText(size: 13, color: AppColors.textHint),
-                      prefixIcon: const Padding(padding: EdgeInsets.all(12), child: AppIcon('search', size: 16, color: AppColors.textHint)),
-                      suffixIcon: searching ? const Padding(padding: EdgeInsets.all(12), child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary))) : null,
-                      filled: true, fillColor: Colors.white,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide(color: const Color(0xFFE5E7EB), width: 1)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    ),
                   ),
                   if (searchResults.isNotEmpty)
                     Container(
@@ -487,20 +492,19 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
 
                 Text('Role *', style: appText(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
                 const SizedBox(height: 8),
-                Container(
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
-                  child: DropdownButtonFormField<String>(
-                    value: selectedRoleId.isEmpty ? null : selectedRoleId,
-                    decoration: InputDecoration(
-                      border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                      hintText: 'Select a role', hintStyle: appText(size: 14, color: AppColors.textHint),
-                    ),
-                    style: appText(size: 14),
-                    isExpanded: true,
-                    itemHeight: null,
-                    items: _roles.map((r) => DropdownMenuItem(value: r['id'], child: Text(r['name']!, style: appText(size: 13, weight: FontWeight.w600)))).toList(),
-                    onChanged: (v) => setSheetState(() => selectedRoleId = v ?? ''),
-                  ),
+                AppSelect<String>(
+                  value: selectedRoleId.isEmpty ? null : selectedRoleId,
+                  hint: 'Select a role',
+                  title: 'Role',
+                  borderRadius: 14,
+                  fontSize: 14,
+                  options: _roles.map((r) => AppSelectOption<String>(
+                    value: r['id']!,
+                    label: Text(r['name']!),
+                    subtitle: Text(r['desc']!),
+                    searchText: r['name'],
+                  )).toList(),
+                  onChanged: (v) => setSheetState(() => selectedRoleId = v ?? ''),
                 ),
 
                 if (selectedRoleId == 'custom') ...[
@@ -524,18 +528,16 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.borderLight)),
                   child: Column(
-                    children: _availablePermissions.map((p) => CheckboxListTile(
-                      dense: true, controlAffinity: ListTileControlAffinity.leading,
-                      contentPadding: EdgeInsets.zero,
-                      activeColor: AppColors.primary,
+                    children: _availablePermissions.map((p) => AppCheckbox(
+                      dense: true,
+                      label: p['label']!,
+                      description: p['desc']!,
                       value: selectedPerms.contains(p['id']),
                       onChanged: (v) => setSheetState(() {
-                        if (v == true) { selectedPerms.add(p['id']!); } else { selectedPerms.remove(p['id']); }
+                        if (v) { selectedPerms.add(p['id']!); } else { selectedPerms.remove(p['id']); }
                       }),
-                      title: Text(p['label']!, style: appText(size: 13, weight: FontWeight.w600)),
-                      subtitle: Text(p['desc']!, style: appText(size: 10, color: AppColors.textTertiary)),
                     )).toList(),
                   ),
                 ),
@@ -620,15 +622,19 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
 
               Text('Role *', style: appText(size: 13, weight: FontWeight.w600, color: AppColors.textSecondary)),
               const SizedBox(height: 8),
-              Container(
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
-                child: DropdownButtonFormField<String>(
-                  value: selectedRoleId,
-                  decoration: InputDecoration(border: InputBorder.none, contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4)),
-                  style: appText(size: 14), isExpanded: true,
-                  items: _roles.map((r) => DropdownMenuItem(value: r['id'], child: Text(r['name']!, style: appText(size: 13, weight: FontWeight.w600)))).toList(),
-                  onChanged: (v) => setSheetState(() => selectedRoleId = v ?? ''),
-                ),
+              AppSelect<String>(
+                value: selectedRoleId.isEmpty ? null : selectedRoleId,
+                hint: 'Select a role',
+                title: 'Role',
+                borderRadius: 14,
+                fontSize: 14,
+                options: _roles.map((r) => AppSelectOption<String>(
+                  value: r['id']!,
+                  label: Text(r['name']!),
+                  subtitle: Text(r['desc']!),
+                  searchText: r['name'],
+                )).toList(),
+                onChanged: (v) => setSheetState(() => selectedRoleId = v ?? ''),
               ),
 
               if (selectedRoleId == 'custom') ...[
@@ -651,14 +657,13 @@ class _EventCommitteeTabState extends State<EventCommitteeTab> with AutomaticKee
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
+                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14), border: Border.all(color: AppColors.borderLight)),
                 child: Column(
-                  children: _availablePermissions.map((p) => CheckboxListTile(
-                    dense: true, controlAffinity: ListTileControlAffinity.leading,
-                    contentPadding: EdgeInsets.zero, activeColor: AppColors.primary,
+                  children: _availablePermissions.map((p) => AppCheckbox(
+                    dense: true,
+                    label: p['label']!,
                     value: selectedPerms.contains(p['id']),
-                    onChanged: (v) => setSheetState(() { if (v == true) selectedPerms.add(p['id']!); else selectedPerms.remove(p['id']); }),
-                    title: Text(p['label']!, style: appText(size: 13, weight: FontWeight.w600)),
+                    onChanged: (v) => setSheetState(() { if (v) selectedPerms.add(p['id']!); else selectedPerms.remove(p['id']); }),
                   )).toList(),
                 ),
               ),

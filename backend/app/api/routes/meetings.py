@@ -149,7 +149,19 @@ def _notify_participants(meeting: EventMeeting, participants, event: Event, db: 
                     meeting_link,
                     meeting_redirect_token=redirect_token,
                     lang=lang,
+                    meta={
+                        "event_id": str(event.id),
+                        "event_name": event_name,
+                        "recipient_type": "participant",
+                        "recipient_id": str(p.user_id),
+                        "recipient_name": getattr(user, "full_name", None) or getattr(user, "first_name", None),
+                        "message_purpose": "meeting_invitation",
+                        "source_module": "meetings",
+                        "related_entity_type": "meeting",
+                        "related_entity_id": str(meeting.id),
+                    },
                 )
+
             except Exception as e:
                 print(f"[Meeting] WhatsApp invitation failed for {phone}: {e}")
 

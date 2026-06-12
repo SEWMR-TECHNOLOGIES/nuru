@@ -333,7 +333,7 @@ class _EventServicesTabState extends State<EventServicesTab> with AutomaticKeepA
                   child: SizedBox(width: 16, height: 16,
                       child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary)))
               : null,
-          filled: true, fillColor: const Color(0xFFF9FAFB),
+          filled: true, fillColor: Colors.white,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: AppColors.borderLight)),
           enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),

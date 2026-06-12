@@ -1,4 +1,5 @@
 import 'package:nuru/core/utils/money_format.dart' show getActiveCurrency, formatMoney;
+import '../../../widgets/app_action_sheet.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -361,7 +362,7 @@ class EventCard extends StatelessWidget {
     return SizedBox(
       width: 32,
       height: 32,
-      child: PopupMenuButton<String>(
+      child: IconButton(
         tooltip: 'More',
         padding: EdgeInsets.zero,
         icon: const Icon(
@@ -369,10 +370,26 @@ class EventCard extends StatelessWidget {
           size: 20,
           color: AppColors.textTertiary,
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        onSelected: (v) {
+        onPressed: () async {
+          final v = await AppActionSheet.show<String>(
+            context: context,
+            title: 'Event actions',
+            actions: [
+              const MenuAction(value: 'view', label: 'View', icon: 'view'),
+              if (isCreator)
+                const MenuAction(value: 'edit', label: 'Edit', icon: 'pen'),
+              const MenuAction(value: 'share', label: 'Share', icon: 'share'),
+              if (isCreator && status == 'draft')
+                const MenuAction(value: 'publish', label: 'Publish', icon: 'earth'),
+              if (isCreator && status == 'published')
+                const MenuAction(value: 'complete', label: 'Mark Completed', icon: 'double-check'),
+              if (isCreator && status != 'cancelled')
+                const MenuAction(value: 'cancel', label: 'Cancel Event', icon: 'block'),
+              if (isCreator)
+                const MenuAction(value: 'delete', label: 'Delete', icon: 'delete', destructive: true),
+            ],
+          );
+          if (v == null) return;
           switch (v) {
             case 'view':
               (onView ?? onTap)?.call();
@@ -397,20 +414,6 @@ class EventCard extends StatelessWidget {
               break;
           }
         },
-        itemBuilder: (_) => [
-          const PopupMenuItem(value: 'view', child: _MenuRow(svg: 'assets/icons/view-icon.svg', label: 'View')),
-          if (isCreator)
-            const PopupMenuItem(value: 'edit', child: _MenuRow(svg: 'assets/icons/pen-icon.svg', label: 'Edit')),
-          const PopupMenuItem(value: 'share', child: _MenuRow(svg: 'assets/icons/share-icon.svg', label: 'Share')),
-          if (isCreator && status == 'draft')
-            const PopupMenuItem(value: 'publish', child: _MenuRow(svg: 'assets/icons/earth-icon.svg', label: 'Publish')),
-          if (isCreator && status == 'published')
-            const PopupMenuItem(value: 'complete', child: _MenuRow(svg: 'assets/icons/double-check-icon.svg', label: 'Mark Completed')),
-          if (isCreator && status != 'cancelled')
-            const PopupMenuItem(value: 'cancel', child: _MenuRow(svg: 'assets/icons/block-icon.svg', label: 'Cancel Event')),
-          if (isCreator)
-            const PopupMenuItem(value: 'delete', child: _MenuRow(svg: 'assets/icons/delete-icon.svg', label: 'Delete', destructive: true)),
-        ],
       ),
     );
   }
@@ -576,28 +579,3 @@ class EventCard extends StatelessWidget {
   }
 }
 
-class _MenuRow extends StatelessWidget {
-  final String svg;
-  final String label;
-  final bool destructive;
-  const _MenuRow({required this.svg, required this.label, this.destructive = false});
-  @override
-  Widget build(BuildContext context) {
-    final color = destructive ? AppColors.error : AppColors.textPrimary;
-    return Row(
-      children: [
-        SvgPicture.asset(svg, width: 16, height: 16,
-            colorFilter: ColorFilter.mode(color, BlendMode.srcIn)),
-        const SizedBox(width: 10),
-        Text(
-          label,
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-            color: color,
-          ),
-        ),
-      ],
-    );
-  }
-}

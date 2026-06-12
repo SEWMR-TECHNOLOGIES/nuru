@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/money_format.dart';
+import '../../core/widgets/app_icon.dart';
 import '../../core/widgets/nuru_subpage_app_bar.dart';
 import '../../core/widgets/nuru_skeleton.dart';
 import '../../providers/wallet_provider.dart';
@@ -65,10 +66,7 @@ class _WalletScreenState extends State<WalletScreen>
         title: 'Wallet',
         actions: [
           IconButton(
-            icon: const Icon(
-              Icons.receipt_long_rounded,
-              color: AppColors.textPrimary,
-            ),
+            icon: const AppIcon('list', size: 22, color: AppColors.textPrimary),
             tooltip: 'Payment history',
             onPressed: () {
               Navigator.push(
@@ -78,10 +76,7 @@ class _WalletScreenState extends State<WalletScreen>
             },
           ),
           IconButton(
-            icon: const Icon(
-              Icons.settings_outlined,
-              color: AppColors.textPrimary,
-            ),
+            icon: const AppIcon('wallet', size: 22, color: AppColors.textPrimary),
             tooltip: 'Payout settings',
             onPressed: () {
               Navigator.push(
@@ -151,7 +146,7 @@ class _WalletScreenState extends State<WalletScreen>
 
 // ─── Balance hero ─────────────────────────────────────────────────────────────
 
-class _BalanceHero extends StatelessWidget {
+class _BalanceHero extends StatefulWidget {
   final WalletProvider provider;
   final VoidCallback onTopUp;
   final VoidCallback onPay;
@@ -162,149 +157,251 @@ class _BalanceHero extends StatelessWidget {
   });
 
   @override
+  State<_BalanceHero> createState() => _BalanceHeroState();
+}
+
+class _BalanceHeroState extends State<_BalanceHero> {
+  bool _hidden = false;
+
+  static const _gradStart = Color(0xFF1A1530);
+  static const _gradEnd = Color(0xFF3B2A6B);
+  static const _accent = Color(0xFFFFD66B);
+
+  String _mask(num value) {
+    if (_hidden) return '••••••';
+    return formatMoney(value, currency: widget.provider.currency);
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final p = widget.provider;
     return Container(
-      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: AppColors.surfaceDark,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.account_balance_wallet_outlined,
-                color: AppColors.textOnDarkMuted,
-                size: 16,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'AVAILABLE BALANCE',
-                style: TextStyle(
-                  color: AppColors.textOnDarkMuted,
-                  fontSize: 10,
-                  letterSpacing: 1.4,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: Text(
-                  provider.currency,
-                  style: const TextStyle(
-                    color: AppColors.textOnDark,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            formatMoney(provider.availableBalance, currency: provider.currency),
-            style: const TextStyle(
-              color: AppColors.textOnDark,
-              fontSize: 30,
-              fontWeight: FontWeight.w800,
-              letterSpacing: -0.6,
-            ),
-          ),
-          const SizedBox(height: 14),
-          Row(
-            children: [
-              Expanded(
-                child: _MiniStat(
-                  label: 'Pending',
-                  value: formatMoney(
-                    provider.pendingBalance,
-                    currency: provider.currency,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _MiniStat(
-                  label: 'Reserved',
-                  value: formatMoney(
-                    provider.reservedBalance,
-                    currency: provider.currency,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  onPressed: onTopUp,
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Top up'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: AppColors.surfaceDark,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    textStyle: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: onPay,
-                  icon: const Icon(Icons.send_outlined, size: 18),
-                  label: const Text('Pay'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.textOnDark,
-                    side: BorderSide(color: Colors.white.withOpacity(0.25)),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    textStyle: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const PayoutProfileScreen(),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.north_east, size: 18),
-                  label: const Text('Withdraw'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.textOnDark,
-                    side: BorderSide(color: Colors.white.withOpacity(0.25)),
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    textStyle: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ),
-            ],
+        borderRadius: BorderRadius.circular(24),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [_gradStart, _gradEnd],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: _gradEnd.withOpacity(0.28),
+            blurRadius: 22,
+            offset: const Offset(0, 12),
           ),
         ],
+      ),
+      child: Stack(
+        children: [
+          // Decorative orbs
+          Positioned(
+            right: -40, top: -50,
+            child: Container(
+              width: 170, height: 170,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withOpacity(0.05),
+              ),
+            ),
+          ),
+          Positioned(
+            right: 60, bottom: -60,
+            child: Container(
+              width: 130, height: 130,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: _accent.withOpacity(0.06),
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 16, 18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header: label + currency pill + eye toggle
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AppIcon('wallet',
+                              size: 13,
+                              color: Colors.white.withOpacity(0.95)),
+                          const SizedBox(width: 6),
+                          Text(
+                            'AVAILABLE BALANCE',
+                            style: TextStyle(
+                              color: Colors.white.withOpacity(0.95),
+                              fontSize: 10,
+                              letterSpacing: 1.2,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Spacer(),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: _accent.withOpacity(0.18),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        p.currency,
+                        style: const TextStyle(
+                          color: _accent,
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      padding: EdgeInsets.zero,
+                      constraints:
+                          const BoxConstraints(minWidth: 36, minHeight: 36),
+                      tooltip: _hidden ? 'Show balance' : 'Hide balance',
+                      onPressed: () => setState(() => _hidden = !_hidden),
+                      icon: AppIcon(
+                        _hidden ? 'eye-off' : 'eye-on',
+                        size: 18,
+                        color: Colors.white.withOpacity(0.9),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  _mask(p.availableBalance),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 32,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.8,
+                    height: 1.05,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _MiniStat(
+                        label: 'PENDING',
+                        value: _mask(p.pendingBalance),
+                        dotColor: const Color(0xFFFFC857),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _MiniStat(
+                        label: 'RESERVED',
+                        value: _mask(p.reservedBalance),
+                        dotColor: const Color(0xFF7DD3FC),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _HeroAction(
+                        label: 'Top up',
+                        icon: 'plus',
+                        filled: true,
+                        onTap: widget.onTopUp,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _HeroAction(
+                        label: 'Pay',
+                        icon: 'send',
+                        onTap: widget.onPay,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _HeroAction(
+                        label: 'Withdraw',
+                        icon: 'arrow-right',
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const PayoutProfileScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroAction extends StatelessWidget {
+  final String label;
+  final String icon;
+  final VoidCallback onTap;
+  final bool filled;
+  const _HeroAction({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    this.filled = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = filled ? const Color(0xFF1A1530) : Colors.white;
+    return Material(
+      color: filled ? Colors.white : Colors.white.withOpacity(0.10),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 13),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: filled
+                ? null
+                : Border.all(color: Colors.white.withOpacity(0.18)),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              AppIcon(icon, size: 16, color: fg),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: fg,
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -313,35 +410,53 @@ class _BalanceHero extends StatelessWidget {
 class _MiniStat extends StatelessWidget {
   final String label;
   final String value;
-  const _MiniStat({required this.label, required this.value});
+  final Color dotColor;
+  const _MiniStat({
+    required this.label,
+    required this.value,
+    required this.dotColor,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
       decoration: BoxDecoration(
         color: Colors.white.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withOpacity(0.06)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              color: AppColors.textOnDarkMuted,
-              fontSize: 10,
-              letterSpacing: 1.2,
-              fontWeight: FontWeight.w700,
-            ),
+          Row(
+            children: [
+              Container(
+                width: 6, height: 6,
+                decoration: BoxDecoration(
+                  color: dotColor,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.62),
+                  fontSize: 9.5,
+                  letterSpacing: 1.2,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 6),
           Text(
             value,
             style: const TextStyle(
-              color: AppColors.textOnDark,
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
+              color: Colors.white,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ],
@@ -356,30 +471,48 @@ class _ActivityTabs extends StatelessWidget {
   final TabController controller;
   const _ActivityTabs({required this.controller});
 
+  static const _labels = ['Ledger', 'Transactions'];
+
   @override
   Widget build(BuildContext context) {
     return Container(
+      height: 40,
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: AppColors.surfaceVariant,
-        borderRadius: BorderRadius.circular(12),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: AppColors.borderLight),
       ),
-      child: TabBar(
-        controller: controller,
-        indicator: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: AppColors.subtleShadow,
+      child: AnimatedBuilder(
+        animation: controller,
+        builder: (_, __) => Row(
+          children: List.generate(_labels.length, (i) {
+            final active = controller.index == i;
+            return Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => controller.animateTo(i),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: active ? AppColors.primary : Colors.transparent,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    _labels[i],
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ).copyWith(
+                      color: active ? Colors.white : AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
         ),
-        indicatorSize: TabBarIndicatorSize.tab,
-        indicatorPadding: const EdgeInsets.all(4),
-        labelColor: AppColors.textPrimary,
-        unselectedLabelColor: AppColors.textSecondary,
-        labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-        dividerColor: Colors.transparent,
-        tabs: const [
-          Tab(text: 'Ledger'),
-          Tab(text: 'Transactions'),
-        ],
       ),
     );
   }
@@ -419,11 +552,10 @@ class _LedgerList extends StatelessWidget {
             vertical: 4,
           ),
           leading: CircleAvatar(
-            backgroundColor: isCredit
-                ? AppColors.successSoft
-                : AppColors.warningSoft,
-            child: Icon(
-              isCredit ? Icons.south_west : Icons.north_east,
+            backgroundColor:
+                isCredit ? AppColors.successSoft : AppColors.warningSoft,
+            child: AppIcon(
+              isCredit ? 'download' : 'arrow-right',
               color: isCredit ? AppColors.success : AppColors.warning,
               size: 18,
             ),

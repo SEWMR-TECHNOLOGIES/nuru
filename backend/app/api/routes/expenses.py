@@ -243,6 +243,14 @@ def add_expense(
                 event.name,
                 lang=lang,
             )
+            try:
+                from utils.wa_logging import set_wa_log_context
+                set_wa_log_context(event_id=str(event.id), event_name=event.name,
+                                   source_module="expenses", purpose="expense_notification",
+                                   recipient_type="committee",
+                                   related_entity_type="expense",
+                                   related_entity_id=str(expense.id) if 'expense' in dir() else None)
+            except Exception: pass
             _send_whatsapp("expense_recorded", user.phone, {
                 "recipient_name": user.first_name,
                 "recorder_name": recorder_name,

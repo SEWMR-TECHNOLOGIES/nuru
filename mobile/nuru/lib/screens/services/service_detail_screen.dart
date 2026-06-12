@@ -18,6 +18,7 @@ import '../../core/l10n/l10n_helper.dart';
 import '../../core/utils/haptics.dart';
 import '../../widgets/received_payments_panel.dart';
 import '../../core/widgets/nuru_skeleton.dart';
+import '../../widgets/app_select.dart';
 
 /// Owner's Service Detail — matches web ServiceDetail.tsx
 /// Tabs: Overview, Calendar, Reviews, Payments
@@ -1051,45 +1052,43 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                 // Category selector
                 Text('Service Category', style: _f(size: 12, weight: FontWeight.w600)),
                 const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(12)),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: categories.any((c) => c['id']?.toString() == selectedCategoryId) ? selectedCategoryId : null,
-                      isExpanded: true,
-                      hint: Text('Select a category', style: _f(size: 14, color: AppColors.textHint)),
-                      items: categories.map<DropdownMenuItem<String>>((c) => DropdownMenuItem(
-                        value: c['id']?.toString() ?? '',
-                        child: Text(c['name']?.toString() ?? '', style: _f(size: 14)),
-                      )).toList(),
-                      onChanged: submitting ? null : (v) async {
-                        setSheet(() { selectedCategoryId = v ?? ''; selectedTypeId = ''; });
-                        final types = await loadTypes(v ?? '');
-                        setSheet(() => serviceTypes = types);
-                      },
-                    ),
-                  ),
+                AppSelect.fromItems<String>(
+                  value: categories.any((c) => c['id']?.toString() == selectedCategoryId) ? selectedCategoryId : null,
+                  hint: 'Select a category',
+                  title: 'Service Category',
+                  borderRadius: 12,
+                  fillColor: AppColors.surfaceVariant,
+                  fontSize: 14,
+                  searchable: true,
+                  enabled: !submitting,
+                  items: categories.map<DropdownMenuItem<String>>((c) => DropdownMenuItem(
+                    value: c['id']?.toString() ?? '',
+                    child: Text(c['name']?.toString() ?? '', style: _f(size: 14)),
+                  )).toList(),
+                  onChanged: submitting ? null : (v) async {
+                    setSheet(() { selectedCategoryId = v ?? ''; selectedTypeId = ''; });
+                    final types = await loadTypes(v ?? '');
+                    setSheet(() => serviceTypes = types);
+                  },
                 ),
                 const SizedBox(height: 10),
                 // Type selector
                 Text('Service Type', style: _f(size: 12, weight: FontWeight.w600)),
                 const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(12)),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: serviceTypes.any((t) => t['id']?.toString() == selectedTypeId) ? selectedTypeId : null,
-                      isExpanded: true,
-                      hint: Text('Select a type', style: _f(size: 14, color: AppColors.textHint)),
-                      items: serviceTypes.map<DropdownMenuItem<String>>((t) => DropdownMenuItem(
-                        value: t['id']?.toString() ?? '',
-                        child: Text(t['name']?.toString() ?? '', style: _f(size: 14)),
-                      )).toList(),
-                      onChanged: submitting ? null : (v) => setSheet(() => selectedTypeId = v ?? ''),
-                    ),
-                  ),
+                AppSelect.fromItems<String>(
+                  value: serviceTypes.any((t) => t['id']?.toString() == selectedTypeId) ? selectedTypeId : null,
+                  hint: 'Select a type',
+                  title: 'Service Type',
+                  borderRadius: 12,
+                  fillColor: AppColors.surfaceVariant,
+                  fontSize: 14,
+                  searchable: true,
+                  enabled: !submitting,
+                  items: serviceTypes.map<DropdownMenuItem<String>>((t) => DropdownMenuItem(
+                    value: t['id']?.toString() ?? '',
+                    child: Text(t['name']?.toString() ?? '', style: _f(size: 14)),
+                  )).toList(),
+                  onChanged: submitting ? null : (v) => setSheet(() => selectedTypeId = v ?? ''),
                 ),
                 const SizedBox(height: 10),
                 _sheetField(descCtrl, 'Description', 'Describe your service...', maxLines: 4),
@@ -1105,38 +1104,36 @@ class _ServiceDetailScreenState extends State<ServiceDetailScreen> {
                 // Status dropdown
                 Text('Status', style: _f(size: 12, weight: FontWeight.w600)),
                 const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(12)),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: status, isExpanded: true,
-                      items: const [
-                        DropdownMenuItem(value: 'active', child: Text('Active')),
-                        DropdownMenuItem(value: 'inactive', child: Text('Inactive')),
-                      ],
-                      onChanged: submitting ? null : (v) => setSheet(() => status = v ?? 'active'),
-                    ),
-                  ),
+                AppSelect.fromItems<String>(
+                  value: status,
+                  title: 'Status',
+                  borderRadius: 12,
+                  fillColor: AppColors.surfaceVariant,
+                  fontSize: 14,
+                  enabled: !submitting,
+                  items: const [
+                    DropdownMenuItem(value: 'active', child: Text('Active')),
+                    DropdownMenuItem(value: 'inactive', child: Text('Inactive')),
+                  ],
+                  onChanged: submitting ? null : (v) => setSheet(() => status = v ?? 'active'),
                 ),
                 const SizedBox(height: 10),
                 // Availability dropdown
                 Text('Availability', style: _f(size: 12, weight: FontWeight.w600)),
                 const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  decoration: BoxDecoration(color: AppColors.surfaceVariant, borderRadius: BorderRadius.circular(12)),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      value: availability, isExpanded: true,
-                      items: const [
-                        DropdownMenuItem(value: 'available', child: Text('Available')),
-                        DropdownMenuItem(value: 'busy', child: Text('Busy')),
-                        DropdownMenuItem(value: 'unavailable', child: Text('Unavailable')),
-                      ],
-                      onChanged: submitting ? null : (v) => setSheet(() => availability = v ?? 'available'),
-                    ),
-                  ),
+                AppSelect.fromItems<String>(
+                  value: availability,
+                  title: 'Availability',
+                  borderRadius: 12,
+                  fillColor: AppColors.surfaceVariant,
+                  fontSize: 14,
+                  enabled: !submitting,
+                  items: const [
+                    DropdownMenuItem(value: 'available', child: Text('Available')),
+                    DropdownMenuItem(value: 'busy', child: Text('Busy')),
+                    DropdownMenuItem(value: 'unavailable', child: Text('Unavailable')),
+                  ],
+                  onChanged: submitting ? null : (v) => setSheet(() => availability = v ?? 'available'),
                 ),
                 const SizedBox(height: 16),
                 SizedBox(

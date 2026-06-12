@@ -913,7 +913,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
               hintText: placeholder.isEmpty ? 'Type your answer…' : placeholder,
               hintStyle: _f(size: 13, color: AppColors.textHint),
               filled: true,
-              fillColor: AppColors.background,
+              fillColor: Colors.white,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide.none,
@@ -1088,7 +1088,7 @@ class _AiAssistantScreenState extends State<AiAssistantScreen> {
           hintText: placeholder.isEmpty ? 'Type here…' : placeholder,
           hintStyle: _f(size: 12.5, color: AppColors.textHint),
           filled: true,
-          fillColor: AppColors.background,
+          fillColor: Colors.white,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide.none,

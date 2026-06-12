@@ -36,6 +36,7 @@ const navItems = [
   { label: "Deletion Requests", icon: Trash2, to: "/admin/deletion-requests" },
   { label: "WhatsApp", icon: MessageCircle, to: "/admin/whatsapp" },
   { label: "WhatsApp Templates", icon: MessageCircle, to: "/admin/whatsapp/templates" },
+  { label: "WhatsApp Logs", icon: MessageSquare, to: "/admin/whatsapp-logs" },
   { label: "Support Tickets", icon: HeadphonesIcon, to: "/admin/tickets" },
   { label: "FAQs", icon: HelpCircle, to: "/admin/faqs" },
   { label: "Notifications", icon: Bell, to: "/admin/notifications" },

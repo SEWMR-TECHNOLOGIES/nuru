@@ -513,6 +513,18 @@ def respond_to_rsvp(code: str, body: RSVPResponseInput):
         if not guest_phone and body.whatsapp_from:
             guest_phone = body.whatsapp_from
 
+        try:
+            from utils.wa_logging import set_wa_log_context
+            set_wa_log_context(
+                event_id=str(event.id),
+                event_name=event.name,
+                source_module="rsvp",
+                purpose="rsvp_response",
+                recipient_type="guest",
+            )
+        except Exception:
+            pass
+
         if is_whatsapp_button:
             # Guest tapped a quick-reply on the invitation card already in
             # their WhatsApp thread. Don't resend the card — just send a

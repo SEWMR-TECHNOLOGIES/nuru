@@ -234,7 +234,7 @@ class _TrendingRailState extends State<TrendingRail> {
                                         style: GoogleFonts.inter(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.white),
                                       ),
                                     ),
-                                    if (author['is_verified'] == true || author['is_identity_verified'] == true) ...[
+                                    if (!isMine && (author['is_verified'] == true || author['is_identity_verified'] == true)) ...[
                                       const SizedBox(width: 3),
                                       const Icon(Icons.verified_rounded, size: 11, color: Colors.white),
                                     ],

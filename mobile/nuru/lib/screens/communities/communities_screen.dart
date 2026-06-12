@@ -155,7 +155,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
         ],
       ),
       body: _loading
-          ? const NuruSkeletonList(itemCount: 6, showTrailing: true)
+          ? _loadingSkeleton()
           : NuruRefreshIndicator(
               onRefresh: _load,
               color: AppColors.primary,
@@ -604,7 +604,121 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
     );
   }
 
+  // ─── Loading skeleton (matches real layout) ───────────────────────────────
+  Widget _loadingSkeleton() {
+    Widget bar(double w, double h, {double r = 6}) => NuruSkeleton(
+          width: w,
+          height: h,
+          borderRadius: BorderRadius.circular(r),
+        );
+
+    Widget railCard() => Container(
+          width: 200,
+          margin: const EdgeInsets.only(right: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFEEF0F4)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              NuruSkeleton(
+                width: 200,
+                height: 90,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    bar(140, 12),
+                    const SizedBox(height: 8),
+                    bar(90, 10),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+
+    Widget recRow() => Padding(
+          padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+          child: Row(
+            children: [
+              NuruSkeleton(
+                width: 56,
+                height: 56,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    bar(160, 13),
+                    const SizedBox(height: 8),
+                    bar(220, 10),
+                    const SizedBox(height: 6),
+                    bar(80, 10),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              bar(72, 30, r: 16),
+            ],
+          ),
+        );
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(0, 8, 0, 24),
+      children: [
+        // Purple hero placeholder
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: NuruSkeleton(
+            width: double.infinity,
+            height: 140,
+            borderRadius: BorderRadius.circular(20),
+          ),
+        ),
+        const SizedBox(height: 22),
+        // Section header
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [bar(140, 14), bar(50, 12)],
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Horizontal rail
+        SizedBox(
+          height: 170,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            children: [railCard(), railCard(), railCard()],
+          ),
+        ),
+        const SizedBox(height: 22),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: bar(180, 14),
+        ),
+        const SizedBox(height: 12),
+        recRow(),
+        recRow(),
+        recRow(),
+        recRow(),
+        recRow(),
+      ],
+    );
+  }
+
   Widget _empty() {
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
       child: Column(
@@ -810,7 +924,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
                 ),
                 isDense: true,
                 filled: true,
-                fillColor: const Color(0xFFF7F7F8),
+                fillColor: Colors.white,
                 prefixIcon: prefix,
                 prefixIconConstraints: const BoxConstraints(
                   minWidth: 40,
@@ -866,7 +980,7 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
                 height: 140,
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFF4F4F6),
+                  color: Colors.white,
                   borderRadius: BorderRadius.circular(18),
                   image: coverFile != null
                       ? DecorationImage(
@@ -877,9 +991,8 @@ class _CommunitiesScreenState extends State<CommunitiesScreen> {
                   border: Border.all(
                     color: coverFile != null
                         ? Colors.transparent
-                        : const Color(0xFFE7E7EC),
+                        : AppColors.primary.withOpacity(0.35),
                     width: 1.2,
-                    style: BorderStyle.solid,
                   ),
                 ),
                 child: coverFile != null

@@ -10,6 +10,7 @@ import '../../core/services/wallet_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/money_format.dart';
 import '../../core/widgets/amount_input.dart';
+import '../../core/widgets/app_icon.dart';
 import '../../core/data/countries.dart';
 import '../../providers/wallet_provider.dart';
 import 'receipt_screen.dart';
@@ -48,6 +49,15 @@ class MakePaymentScreen extends StatefulWidget {
   /// callers automatically reflect the active CommissionSetting.
   final bool showFee;
 
+  /// Optional "Reserve · pay later" action. When provided, MakePaymentScreen
+  /// renders an outlined secondary button beneath the primary Pay CTA so the
+  /// user can hold their order and complete payment from My Tickets later.
+  /// The caller owns the actual reservation logic (mirrors web behaviour).
+  final Future<void> Function()? onReserve;
+
+  /// Label for the reserve button (defaults to "Reserve · pay later").
+  final String reserveLabel;
+
   final void Function(Map<String, dynamic> tx)? onSuccess;
 
   const MakePaymentScreen({
@@ -65,8 +75,11 @@ class MakePaymentScreen extends StatefulWidget {
     this.summarySubtitle,
     this.summaryMeta,
     this.showFee = true,
+    this.onReserve,
+    this.reserveLabel = 'Reserve · pay later',
     this.onSuccess,
   });
+
 
   @override
   State<MakePaymentScreen> createState() => _MakePaymentScreenState();
@@ -398,15 +411,13 @@ class _MakePaymentScreenState extends State<MakePaymentScreen> {
                     title: 'Mobile Money',
                     subtitle: 'Pay using your mobile money account',
                   ),
-                  _methodCard(
-                    key: 'bank',
-                    iconPath: 'assets/icons/card-icon.svg',
-                    title: 'Bank Transfer',
-                    subtitle: widget.allowBank
-                        ? 'Pay directly from your bank account'
-                        : 'Coming soon',
-                    disabled: !widget.allowBank,
-                  ),
+                  if (widget.allowBank)
+                    _methodCard(
+                      key: 'bank',
+                      iconPath: 'assets/icons/card-icon.svg',
+                      title: 'Bank Transfer',
+                      subtitle: 'Pay directly from your bank account',
+                    ),
                   if (_method == 'mobile_money') ...[
                     const SizedBox(height: 18),
                     _section('Mobile Money Provider'),
@@ -429,8 +440,6 @@ class _MakePaymentScreenState extends State<MakePaymentScreen> {
                   ],
                   const SizedBox(height: 18),
                   _amountToPay(amount),
-                  const SizedBox(height: 12),
-                  _receiptHint(),
                   if (_pendingMessage != null) ...[
                     const SizedBox(height: 12),
                     _pendingBanner(),
@@ -581,16 +590,20 @@ class _MakePaymentScreenState extends State<MakePaymentScreen> {
             Container(
               width: 40, height: 40,
               decoration: BoxDecoration(
-                color: const Color(0xFFF9FAFB),
+                color: selected
+                    ? AppColors.primary.withValues(alpha: 0.10)
+                    : Colors.white,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFEEEEF2)),
+                border: Border.all(color: const Color(0xFFEAECEF)),
               ),
               alignment: Alignment.center,
               child: SvgPicture.asset(
                 iconPath,
                 width: 20, height: 20,
                 colorFilter: ColorFilter.mode(
-                  disabled ? AppColors.textTertiary : AppColors.textPrimary,
+                  disabled
+                      ? AppColors.textTertiary
+                      : (selected ? AppColors.primary : AppColors.textPrimary),
                   BlendMode.srcIn,
                 ),
               ),
@@ -658,114 +671,118 @@ class _MakePaymentScreenState extends State<MakePaymentScreen> {
             fontSize: 12, color: AppColors.textTertiary),
       );
     }
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-        childAspectRatio: 0.92,
-      ),
-      itemCount: _providers.length,
-      itemBuilder: (_, i) {
-        final p = _providers[i];
-        final selected = _providerId == p['id'];
-        final label = _providerLabel(p);
-        final brand = _brandFor(label);
-        return InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () => setState(() => _providerId = p['id'] as String),
-          child: Stack(children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-              decoration: BoxDecoration(
-                color: selected ? const Color(0xFFFFF7E6) : Colors.white,
-                border: Border.all(
-                    color: selected
-                        ? AppColors.primary
-                        : const Color(0xFFE5E7EB),
-                    width: selected ? 1.4 : 1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 30, height: 30,
-                    decoration: BoxDecoration(
-                      color: brand.bg,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    alignment: Alignment.center,
-                    child: Icon(brand.icon, size: 16, color: brand.fg),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      textAlign: TextAlign.center,
-                      style: GoogleFonts.inter(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary)),
-                ],
-              ),
-            ),
-            if (selected)
-              Positioned(
-                top: 4, right: 4,
-                child: Container(
-                  width: 14, height: 14,
-                  decoration: const BoxDecoration(
-                    color: AppColors.primary,
-                    shape: BoxShape.circle,
-                  ),
-                  alignment: Alignment.center,
-                  child: const Icon(Icons.check_rounded,
-                      size: 10, color: Colors.white),
-                ),
-              ),
-          ]),
-        );
-      },
+    return Column(
+      children: [
+        for (int i = 0; i < _providers.length; i++) ...[
+          _providerTile(_providers[i]),
+          if (i != _providers.length - 1) const SizedBox(height: 8),
+        ],
+      ],
     );
   }
 
-  ({Color bg, Color fg, IconData icon}) _brandFor(String name) {
+  Widget _providerTile(Map<String, dynamic> p) {
+    final selected = _providerId == p['id'];
+    final label = _providerLabel(p);
+    final brand = _brandFor(label);
+    final initial = label.isNotEmpty ? label[0].toUpperCase() : '?';
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: () => setState(() => _providerId = p['id'] as String),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFFFFF7E6) : Colors.white,
+          border: Border.all(
+              color: selected
+                  ? AppColors.primary
+                  : const Color(0xFFE5E7EB),
+              width: selected ? 1.4 : 1),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(children: [
+          Container(
+            width: 42, height: 42,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [brand.bg, brand.bg2],
+              ),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              initial,
+              style: GoogleFonts.inter(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: brand.fg),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: GoogleFonts.inter(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary)),
+                const SizedBox(height: 2),
+                Text(
+                  _method == 'mobile_money' ? 'Mobile money' : 'Bank transfer',
+                  style: GoogleFonts.inter(
+                      fontSize: 11.5,
+                      color: AppColors.textTertiary,
+                      fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+          ),
+          _radio(selected),
+        ]),
+      ),
+    );
+  }
+
+  ({Color bg, Color bg2, Color fg}) _brandFor(String name) {
     final n = name.toLowerCase();
     if (n.contains('mpesa') || n.contains('m-pesa') || n.contains('vodacom')) {
       return (
-        bg: const Color(0xFFE6F8EE),
-        fg: const Color(0xFF16A34A),
-        icon: Icons.phone_android_rounded,
+        bg: const Color(0xFFDCFCE7),
+        bg2: const Color(0xFFBBF7D0),
+        fg: const Color(0xFF15803D),
       );
     }
     if (n.contains('airtel')) {
       return (
         bg: const Color(0xFFFEE2E2),
-        fg: const Color(0xFFDC2626),
-        icon: Icons.circle,
+        bg2: const Color(0xFFFECACA),
+        fg: const Color(0xFFB91C1C),
       );
     }
     if (n.contains('tigo') || n.contains('mixx') || n.contains('yas')) {
       return (
-        bg: const Color(0xFFE0E7FF),
+        bg: const Color(0xFFDBEAFE),
+        bg2: const Color(0xFFBFDBFE),
         fg: const Color(0xFF1D4ED8),
-        icon: Icons.phone_android_rounded,
       );
     }
     if (n.contains('halopesa') || n.contains('halotel')) {
       return (
-        bg: const Color(0xFFFFF7E6),
+        bg: const Color(0xFFFFEDD5),
+        bg2: const Color(0xFFFED7AA),
         fg: const Color(0xFFB45309),
-        icon: Icons.phone_android_rounded,
       );
     }
     return (
-      bg: const Color(0xFFF3F4F6),
+      bg: Colors.white,
+      bg2: AppColors.primarySoft,
       fg: AppColors.textSecondary,
-      icon: Icons.account_balance_rounded,
     );
   }
 
@@ -800,7 +817,7 @@ class _MakePaymentScreenState extends State<MakePaymentScreen> {
                         fontWeight: FontWeight.w600,
                         color: AppColors.textPrimary)),
                 const SizedBox(width: 4),
-                Icon(Icons.expand_more_rounded,
+                const AppIcon('chevron-down',
                     size: 18, color: AppColors.textTertiary),
               ]),
             ),
@@ -986,33 +1003,6 @@ class _MakePaymentScreenState extends State<MakePaymentScreen> {
     );
   }
 
-  // ── Reassurance hint ─────────────────────────────────────────
-  Widget _receiptHint() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFF7E6),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFFCE9B6)),
-      ),
-      child: Row(children: [
-        SvgPicture.asset('assets/icons/shield-icon.svg',
-            width: 14, height: 14,
-            colorFilter: const ColorFilter.mode(
-                Color(0xFFB45309), BlendMode.srcIn)),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            'You will receive a receipt after successful payment',
-            style: GoogleFonts.inter(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w600,
-                color: const Color(0xFF92400E)),
-          ),
-        ),
-      ]),
-    );
-  }
 
   Widget _pendingBanner() {
     return Container(
@@ -1065,9 +1055,14 @@ class _MakePaymentScreenState extends State<MakePaymentScreen> {
                 backgroundColor: AppColors.primary,
                 foregroundColor: Colors.black,
                 elevation: 0,
+                shadowColor: Colors.transparent,
+                surfaceTintColor: Colors.transparent,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14)),
+              ).copyWith(
+                elevation: WidgetStateProperty.all(0),
+                shadowColor: WidgetStateProperty.all(Colors.transparent),
               ),
               child: _busy
                   ? const SizedBox(
@@ -1077,8 +1072,8 @@ class _MakePaymentScreenState extends State<MakePaymentScreen> {
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        SvgPicture.asset('assets/icons/shield-icon.svg',
-                            width: 16, height: 16,
+                        SvgPicture.asset('assets/icons/card-icon.svg',
+                            width: 18, height: 18,
                             colorFilter: const ColorFilter.mode(
                                 Colors.black, BlendMode.srcIn)),
                         const SizedBox(width: 8),
@@ -1091,24 +1086,52 @@ class _MakePaymentScreenState extends State<MakePaymentScreen> {
                     ),
             ),
           ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SvgPicture.asset('assets/icons/shield-icon.svg',
-                  width: 12, height: 12,
-                  colorFilter: const ColorFilter.mode(
-                      Color(0xFF9CA3AF), BlendMode.srcIn)),
-              const SizedBox(width: 6),
-              Text('Secure Payment',
-                  style: GoogleFonts.inter(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textTertiary)),
-            ],
-          ),
+          if (widget.onReserve != null) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: _busy
+                    ? null
+                    : () async {
+                        setState(() => _busy = true);
+                        try {
+                          await widget.onReserve!();
+                        } finally {
+                          if (mounted) setState(() => _busy = false);
+                        }
+                      },
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.textPrimary,
+                  side: const BorderSide(color: Color(0xFFE5E7EB), width: 1),
+                  elevation: 0,
+                  shadowColor: Colors.transparent,
+                  surfaceTintColor: Colors.transparent,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    SvgPicture.asset('assets/icons/clock-icon.svg',
+                        width: 16, height: 16,
+                        colorFilter: const ColorFilter.mode(
+                            AppColors.textPrimary, BlendMode.srcIn)),
+                    const SizedBox(width: 8),
+                    Text(widget.reserveLabel,
+                        style: GoogleFonts.inter(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary)),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 }
+

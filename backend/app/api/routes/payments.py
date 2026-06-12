@@ -539,9 +539,21 @@ def _notify_event_contributor_payment_recorded(db: Session, tx: Transaction) -> 
                     phone, contributor_name, event_name,
                     amount, pledge, total_paid, currency,
                     organizer_phone=organizer_phone,
+                    meta={
+                        "event_id": str(event.id) if event else None,
+                        "event_name": event_name,
+                        "recipient_type": "contributor",
+                        "recipient_id": str(ec.contributor.id) if ec and ec.contributor else None,
+                        "recipient_name": contributor_name,
+                        "message_purpose": "contribution_receipt",
+                        "source_module": "payments",
+                        "related_entity_type": "transaction",
+                        "related_entity_id": str(tx.id) if tx else None,
+                    },
                 )
             except Exception as e:
                 print(f"[payments] WA contribution recorded failed for {phone}: {e}")
+
             try:
                 from utils.sms import sms_contribution_recorded
                 sms_contribution_recorded(

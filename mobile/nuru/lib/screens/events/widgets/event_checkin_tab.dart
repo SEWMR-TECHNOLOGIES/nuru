@@ -205,7 +205,7 @@ class _EventCheckinTabState extends State<EventCheckinTab>
                 hintText: 'e.g. AWD20260824-1587',
                 hintStyle: appText(size: 14, color: AppColors.textHint),
                 filled: true,
-                fillColor: AppColors.borderLight.withOpacity(0.4),
+                fillColor: Colors.white,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
                 contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
               ),

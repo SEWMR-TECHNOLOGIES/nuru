@@ -15,6 +15,7 @@ import '../../core/widgets/app_snackbar.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/wallet_provider.dart';
 import '../../core/l10n/l10n_helper.dart';
+import '../../widgets/app_select.dart';
 
 class AddServiceScreen extends StatefulWidget {
   const AddServiceScreen({super.key});
@@ -1110,22 +1111,16 @@ class _AddServiceScreenState extends State<AddServiceScreen> {
   }
 
   Widget _dropdown({String? value, required String hint, required List<DropdownMenuItem<String>> items, ValueChanged<String?>? onChanged}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFFE5E7EB), width: 1),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          isExpanded: true,
-          hint: Text(hint, style: _f(size: 14, color: AppColors.textHint)),
-          items: items,
-          onChanged: onChanged,
-        ),
-      ),
+    return AppSelect.fromItems<String>(
+      value: value,
+      items: items,
+      onChanged: onChanged,
+      hint: hint,
+      title: hint,
+      borderRadius: 10,
+      borderColor: const Color(0xFFE5E7EB),
+      fontSize: 14,
+      searchable: items.length > 6,
     );
   }
 

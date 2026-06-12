@@ -1841,7 +1841,7 @@ class _TextField extends StatelessWidget {
         hintText: hint,
         hintStyle: _f(size: 13, color: AppColors.textHint),
         filled: true,
-        fillColor: AppColors.background,
+        fillColor: Colors.white,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
@@ -1877,7 +1877,7 @@ class _NumberField extends StatelessWidget {
             decoration: InputDecoration(
               isDense: true,
               filled: true,
-              fillColor: AppColors.background,
+              fillColor: Colors.white,
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(10),
                 borderSide: BorderSide.none,

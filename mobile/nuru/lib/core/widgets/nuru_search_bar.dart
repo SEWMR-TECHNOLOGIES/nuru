@@ -1,13 +1,14 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'app_icon.dart';
 
 /// Standard search input used across the app.
 ///
 /// Visual contract (matches the conversation-list search):
 ///  - 48px tall pill (BorderRadius 28)
 ///  - White fill with 1px #EDEDEF border
-///  - Leading `Icons.search_rounded` (20, #8E8E93) and 12px gap
+///  - Leading project SVG search icon (20, #8E8E93) and 12px gap
 ///  - GoogleFonts.inter(14) text and #9E9E9E hint
 ///  - Optional trailing clear button when text is present
 ///
@@ -104,7 +105,7 @@ class _NuruSearchBarState extends State<NuruSearchBar> {
           border: Border.all(color: const Color(0xFFEDEDEF), width: 1),
         ),
         child: Row(children: [
-          const Icon(Icons.search_rounded, size: 20, color: Color(0xFF8E8E93)),
+          const AppIcon('search', size: 20, color: Color(0xFF8E8E93)),
           const SizedBox(width: 12),
           Expanded(
             child: TextField(
@@ -139,7 +140,7 @@ class _NuruSearchBarState extends State<NuruSearchBar> {
               behavior: HitTestBehavior.opaque,
               child: const Padding(
                 padding: EdgeInsets.only(left: 8),
-                child: Icon(Icons.close_rounded, size: 18, color: Color(0xFF8E8E93)),
+                child: AppIcon('close', size: 18, color: Color(0xFF8E8E93)),
               ),
             ),
         ]),

@@ -11,6 +11,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/ticketing_service.dart';
 import '../../../core/utils/money_format.dart' show getActiveCurrency;
+import '../../../core/widgets/app_snackbar.dart';
 import '../../wallet/make_payment_screen.dart';
 
 class MyReservationsSection extends StatefulWidget {
@@ -89,9 +90,24 @@ class _MyReservationsSectionState extends State<MyReservationsSection> {
     if (!mounted) return;
     setState(() => _busyId = null);
     if (res['success'] != true) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(res['message']?.toString() ?? 'Could not start payment'),
-      ));
+      final raw = res['message']?.toString() ?? '';
+      final isClosed = raw.toLowerCase().contains('no longer') ||
+          raw.toLowerCase().contains('reservation') ||
+          raw.toLowerCase().contains('deadline') ||
+          raw.toLowerCase().contains('closed');
+      if (isClosed) {
+        AppSnackbar.show(
+          context,
+          type: AppSnackbarType.warning,
+          title: 'Reservations closed',
+          message:
+              'This event is no longer accepting ticket reservations. Please pay directly to continue.',
+          actionLabel: 'Pay now',
+          onAction: () => _payDirectly(r),
+        );
+      } else {
+        AppSnackbar.error(context, raw.isEmpty ? 'Could not start payment' : raw);
+      }
       _load();
       return;
     }
@@ -123,13 +139,25 @@ class _MyReservationsSectionState extends State<MyReservationsSection> {
             if (!mounted) return;
             setState(() => _items.removeWhere((x) => x['id'] == r['id']));
             widget.onChanged?.call();
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-              content: Text('Payment confirmed — your ticket is now issued.'),
-            ));
+            AppSnackbar.show(
+              context,
+              type: AppSnackbarType.success,
+              title: 'Payment confirmed',
+              message: 'Your ticket has been issued.',
+            );
           },
         ),
       ),
     );
+  }
+
+  /// Open the event so the user can buy tickets directly when reservation
+  /// holds are no longer accepted.
+  void _payDirectly(Map<String, dynamic> r) {
+    final event = r['event'] is Map ? Map<String, dynamic>.from(r['event']) : <String, dynamic>{};
+    final eventId = event['id']?.toString();
+    if (eventId == null || eventId.isEmpty) return;
+    Navigator.pushNamed(context, '/event/$eventId');
   }
 
   Future<void> _cancel(Map<String, dynamic> r) async {
@@ -140,13 +168,9 @@ class _MyReservationsSectionState extends State<MyReservationsSection> {
     if (res['success'] == true) {
       setState(() => _items.removeWhere((x) => x['id'] == r['id']));
       widget.onChanged?.call();
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Reservation cancelled'),
-      ));
+      AppSnackbar.success(context, 'Reservation cancelled');
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(res['message']?.toString() ?? 'Could not cancel'),
-      ));
+      AppSnackbar.error(context, res['message']?.toString() ?? 'Could not cancel');
     }
   }
 

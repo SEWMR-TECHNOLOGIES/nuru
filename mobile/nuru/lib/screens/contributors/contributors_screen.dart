@@ -134,120 +134,136 @@ class _ContributorsScreenState extends State<ContributorsScreen>
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSheet) => Padding(
           padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-            ),
-            child: SafeArea(
-              top: false,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: AppColors.borderLight,
-                        borderRadius: BorderRadius.circular(2),
+          child: DraggableScrollableSheet(
+            initialChildSize: 0.78,
+            minChildSize: 0.5,
+            maxChildSize: 0.95,
+            expand: false,
+            builder: (_, scrollCtrl) => Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+              child: SafeArea(
+                top: false,
+                child: ListView(
+                  controller: scrollCtrl,
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+                  children: [
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: AppColors.borderLight,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 18),
-                  Row(children: [
-                    Container(
-                      width: 38,
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: AppColors.primarySoft,
-                        borderRadius: BorderRadius.circular(12),
+                    const SizedBox(height: 18),
+                    Row(children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: AppColors.primarySoft,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: const Center(
+                          child: AppIcon('pen', size: 20, color: AppColors.primary),
+                        ),
                       ),
-                      child: const Center(
-                        child: AppIcon('pen', size: 18, color: AppColors.primary),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              context.trw('edit_contributor'),
+                              style: GoogleFonts.inter(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.textPrimary, letterSpacing: -0.2),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              'Update contact details and notes.',
+                              style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            context.trw('edit_contributor'),
-                            style: GoogleFonts.inter(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+                      GestureDetector(
+                        onTap: () => Navigator.pop(ctx),
+                        child: Container(
+                          width: 32, height: 32,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF4F4F6),
+                            shape: BoxShape.circle,
                           ),
-                          Text(
-                            'Update contact details and notes.',
-                            style: GoogleFonts.inter(fontSize: 12, color: AppColors.textTertiary),
-                          ),
-                        ],
+                          child: const Center(child: AppIcon('close', size: 14, color: AppColors.textSecondary)),
+                        ),
                       ),
-                    ),
-                  ]),
-                  const SizedBox(height: 20),
-                  _sheetField('Name', nameCtrl, icon: 'user'),
-                  const SizedBox(height: 12),
-                  _sheetField('Phone', phoneCtrl, icon: 'phone', type: TextInputType.phone),
-                  const SizedBox(height: 12),
-                  _sheetField('Email', emailCtrl, icon: 'email', type: TextInputType.emailAddress),
-                  const SizedBox(height: 12),
-                  _sheetField('Notes', notesCtrl, icon: 'pen', maxLines: 3),
-                  const SizedBox(height: 22),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: saving
-                          ? null
-                          : () async {
-                              setSheet(() => saving = true);
-                              try {
-                                final headers = await _headers();
-                                final resp = await http.put(
-                                  Uri.parse('${ApiService.baseUrl}/user-contributors/$id'),
-                                  headers: headers,
-                                  body: jsonEncode({
-                                    'name': nameCtrl.text.trim(),
-                                    'email': emailCtrl.text.trim(),
-                                    'phone': phoneCtrl.text.trim(),
-                                    'notes': notesCtrl.text.trim(),
-                                  }),
-                                );
-                                if (!mounted) return;
-                                Navigator.pop(ctx);
-                                if (resp.statusCode >= 200 && resp.statusCode < 300) {
-                                  AppSnackbar.success(context, context.tr('contributor_updated'));
-                                  _load();
-                                } else {
+                    ]),
+                    const SizedBox(height: 22),
+                    _sheetField('Name', nameCtrl, icon: 'user'),
+                    const SizedBox(height: 12),
+                    _sheetField('Phone', phoneCtrl, icon: 'phone', type: TextInputType.phone),
+                    const SizedBox(height: 12),
+                    _sheetField('Email', emailCtrl, icon: 'email', type: TextInputType.emailAddress),
+                    const SizedBox(height: 12),
+                    _sheetField('Notes', notesCtrl, icon: 'pen', maxLines: 3),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: ElevatedButton(
+                        onPressed: saving
+                            ? null
+                            : () async {
+                                setSheet(() => saving = true);
+                                try {
+                                  final headers = await _headers();
+                                  final resp = await http.put(
+                                    Uri.parse('${ApiService.baseUrl}/user-contributors/$id'),
+                                    headers: headers,
+                                    body: jsonEncode({
+                                      'name': nameCtrl.text.trim(),
+                                      'email': emailCtrl.text.trim(),
+                                      'phone': phoneCtrl.text.trim(),
+                                      'notes': notesCtrl.text.trim(),
+                                    }),
+                                  );
+                                  if (!mounted) return;
+                                  Navigator.pop(ctx);
+                                  if (resp.statusCode >= 200 && resp.statusCode < 300) {
+                                    AppSnackbar.success(context, context.tr('contributor_updated'));
+                                    _load();
+                                  } else {
+                                    AppSnackbar.error(context, context.tr('failed_update'));
+                                  }
+                                } catch (_) {
+                                  if (!mounted) return;
+                                  Navigator.pop(ctx);
                                   AppSnackbar.error(context, context.tr('failed_update'));
                                 }
-                              } catch (_) {
-                                if (!mounted) return;
-                                Navigator.pop(ctx);
-                                AppSnackbar.error(context, context.tr('failed_update'));
-                              }
-                            },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.primary,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                        elevation: 0,
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                          elevation: 0,
+                        ),
+                        child: saving
+                            ? const SizedBox(
+                                width: 20, height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2.2, color: Colors.white),
+                              )
+                            : Text(
+                                context.trw('save_changes'),
+                                style: GoogleFonts.inter(fontSize: 14.5, fontWeight: FontWeight.w800),
+                              ),
                       ),
-                      child: saving
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
-                          : Text(
-                              context.trw('save_changes'),
-                              style: GoogleFonts.inter(fontSize: 14, fontWeight: FontWeight.w800),
-                            ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
@@ -270,37 +286,39 @@ class _ContributorsScreenState extends State<ContributorsScreen>
           label,
           style: GoogleFonts.inter(fontSize: 11.5, fontWeight: FontWeight.w700, color: AppColors.textSecondary, letterSpacing: 0.2),
         ),
-        const SizedBox(height: 6),
-        Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFFF7F8FA),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.borderLight),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (icon != null) ...[
-                Padding(
-                  padding: const EdgeInsets.only(top: 12, right: 10),
-                  child: AppIcon(icon, size: 16, color: AppColors.textTertiary),
-                ),
-              ],
-              Expanded(
-                child: TextField(
-                  controller: ctrl,
-                  keyboardType: type,
-                  maxLines: maxLines,
-                  style: GoogleFonts.inter(fontSize: 14, color: AppColors.textPrimary),
-                  decoration: const InputDecoration(
-                    isCollapsed: true,
-                    contentPadding: EdgeInsets.symmetric(vertical: 12),
-                    border: InputBorder.none,
+        const SizedBox(height: 8),
+        TextField(
+          controller: ctrl,
+          keyboardType: type,
+          maxLines: maxLines,
+          autocorrect: false,
+          enableSuggestions: false,
+          style: GoogleFonts.inter(fontSize: 14, color: AppColors.textPrimary),
+          decoration: InputDecoration(
+            isDense: true,
+            filled: true,
+            fillColor: Colors.white,
+            prefixIcon: icon == null
+                ? null
+                : Padding(
+                    padding: const EdgeInsets.only(left: 14, right: 10),
+                    child: AppIcon(icon, size: 16, color: AppColors.textTertiary),
                   ),
-                ),
-              ),
-            ],
+            prefixIconConstraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            hintStyle: GoogleFonts.inter(fontSize: 13.5, color: const Color(0xFFA1A1AA)),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: AppColors.borderLight),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: const BorderSide(color: AppColors.borderLight),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: AppColors.primary.withOpacity(0.7), width: 1.4),
+            ),
           ),
         ),
       ],

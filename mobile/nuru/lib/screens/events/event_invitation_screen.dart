@@ -1035,7 +1035,7 @@ class _EventInvitationScreenState extends State<EventInvitationScreen> {
                 fontSize: 13,
                 fontWeight: FontWeight.w500),
             filled: true,
-            fillColor: const Color(0xFFF7F7F8),
+            fillColor: Colors.white,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide.none,

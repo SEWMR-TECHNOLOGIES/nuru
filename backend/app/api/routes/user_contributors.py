@@ -1289,6 +1289,14 @@ def add_to_event(event_id: str, body: dict = Body(...), background_tasks: Backgr
             contrib_name = contributor.name
             event_name = event.name
 
+            try:
+                from utils.wa_logging import set_wa_log_context
+                set_wa_log_context(event_id=str(event.id), event_name=event.name,
+                                   source_module="contributors", purpose="contribution_target",
+                                   recipient_type="contributor",
+                                   related_entity_type="event_contributor",
+                                   related_entity_id=str(ec.id))
+            except Exception: pass
             def _notify_added():
                 for ph in recipients:
                     try:
@@ -1368,6 +1376,14 @@ def update_event_contributor(event_id: str, ec_id: str, body: dict = Body(...), 
             contrib_name = ec.contributor.name
             event_name = event.name
 
+            try:
+                from utils.wa_logging import set_wa_log_context
+                set_wa_log_context(event_id=str(event.id), event_name=event.name,
+                                   source_module="contributors", purpose="contribution_target",
+                                   recipient_type="contributor",
+                                   related_entity_type="event_contributor",
+                                   related_entity_id=str(ec.id))
+            except Exception: pass
             def _notify_pledge_change():
                 for ph in recipients:
                     try:
@@ -1586,6 +1602,14 @@ def record_payment(
     recipients = contributor_notify_phones(ec) if contributor else []
 
     def _post_payment_side_effects():
+        try:
+            from utils.wa_logging import set_wa_log_context
+            set_wa_log_context(event_id=str(event_id_str), event_name=event_name,
+                               source_module="contributions", purpose="contribution_receipt",
+                               recipient_type="contributor",
+                               related_entity_type="contribution",
+                               related_entity_id=str(contribution.id))
+        except Exception: pass
         # Workspace announcement — confirmed payments only.
         if confirmation_status == ContributionStatusEnum.confirmed:
             try:
@@ -1689,6 +1713,15 @@ def send_thank_you_sms(event_id: str, ec_id: str, body: dict = Body(default={}),
         if c.confirmation_status is None or c.confirmation_status == ContributionStatusEnum.confirmed
     )
     currency_code = _currency_code(db, event)
+
+    try:
+        from utils.wa_logging import set_wa_log_context
+        set_wa_log_context(event_id=str(event.id), event_name=event.name,
+                           source_module="contributors", purpose="thank_you_message",
+                           recipient_type="contributor",
+                           related_entity_type="event_contributor",
+                           related_entity_id=str(ec.id))
+    except Exception: pass
 
     sms_failed = False
     for ph in recipients:
@@ -3320,6 +3353,15 @@ def send_share_link_sms(
     pledge_val = float(ec.pledge_amount or 0)
     contributor_name = ec.contributor.name or "there"
     event_title = event.name or "the event"
+
+    try:
+        from utils.wa_logging import set_wa_log_context
+        set_wa_log_context(event_id=str(event.id), event_name=event.name,
+                           source_module="contributors", purpose="contribution_invite",
+                           recipient_type="contributor",
+                           related_entity_type="event_contributor",
+                           related_entity_id=str(ec.id))
+    except Exception: pass
 
     sent_wa = False
     sent_sms = False

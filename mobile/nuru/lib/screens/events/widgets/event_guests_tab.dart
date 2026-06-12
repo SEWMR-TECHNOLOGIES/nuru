@@ -1,4 +1,5 @@
 import '../../../core/widgets/nuru_refresh_indicator.dart';
+import '../../../widgets/app_action_sheet.dart';
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -401,19 +402,24 @@ class _EventGuestsTabState extends State<EventGuestsTab> with AutomaticKeepAlive
               color: Colors.white, shape: BoxShape.circle,
               border: Border.all(color: AppColors.border),
             ),
-            child: PopupMenuButton<String>(
+            child: IconButton(
               padding: EdgeInsets.zero,
               icon: const AppIcon('menu', size: 16, color: AppColors.textSecondary),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              onSelected: (v) => _handleGuestAction(v, g),
-              itemBuilder: (_) {
+              onPressed: () async {
                 final checkedIn = g['checked_in'] == true;
-                return [
-                  if (!checkedIn) const PopupMenuItem(value: 'checkin', child: Text('Check In')),
-                  if (checkedIn) const PopupMenuItem(value: 'undo_checkin', child: Text('Undo Check-in')),
-                  const PopupMenuItem(value: 'invite', child: Text('Send Invitation')),
-                  const PopupMenuItem(value: 'delete', child: Text('Remove')),
-                ];
+                final v = await AppActionSheet.show<String>(
+                  context: context,
+                  title: 'Guest actions',
+                  actions: [
+                    if (!checkedIn)
+                      const MenuAction(value: 'checkin', label: 'Check In', icon: 'double-check'),
+                    if (checkedIn)
+                      const MenuAction(value: 'undo_checkin', label: 'Undo Check-in', icon: 'close'),
+                    const MenuAction(value: 'invite', label: 'Send Invitation', icon: 'send'),
+                    const MenuAction(value: 'delete', label: 'Remove', icon: 'delete', destructive: true),
+                  ],
+                );
+                if (v != null) _handleGuestAction(v, g);
               },
             ),
           ),

@@ -1,4 +1,5 @@
 import '../../../core/widgets/nuru_refresh_indicator.dart';
+import '../../../widgets/app_action_sheet.dart';
 import '../../../core/utils/money_format.dart';
 import 'dart:async';
 import 'dart:math' as math;
@@ -251,18 +252,19 @@ class _AnalyticsPanelState extends State<AnalyticsPanel> {
         : _rangeDays == 14
             ? 'Last 14 days'
             : 'Last 30 days';
-    return PopupMenuButton<int>(
-      tooltip: 'Range',
-      initialValue: _rangeDays,
-      onSelected: (v) => setState(() => _rangeDays = v),
-      position: PopupMenuPosition.under,
-      color: AppColors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      itemBuilder: (_) => const [
-        PopupMenuItem(value: 7, child: Text('Last 7 days')),
-        PopupMenuItem(value: 14, child: Text('Last 14 days')),
-        PopupMenuItem(value: 30, child: Text('Last 30 days')),
-      ],
+    return GestureDetector(
+      onTap: () async {
+        final v = await AppActionSheet.show<int>(
+          context: context,
+          title: 'Time range',
+          actions: [
+            MenuAction(value: 7, label: 'Last 7 days', icon: 'time-fast', selected: _rangeDays == 7),
+            MenuAction(value: 14, label: 'Last 14 days', icon: 'time-fast', selected: _rangeDays == 14),
+            MenuAction(value: 30, label: 'Last 30 days', icon: 'time-fast', selected: _rangeDays == 30),
+          ],
+        );
+        if (v != null) setState(() => _rangeDays = v);
+      },
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(

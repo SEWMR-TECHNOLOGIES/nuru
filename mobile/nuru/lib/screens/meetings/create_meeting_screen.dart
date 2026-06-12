@@ -476,7 +476,7 @@ class _CreateMeetingScreenState extends State<CreateMeetingScreen> {
   InputDecoration _input(String hint) => InputDecoration(
         hintText: hint,
         filled: true,
-        fillColor: Colors.grey[50],
+        fillColor: Colors.white,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         border: OutlineInputBorder(
