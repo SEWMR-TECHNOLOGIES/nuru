@@ -256,6 +256,15 @@ export const eventCardsApi = {
   listPreparedCards: (eventId: string) =>
     get<{ prepared_cards: PreparedCard[] }>(`/events/${eventId}/prepared-cards`),
 
+  /** Recipient ids that already have a prepared / sent card for a card
+   *  category. Drives the "Only those not prepared / not sent yet"
+   *  pre-filter — category-scoped to mirror the backend skip_existing
+   *  dispatch filter. */
+  getCardRecipientStatus: (eventId: string, category: string) =>
+    get<{ prepared_ids: string[]; sent_ids: string[] }>(
+      `/events/${eventId}/cards/${encodeURIComponent(category)}/recipient-status`,
+    ),
+
   sendPreparedCards: (eventId: string, sentIds: string[]) =>
     post<{ queued: number }>(`/events/${eventId}/prepared-cards/send`, { sent_ids: sentIds }),
 

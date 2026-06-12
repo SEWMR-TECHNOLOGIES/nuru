@@ -144,6 +144,18 @@ def _send(action: str, phone: str, params: dict) -> bool:
         return False
     phone_tail = (phone[-4:] if phone and len(phone) >= 4 else "?")
     print(f"[wa_cards] send action={action} phone_tail={phone_tail} param_keys={sorted(list((params or {}).keys()))}")
+
+    # Pre-create a wa_message_logs row so this attempt shows up on the
+    # WhatsApp Logs page even before Meta replies. We update it below with
+    # the outcome (provider_message_id on success, error on failure).
+    log_id: str | None = None
+    try:
+        from utils.wa_logging import log_attempt
+        log_id = log_attempt(action, phone, params or {})
+    except Exception as _e:  # noqa: BLE001
+        print(f"[wa_cards] log_attempt failed: {_e}")
+        log_id = None
+
     for url in urls:
         try:
             print(f"[wa_cards] send url={url}")
@@ -155,20 +167,42 @@ def _send(action: str, phone: str, params: dict) -> bool:
             )
             if not r.ok:
                 print(f"[wa_cards] send failed ({r.status_code}): {r.text[:200]}")
+                try:
+                    from utils.wa_logging import update_from_send_result
+                    update_from_send_result(log_id, {
+                        "ok": False,
+                        "status": r.status_code,
+                        "error": r.text[:500],
+                    })
+                except Exception:
+                    pass
                 continue
             print(f"[wa_cards] send response: {r.text[:300]}")
-            # Mirror this template/card send into the admin WhatsApp inbox
-            # (wa_conversations + wa_messages) so the admin can see every
-            # outbound message — including invitation/ticket/thank-you cards —
-            # in the recipient's thread, with delivery status callbacks from
-            # the webhook updating the same row.
+            data = {}
             try:
                 data = r.json() or {}
-                wa_message_id = (
-                    data.get("message_id")
-                    or data.get("wa_message_id")
-                    or (((data.get("response") or {}).get("messages") or [{}])[0].get("id"))
-                )
+            except Exception:
+                data = {}
+            wa_message_id = (
+                data.get("message_id")
+                or data.get("wa_message_id")
+                or (((data.get("response") or {}).get("messages") or [{}])[0].get("id"))
+            )
+            # Update wa_message_logs with the outcome
+            try:
+                from utils.wa_logging import update_from_send_result
+                update_from_send_result(log_id, {
+                    "ok": bool(wa_message_id),
+                    "message_id": wa_message_id,
+                    "response": data,
+                    "error": data.get("error") if not wa_message_id else None,
+                    "error_code": data.get("error_code") if not wa_message_id else None,
+                })
+            except Exception as _e:  # noqa: BLE001
+                print(f"[wa_cards] update_from_send_result failed: {_e}")
+
+            # Mirror this template/card send into the admin WhatsApp inbox
+            try:
                 if wa_message_id:
                     from core.database import SessionLocal as _SL
                     from api.routes.whatsapp_admin import _store_incoming as _store
@@ -198,7 +232,13 @@ def _send(action: str, phone: str, params: dict) -> bool:
             return True
         except Exception as e:
             print(f"[wa_cards] send exception url={url}: {e}")
+            try:
+                from utils.wa_logging import update_from_send_result
+                update_from_send_result(log_id, {"ok": False, "error": str(e)[:500]})
+            except Exception:
+                pass
     return False
+
 
 
 # ── Public helpers ────────────────────────────────────────────────────────────

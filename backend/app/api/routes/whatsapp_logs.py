@@ -27,11 +27,45 @@ from sqlalchemy.orm import Session
 
 from core.database import get_db
 from models import User
+from models.events import Event
 from models.wa_message_log import WAMessageLog
 from utils.auth import get_current_user
 from utils.helpers import standard_response, paginate
 
 router = APIRouter(prefix="/whatsapp/logs", tags=["WhatsApp Logs"])
+
+
+def _scope_to_user(query, db: Session, current_user: User):
+    """Limit WhatsApp logs to messages tied to the current user directly.
+
+    Logs bind to the USER who sent them — never to events. A user sees:
+      • messages they triggered (``user_id == me`` — set by the send
+        pipeline via the wa_log_context middleware / dispatch context), OR
+      • messages delivered TO their own phone number (OTPs, receipts, …).
+    """
+    conds = [WAMessageLog.user_id == current_user.id]
+
+    # Match logs sent to the user's own phone (recipient side).
+    def _normalize_for_match(raw: str) -> str | None:
+        try:
+            from utils.whatsapp import _normalize_phone as _np
+            v = _np(raw or "")
+        except Exception:
+            v = (raw or "").strip()
+        return v or None
+
+    own_norm = _normalize_for_match(getattr(current_user, "phone", None) or "")
+    if own_norm:
+        conds.append(WAMessageLog.normalized_phone == own_norm)
+        conds.append(WAMessageLog.recipient_phone == own_norm)
+        # Backstop for legacy rows where normalization differed.
+        digits = "".join(c for c in own_norm if c.isdigit())
+        last9 = digits[-9:] if len(digits) >= 9 else digits
+        if last9:
+            conds.append(WAMessageLog.normalized_phone.ilike(f"%{last9}"))
+            conds.append(WAMessageLog.recipient_phone.ilike(f"%{last9}"))
+
+    return query.filter(or_(*conds))
 
 
 _RETRYABLE_STATUSES = {"failed", "rejected", "unknown"}
@@ -98,7 +132,7 @@ def list_logs(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    query = db.query(WAMessageLog)
+    query = _scope_to_user(db.query(WAMessageLog), db, current_user)
 
     if status:
         statuses = [s.strip() for s in status.split(",") if s.strip()]
@@ -159,11 +193,13 @@ def stats(
     current_user: User = Depends(get_current_user),
 ):
     since = datetime.utcnow() - timedelta(days=days)
+    base = _scope_to_user(
+        db.query(WAMessageLog.status, func.count(WAMessageLog.id)), db, current_user
+    )
     rows = (
-        db.query(WAMessageLog.status, func.count(WAMessageLog.id))
-          .filter(WAMessageLog.created_at >= since)
-          .group_by(WAMessageLog.status)
-          .all()
+        base.filter(WAMessageLog.created_at >= since)
+            .group_by(WAMessageLog.status)
+            .all()
     )
     counts = {s: int(c) for s, c in rows}
     total = sum(counts.values())
@@ -181,7 +217,7 @@ def get_log(
         lid = uuid.UUID(log_id)
     except ValueError:
         raise HTTPException(400, "Invalid log id")
-    row = db.query(WAMessageLog).filter(WAMessageLog.id == lid).first()
+    row = _scope_to_user(db.query(WAMessageLog), db, current_user).filter(WAMessageLog.id == lid).first()
     if not row:
         raise HTTPException(404, "Log not found")
 
@@ -216,7 +252,7 @@ def resend_log(
         lid = uuid.UUID(log_id)
     except ValueError:
         raise HTTPException(400, "Invalid log id")
-    row = db.query(WAMessageLog).filter(WAMessageLog.id == lid).first()
+    row = _scope_to_user(db.query(WAMessageLog), db, current_user).filter(WAMessageLog.id == lid).first()
     if not row:
         raise HTTPException(404, "Log not found")
     if row.status not in _RETRYABLE_STATUSES:

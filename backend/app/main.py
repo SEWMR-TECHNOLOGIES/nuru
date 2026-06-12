@@ -73,6 +73,11 @@ app.add_middleware(
 from middleware.security import SecurityHeadersMiddleware
 app.add_middleware(SecurityHeadersMiddleware)
 
+# 5b. WhatsApp log sender attribution — binds every wa_message_logs row
+#     created during a request to the authenticated user who triggered it.
+from middleware.wa_log_context import WaLogContextMiddleware
+app.add_middleware(WaLogContextMiddleware)
+
 # 6. Query logging & per-request DB stats (dev/staging diagnostics)
 from middleware.query_logger import QueryCountMiddleware, ENABLED as QUERY_LOG_ON
 if QUERY_LOG_ON:

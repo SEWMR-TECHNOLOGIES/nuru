@@ -602,37 +602,19 @@ export default function EventCardsTab({ eventId }: Props) {
     // ── Pre-filter for "Only those not prepared / not sent yet" ──
     // The backend already enforces skip_existing at dispatch time, but the
     // picker should also reflect that choice so the user sees (and confirms)
-    // ONLY the remaining recipients — not the full list. Compute the set of
-    // ids to hide here so eligibleContributors auto-shrinks.
+    // ONLY the remaining recipients — not the full list. The exclusion set
+    // is CATEGORY-scoped (one backend call), matching the backend's
+    // skip_existing filter exactly — template ids are deliberately ignored
+    // because switching templates within a category must not reset who
+    // already has a card.
     setExcludedRecipientIds(new Set());
     setExcludedReason(null);
-    if (mode === "skip_existing") {
+    if (mode === "skip_existing" && activeCategory) {
       try {
-        const tplId = activeTemplate?.id;
-        const isGuest = audience === "guests";
-        const excluded = new Set<string>();
-        if (prepareOnly) {
-          // Drop only people who already have a "prepared" row.
-          const res = await eventCardsApi.listPreparedCards(eventId);
-          const list = res.data?.prepared_cards || [];
-          for (const p of list) {
-            if (tplId && p.template_id && p.template_id !== tplId) continue;
-            if (isGuest && p.recipient_type !== "guest") continue;
-            if (!isGuest && p.recipient_type !== "contributor") continue;
-            if (p.recipient_id) excluded.add(p.recipient_id);
-          }
-          setExcludedReason("prepared");
-        } else if (tplId) {
-          // Drop people who already received a (non-prepared) send.
-          const res = await eventCardsApi.listSentCardRecipients(eventId, tplId);
-          const list = res.data?.recipients || [];
-          for (const r of list) {
-            const id = isGuest ? r.guest_attendee_id : r.contributor_id;
-            if (id) excluded.add(id);
-          }
-          setExcludedReason("sent");
-        }
-        setExcludedRecipientIds(excluded);
+        const res = await eventCardsApi.getCardRecipientStatus(eventId, activeCategory);
+        const ids = prepareOnly ? res.data?.prepared_ids || [] : res.data?.sent_ids || [];
+        setExcludedRecipientIds(new Set(ids));
+        setExcludedReason(prepareOnly ? "prepared" : "sent");
       } catch (err) {
         // Non-fatal — backend will still enforce skip_existing on submit.
         console.warn("[cards] skip_existing pre-filter failed", err);
@@ -650,7 +632,7 @@ export default function EventCardsTab({ eventId }: Props) {
       setSendStep("pick");
     }
     setSendOpen(true);
-  }, [savedCard, audience, persistActiveCard, fetchEventContributors, fetchEventGuests, currentJobId, eventId, activeTemplate?.id]);
+  }, [savedCard, audience, persistActiveCard, fetchEventContributors, fetchEventGuests, currentJobId, eventId, activeCategory]);
 
 
   const toggleContributor = (id: string) => {

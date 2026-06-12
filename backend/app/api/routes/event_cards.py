@@ -709,11 +709,12 @@ async def upload_browser_rendered_card(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Upload browser-rendered card bytes through the card storage pipeline.
+    """Upload browser-rendered card bytes to Nuru's own backend storage
+    (the same host used by KYC/media uploads). Meta can fetch these URLs
+    reliably for WhatsApp media headers across browsers."""
+    import httpx
+    from core.config import UPLOAD_SERVICE_URL
 
-    This avoids the generic upload host used for normal attachments. Meta can
-    fetch these URLs reliably for WhatsApp media headers across browsers.
-    """
     event = _assert_event_manager(db, event_id, current_user)
     active_card = (
         db.query(EventCard)
@@ -733,12 +734,27 @@ async def upload_browser_rendered_card(
         raise HTTPException(status_code=400, detail="Empty card image")
     if len(content) > 8 * 1024 * 1024:
         raise HTTPException(status_code=400, detail="Card image is too large")
-    from utils.whatsapp_cards import upload_card_png
-    path = f"cards/browser/{event.id}/{active_card.id}/{recipient_id}.png"
-    url = upload_card_png(path, content)
-    if not url:
+
+    unique_name = f"{uuid.uuid4().hex}.png"
+    target_path = f"nuru/uploads/cards/{event.id}/{active_card.id}/{recipient_id}/"
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                UPLOAD_SERVICE_URL,
+                data={"target_path": target_path},
+                files={"file": (unique_name, content, file.content_type or "image/png")},
+                timeout=30,
+            )
+        result = resp.json() if resp is not None else {}
+    except Exception as e:  # noqa: BLE001
+        print(f"[event_cards] nuru upload failed: {e}")
         raise HTTPException(status_code=502, detail="Card upload failed")
-    return standard_response(True, "Card image uploaded.", {"url": url, "path": path})
+    if not result.get("success"):
+        raise HTTPException(status_code=502, detail=result.get("message") or "Card upload failed")
+    url = (result.get("data") or {}).get("url")
+    if not url:
+        raise HTTPException(status_code=502, detail="Card upload returned no URL")
+    return standard_response(True, "Card image uploaded.", {"url": url, "path": target_path + unique_name})
 
 
 @router.get("/events/{event_id}/cards/{category}/preview.svg")
@@ -878,11 +894,15 @@ def send_pledge_thank_you_cards(
     if mode == "skip_existing":
         skip_statuses = {"prepared"} if prepare_only else {"sent", "delivered", "read"}
         column = SentEventCard.guest_attendee_id if is_guest_dispatch else SentEventCard.contributor_id
+        # Match by CATEGORY (via the EventCard join), not by the active
+        # EventCard id — older sends may live under a previous EventCard /
+        # template row for the same category and must still be skipped.
         existing_rows = (
             db.query(column, SentEventCard.delivery_status)
+            .join(EventCard, SentEventCard.event_card_id == EventCard.id)
             .filter(
                 SentEventCard.event_id == dispatch_event_id,
-                SentEventCard.event_card_id == dispatch_event_card_id,
+                EventCard.category == category,
                 column.in_(ids),
             )
             .all()
@@ -1088,6 +1108,15 @@ def send_pledge_thank_you_cards(
         from services.share_links import host_for_currency, can_send_sms_for_currency
         from utils.whatsapp import wa_pledge_thank_you_card
         from utils.sms import sms_pledge_thank_you_card
+
+        # Attribute every WhatsApp log row created by this dispatch to the
+        # user who clicked Send (background threads don't inherit the
+        # per-request context set by the middleware).
+        try:
+            from utils.wa_logging import set_wa_log_context
+            set_wa_log_context(user_id=dispatch_sender_user_id, event_id=dispatch_event_id)
+        except Exception:  # noqa: BLE001
+            pass
 
         s = SessionLocal()
         try:
@@ -1484,6 +1513,50 @@ def send_pledge_thank_you_cards(
     return standard_response(True, f"Queued {len(sent_card_ids)} thank-you cards.", {
         "queued": len(sent_card_ids),
         "sent_ids": [str(x) for x in sent_card_ids],
+    })
+
+
+@router.get("/events/{event_id}/cards/{category}/recipient-status")
+def card_recipient_status(
+    event_id: str,
+    category: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Which recipients already have a prepared / sent card for this card
+    CATEGORY. Powers the "Only those not prepared / not sent yet" picker
+    pre-filter — scoped by category (not template id) so switching
+    templates within the same category still hides people correctly,
+    exactly mirroring the backend ``skip_existing`` dispatch filter."""
+    event = _assert_event_manager(db, event_id, current_user)
+    category = _validate_category(category)
+    rows = (
+        db.query(
+            SentEventCard.guest_attendee_id,
+            SentEventCard.contributor_id,
+            SentEventCard.delivery_status,
+        )
+        .join(EventCard, SentEventCard.event_card_id == EventCard.id)
+        .filter(
+            SentEventCard.event_id == event.id,
+            EventCard.category == category,
+        )
+        .all()
+    )
+    prepared: set = set()
+    sent: set = set()
+    for gid, cid, status in rows:
+        rid = str(gid or cid or "")
+        if not rid:
+            continue
+        st = str(status or "")
+        if st == "prepared":
+            prepared.add(rid)
+        elif st in ("sent", "delivered", "read"):
+            sent.add(rid)
+    return standard_response(True, "OK", {
+        "prepared_ids": sorted(prepared),
+        "sent_ids": sorted(sent),
     })
 
 

@@ -8,9 +8,43 @@ errors so logging can never break the actual send.
 """
 from __future__ import annotations
 
+import contextvars
 import json
+import uuid as _uuid
 from datetime import datetime
 from typing import Any
+
+# ----------------------------------------------------------------------
+# Sender attribution context
+# ----------------------------------------------------------------------
+# Outbound WhatsApp logs must be bound to the USER who triggered the send
+# (powers the user-facing WhatsApp Logs page). The send pipeline itself
+# only knows the recipient phone, so callers establish an ambient context:
+#   • per-request: middleware.wa_log_context decodes the auth token and
+#     sets the user id for everything sent during that request, and
+#   • background dispatch threads call set_wa_log_context() explicitly.
+_wa_log_user_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "wa_log_user_id", default=None)
+_wa_log_event_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "wa_log_event_id", default=None)
+
+
+def set_wa_log_context(user_id=None, event_id=None) -> None:
+    """Attribute subsequent log_attempt() calls in this context to a user/event."""
+    try:
+        if user_id is not None:
+            _wa_log_user_id.set(str(user_id))
+        if event_id is not None:
+            _wa_log_event_id.set(str(event_id))
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _uuid_or_none(value) -> str | None:
+    try:
+        return str(_uuid.UUID(str(value))) if value else None
+    except Exception:  # noqa: BLE001
+        return None
 
 # Categorise an outgoing action into a high-level message purpose so the
 # WhatsApp Logs UI can group "invitation" / "otp" / etc without having to
@@ -167,6 +201,8 @@ def log_attempt(
     *,
     parent_log_id: str | None = None,
     retry_count: int = 0,
+    user_id: str | None = None,
+    event_id: str | None = None,
 ) -> str | None:
     """Insert a queued attempt row. Returns the new log id (str), or None."""
     try:
@@ -189,9 +225,16 @@ def log_attempt(
         except Exception:
             summary = action
 
+        # Attribute the attempt to the user (and event) that triggered it —
+        # explicit kwargs win, otherwise fall back to the ambient context.
+        uid = _uuid_or_none(user_id) or _uuid_or_none(_wa_log_user_id.get())
+        eid = _uuid_or_none(event_id) or _uuid_or_none(_wa_log_event_id.get())
+
         row = WAMessageLog(
             recipient_phone=str(phone)[:32],
             normalized_phone=_normalize_phone(phone)[:32] or None,
+            user_id=uid,
+            event_id=eid,
             category=category,
             action=action,
             template_name=action if msg_type == "template" or msg_type == "media" else None,

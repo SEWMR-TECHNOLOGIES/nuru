@@ -152,20 +152,39 @@ export default function WhatsappLogs() {
   const [resendTarget, setResendTarget] = useState<WaLog | null>(null);
   const [resendBusy, setResendBusy] = useState(false);
 
-  const fetchLogs = useCallback(async () => {
-    setLoading(true);
+  const fetchLogs = useCallback(async (opts?: { silent?: boolean }) => {
+    if (!opts?.silent) setLoading(true);
     try {
       const res: any = await listWhatsappLogs({
         ...filters,
         q: search || undefined,
         recipient: recipient || undefined,
       });
-      setLogs(Array.isArray(res?.data) ? res.data : []);
-      setPagination(res?.pagination ?? null);
+      const payload = res?.data;
+      const items: WaLog[] = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.items)
+        ? payload.items
+        : Array.isArray(res?.items)
+        ? res.items
+        : [];
+      const pg = payload?.pagination ?? res?.pagination ?? null;
+      setLogs(items);
+      setPagination(
+        pg
+          ? {
+              total: pg.total_items ?? pg.total ?? items.length,
+              total_pages: pg.total_pages ?? 1,
+              current_page: pg.page ?? pg.current_page ?? 1,
+            }
+          : null,
+      );
     } catch (e: any) {
-      toast({ title: "Failed to load WhatsApp logs", description: e?.message ?? "Try again.", variant: "destructive" });
+      if (!opts?.silent) {
+        toast({ title: "Failed to load WhatsApp logs", description: e?.message ?? "Try again.", variant: "destructive" });
+      }
     } finally {
-      setLoading(false);
+      if (!opts?.silent) setLoading(false);
     }
   }, [filters, search, recipient]);
 
@@ -178,6 +197,16 @@ export default function WhatsappLogs() {
 
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
   useEffect(() => { fetchStats(); }, [fetchStats]);
+
+  // Background refresh — silent, no skeleton flicker, no toasts.
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      if (document.visibilityState !== "visible") return;
+      fetchLogs({ silent: true });
+      fetchStats();
+    }, 20000);
+    return () => window.clearInterval(id);
+  }, [fetchLogs, fetchStats]);
 
   const onOpenLog = async (id: string) => {
     setActiveLoading(true);
@@ -301,8 +330,9 @@ export default function WhatsappLogs() {
 
       {/* List */}
       <div className="rounded-xl border bg-white overflow-hidden">
-        <div className="hidden md:grid grid-cols-12 gap-3 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 bg-slate-50 border-b">
-          <div className="col-span-3">Recipient</div>
+        <div className="hidden lg:grid grid-cols-12 gap-3 px-4 py-2 text-[11px] font-semibold uppercase tracking-wide text-slate-500 bg-slate-50 border-b">
+          <div className="col-span-1">Card</div>
+          <div className="col-span-2">Recipient</div>
           <div className="col-span-3">Purpose</div>
           <div className="col-span-2">Type / Template</div>
           <div className="col-span-2">Status</div>
@@ -313,13 +343,12 @@ export default function WhatsappLogs() {
         {loading ? (
           <div className="p-4 space-y-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="grid grid-cols-12 gap-3">
-                <Skeleton className="h-10 col-span-3" />
-                <Skeleton className="h-10 col-span-3" />
-                <Skeleton className="h-10 col-span-2" />
-                <Skeleton className="h-10 col-span-2" />
-                <Skeleton className="h-10 col-span-1" />
-                <Skeleton className="h-10 col-span-1" />
+              <div key={i} className="flex gap-3">
+                <Skeleton className="h-14 w-14 rounded-md shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <Skeleton className="h-4 w-1/3" />
+                  <Skeleton className="h-3 w-2/3" />
+                </div>
               </div>
             ))}
           </div>
@@ -329,47 +358,103 @@ export default function WhatsappLogs() {
           </div>
         ) : (
           <ul className="divide-y">
-            {logs.map((log) => (
-              <li key={log.id} className="grid grid-cols-1 md:grid-cols-12 gap-3 px-4 py-3 hover:bg-slate-50/60">
-                <div className="md:col-span-3 min-w-0">
-                  <div className="text-sm font-medium text-slate-900 truncate">{log.recipient_phone}</div>
-                  <div className="text-[11px] text-slate-500 truncate">
-                    {log.summary || "—"}
+            {logs.map((log) => {
+              const hasImage = !!log.media_url;
+              return (
+                <li key={log.id} className="px-3 sm:px-4 py-3 hover:bg-slate-50/60">
+                  {/* Mobile / tablet: stacked card layout */}
+                  <div className="flex gap-3 lg:hidden">
+                    <div className="w-14 h-14 rounded-md bg-slate-100 overflow-hidden shrink-0 flex items-center justify-center">
+                      {hasImage ? (
+                        <img src={log.media_url!} alt="" className="w-full h-full object-cover" loading="lazy" />
+                      ) : (
+                        <Mail className="h-5 w-5 text-slate-400" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-medium text-slate-900 truncate">{log.recipient_phone}</span>
+                        <StatusPill status={log.status} />
+                      </div>
+                      <div className="text-xs text-slate-600 truncate mt-0.5">
+                        {CATEGORY_LABEL[log.category] ?? log.category}
+                        {log.template_name ? <span className="text-slate-400"> · {log.template_name}</span> : null}
+                      </div>
+                      {log.summary && (
+                        <div className="text-[11px] text-slate-500 line-clamp-2 mt-1 break-words">{log.summary}</div>
+                      )}
+                      {log.failure_reason && (
+                        <div className="text-[11px] text-rose-600 truncate mt-0.5">{log.failure_reason}</div>
+                      )}
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-[11px] text-slate-400">
+                          {log.updated_at ? getTimeAgo(log.updated_at) : "—"}
+                          {log.retry_count > 0 && <> · Retry × {log.retry_count}</>}
+                        </span>
+                        <div className="flex gap-1.5">
+                          <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => onOpenLog(log.id)}>
+                            <Eye className="h-3.5 w-3.5" />
+                          </Button>
+                          {log.retryable && (
+                            <Button size="sm" variant="outline" className="h-7 px-2" onClick={() => setResendTarget(log)}>
+                              <RotateCcw className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                </div>
-                <div className="md:col-span-3 min-w-0">
-                  <div className="text-sm text-slate-800 truncate">
-                    {CATEGORY_LABEL[log.category] ?? log.category}
+
+                  {/* Desktop: 12-col grid */}
+                  <div className="hidden lg:grid grid-cols-12 gap-3 items-center">
+                    <div className="col-span-1">
+                      <div className="w-12 h-12 rounded-md bg-slate-100 overflow-hidden flex items-center justify-center">
+                        {hasImage ? (
+                          <img src={log.media_url!} alt="" className="w-full h-full object-cover" loading="lazy" />
+                        ) : (
+                          <Mail className="h-4 w-4 text-slate-400" />
+                        )}
+                      </div>
+                    </div>
+                    <div className="col-span-2 min-w-0">
+                      <div className="text-sm font-medium text-slate-900 truncate">{log.recipient_phone}</div>
+                      <div className="text-[11px] text-slate-500 truncate">{log.summary || "—"}</div>
+                    </div>
+                    <div className="col-span-3 min-w-0">
+                      <div className="text-sm text-slate-800 truncate">
+                        {CATEGORY_LABEL[log.category] ?? log.category}
+                      </div>
+                      {log.failure_reason && (
+                        <div className="text-[11px] text-rose-600 truncate">{log.failure_reason}</div>
+                      )}
+                    </div>
+                    <div className="col-span-2 min-w-0">
+                      <div className="text-xs text-slate-700">{log.message_type}</div>
+                      <div className="text-[11px] text-slate-500 truncate">{log.template_name || log.action || "—"}</div>
+                    </div>
+                    <div className="col-span-2">
+                      <StatusPill status={log.status} />
+                      {log.retry_count > 0 && (
+                        <div className="text-[11px] text-slate-500 mt-1">Retry × {log.retry_count}</div>
+                      )}
+                    </div>
+                    <div className="col-span-1 text-xs text-slate-500">
+                      {log.updated_at ? getTimeAgo(log.updated_at) : "—"}
+                    </div>
+                    <div className="col-span-1 flex justify-end gap-2">
+                      <Button size="sm" variant="outline" onClick={() => onOpenLog(log.id)}>
+                        <Eye className="h-3.5 w-3.5" />
+                      </Button>
+                      {log.retryable && (
+                        <Button size="sm" variant="outline" onClick={() => setResendTarget(log)}>
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  {log.failure_reason && (
-                    <div className="text-[11px] text-rose-600 truncate">{log.failure_reason}</div>
-                  )}
-                </div>
-                <div className="md:col-span-2 min-w-0">
-                  <div className="text-xs text-slate-700">{log.message_type}</div>
-                  <div className="text-[11px] text-slate-500 truncate">{log.template_name || log.action || "—"}</div>
-                </div>
-                <div className="md:col-span-2">
-                  <StatusPill status={log.status} />
-                  {log.retry_count > 0 && (
-                    <div className="text-[11px] text-slate-500 mt-1">Retry × {log.retry_count}</div>
-                  )}
-                </div>
-                <div className="md:col-span-1 text-xs text-slate-500">
-                  {log.updated_at ? getTimeAgo(log.updated_at) : "—"}
-                </div>
-                <div className="md:col-span-1 flex md:justify-end gap-2">
-                  <Button size="sm" variant="outline" onClick={() => onOpenLog(log.id)}>
-                    <Eye className="h-3.5 w-3.5" />
-                  </Button>
-                  {log.retryable && (
-                    <Button size="sm" variant="outline" onClick={() => setResendTarget(log)}>
-                      <RotateCcw className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                </div>
-              </li>
-            ))}
+                </li>
+              );
+            })}
           </ul>
         )}
 
@@ -415,6 +500,16 @@ export default function WhatsappLogs() {
             </div>
           ) : (
             <div className="space-y-4 text-sm">
+              {activeLog.media_url && (
+                <div className="rounded-lg border bg-slate-50 p-3 flex justify-center">
+                  <img
+                    src={activeLog.media_url}
+                    alt="Card preview"
+                    className="max-h-72 w-auto rounded-md shadow-sm object-contain"
+                    loading="lazy"
+                  />
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <Info label="Recipient" value={activeLog.recipient_phone} />
                 <Info label="Status" value={<StatusPill status={activeLog.status} />} />
