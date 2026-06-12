@@ -82,7 +82,7 @@ class GlimpseGroupCard extends StatelessWidget {
                                   fontWeight: FontWeight.w700,
                                   color: AppColors.textPrimary)),
                         ),
-                        if (isVerified) ...[
+                        if (isVerified && !isSelf) ...[
                           const SizedBox(width: 4),
                           const Icon(Icons.verified_rounded,
                               size: 14, color: AppColors.primary),

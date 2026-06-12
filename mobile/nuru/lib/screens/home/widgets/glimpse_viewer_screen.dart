@@ -98,23 +98,31 @@ class _GlimpseViewerScreenState extends State<GlimpseViewerScreen>
   List<Map<String, dynamic>> _viewers = const [];
   bool _viewersLoading = false;
   String? _viewersForMomentId;
+  // In-memory cache: viewers persist across moments within the session so
+  // we never re-show a "Loading viewers…" spinner for a glimpse we've
+  // already fetched. Refresh happens silently in the background.
+  static final Map<String, List<Map<String, dynamic>>> _viewersCache = {};
 
   bool get _isOwnGlimpse => (_author['user'] is Map) && (_author['user']['is_self'] == true);
 
   Future<void> _loadViewers(String momentId) async {
     if (!_isOwnGlimpse) return;
+    final cached = _viewersCache[momentId];
     setState(() {
-      _viewersLoading = true;
       _viewersForMomentId = momentId;
-      _viewers = const [];
+      _viewers = cached ?? const [];
+      // Only show the spinner the very first time we fetch this moment.
+      _viewersLoading = cached == null;
     });
     final res = await MomentsService.getViewers(momentId);
     if (!mounted || _viewersForMomentId != momentId) return;
     final data = res['data'];
+    final list = data is List
+        ? data.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+        : <Map<String, dynamic>>[];
+    _viewersCache[momentId] = list;
     setState(() {
-      _viewers = data is List
-          ? data.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
-          : const [];
+      _viewers = list;
       _viewersLoading = false;
     });
   }
@@ -133,6 +141,136 @@ class _GlimpseViewerScreenState extends State<GlimpseViewerScreen>
     ).whenComplete(() {
       if (mounted) _progress.forward();
     });
+  }
+
+  // ── Delete (WhatsApp-style: confirm sheet, then remove from feed) ──
+  Future<void> _confirmDelete() async {
+    _progress.stop();
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      backgroundColor: Colors.white,
+      isScrollControlled: false,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (sheetCtx) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 42, height: 4,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE5E7EB),
+                  borderRadius: BorderRadius.circular(99),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Container(
+                width: 52, height: 52,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEE2E2),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.delete_outline_rounded,
+                    color: Color(0xFFDC2626), size: 26),
+              ),
+              const SizedBox(height: 14),
+              Text('Delete this glimpse?',
+                  style: GoogleFonts.inter(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary)),
+              const SizedBox(height: 6),
+              Text(
+                'It will be removed for you and everyone who follows you. This can\u2019t be undone.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.inter(
+                    fontSize: 13,
+                    height: 1.4,
+                    color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(sheetCtx).pop(false),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        side: BorderSide(color: AppColors.borderLight),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: Text('Cancel',
+                          style: GoogleFonts.inter(
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textPrimary)),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(sheetCtx).pop(true),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFDC2626),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: Text('Delete',
+                          style: GoogleFonts.inter(fontWeight: FontWeight.w800)),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (confirmed != true) {
+      _progress.forward();
+      return;
+    }
+    await _deleteCurrentGlimpse();
+  }
+
+  Future<void> _deleteCurrentGlimpse() async {
+    final id = _moment['id']?.toString();
+    if (id == null || id.isEmpty) return;
+    // Optimistic: drop the moment from the local group, advance or close.
+    _viewersCache.remove(id);
+    final moments = _moments;
+    final wasLast = moments.length <= 1;
+    setState(() {
+      moments.removeAt(_momentIdx);
+      if (!wasLast && _momentIdx >= moments.length) {
+        _momentIdx = moments.length - 1;
+      }
+    });
+    // Fire-and-forget; backend will return success or 404.
+    MomentsService.deleteMoment(id);
+    if (!mounted) return;
+    if (wasLast) {
+      Navigator.of(context).pop({'deleted': true});
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AppColors.textPrimary,
+        content: Text('Glimpse deleted',
+            style: GoogleFonts.inter(fontWeight: FontWeight.w600)),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    _start();
   }
 
   void _next() {
@@ -169,11 +307,15 @@ class _GlimpseViewerScreenState extends State<GlimpseViewerScreen>
     if (iso == null || iso.isEmpty) return '';
     DateTime? dt;
     try {
-      dt = DateTime.parse(iso);
+      // Backend often returns naive ISO strings (no Z / offset). Treat
+      // those as UTC so toLocal() correctly shifts to the device timezone.
+      final hasTz = iso.endsWith('Z') ||
+          RegExp(r'[+-]\d{2}:?\d{2}$').hasMatch(iso);
+      dt = DateTime.parse(hasTz ? iso : '${iso}Z');
     } catch (_) {
       return '';
     }
-    final local = dt.isUtc ? dt.toLocal() : dt;
+    final local = dt.toLocal();
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final that = DateTime(local.year, local.month, local.day);
@@ -313,6 +455,20 @@ class _GlimpseViewerScreenState extends State<GlimpseViewerScreen>
                           ),
                         ),
                       ),
+                      if (_isOwnGlimpse)
+                        GestureDetector(
+                          onTap: _confirmDelete,
+                          child: Container(
+                            width: 38,
+                            height: 38,
+                            alignment: Alignment.center,
+                            child: const Icon(
+                              Icons.more_vert_rounded,
+                              color: Colors.white,
+                              size: 22,
+                            ),
+                          ),
+                        ),
                     ],
                   ),
 
@@ -626,11 +782,9 @@ class _SeenByBar extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                loading
-                    ? 'Loading viewers…'
-                    : (viewers.isEmpty
-                        ? 'No views yet'
-                        : '${viewers.length} ${viewers.length == 1 ? 'view' : 'views'}'),
+                viewers.isEmpty
+                    ? (loading ? 'Seen by' : 'No views yet')
+                    : '${viewers.length} ${viewers.length == 1 ? 'view' : 'views'}',
                 style: GoogleFonts.inter(
                   color: Colors.white,
                   fontSize: 13,
@@ -753,10 +907,7 @@ class _ViewersSheet extends StatelessWidget {
           ),
           const Divider(height: 1),
           if (loading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 36),
-              child: CircularProgressIndicator(strokeWidth: 2.4),
-            )
+            const _ViewerSkeleton()
           else if (viewers.isEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 24),
@@ -855,6 +1006,53 @@ class _SheetAvatar extends StatelessWidget {
                     fontWeight: FontWeight.w800),
               ),
             ),
+    );
+  }
+}
+
+/// Subtle shimmer-free skeleton used while viewers load in the background.
+/// Matches the row layout of the real list so there's no layout jump.
+class _ViewerSkeleton extends StatelessWidget {
+  const _ViewerSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    Widget bar(double w, double h) => Container(
+          width: w,
+          height: h,
+          decoration: BoxDecoration(
+            color: const Color(0xFFEFF1F4),
+            borderRadius: BorderRadius.circular(6),
+          ),
+        );
+    Widget row() => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFEFF1F4),
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    bar(140, 11),
+                    const SizedBox(height: 7),
+                    bar(72, 9),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+    return Column(
+      children: [row(), row(), row()],
     );
   }
 }
