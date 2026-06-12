@@ -15,6 +15,7 @@ import {
   Search, RefreshCw, Loader2, CheckCircle2, Clock, AlertTriangle,
   XCircle, Mail, Eye, RotateCcw, ChevronLeft, ChevronRight,
   Trash2, ShieldAlert, Filter, Phone, MessageSquare, Copy, ArchiveRestore,
+  FileSpreadsheet, FileText,
 } from "lucide-react";
 import {
   listWhatsappLogs, getWhatsappLog, getWhatsappLogStats, resendWhatsappLog,
@@ -23,6 +24,12 @@ import {
   type WaLog, type WaLogDetail, type WaLogStatus, type WaLogQuery,
   type WaEventOption,
 } from "@/lib/api/whatsappLogs";
+import {
+  WA_ERROR_LABELS, exportLogsToExcel, exportLogsToPdf,
+} from "@/lib/whatsappLogsExport";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -140,6 +147,7 @@ export default function WhatsappLogs() {
 
   // Selection (for bulk delete)
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [exporting, setExporting] = useState(false);
 
   const [activeLog, setActiveLog] = useState<WaLogDetail | null>(null);
   const [activeLoading, setActiveLoading] = useState(false);
@@ -207,15 +215,17 @@ export default function WhatsappLogs() {
   useEffect(() => { fetchLogs(); }, [fetchLogs]);
   useEffect(() => { fetchStats(); fetchAux(); }, [fetchStats, fetchAux]);
 
-  // Silent background refresh
+  // Silent background refresh — also keeps the Events dropdown fresh so
+  // newly-logged events appear without the user reloading the page.
   useEffect(() => {
     const id = window.setInterval(() => {
       if (document.visibilityState !== "visible") return;
       fetchLogs({ silent: true });
       fetchStats();
+      fetchAux();
     }, 20000);
     return () => window.clearInterval(id);
-  }, [fetchLogs, fetchStats]);
+  }, [fetchLogs, fetchStats, fetchAux]);
 
   const onOpenLog = async (id: string) => {
     setActiveLoading(true);
@@ -280,6 +290,68 @@ export default function WhatsappLogs() {
     catch { /* no-op */ }
   };
 
+  /** Fetch the full filtered result set (across all pages) for export. */
+  const fetchAllForExport = useCallback(async (): Promise<WaLog[]> => {
+    const PAGE = 200;
+    const collected: WaLog[] = [];
+    let page = 1;
+    // Hard cap so an over-eager admin can't run away with 100k rows.
+    for (let i = 0; i < 25; i++) {
+      const res: any = await listWhatsappLogs({
+        ...filters,
+        q: search || undefined,
+        recipient: recipient || undefined,
+        with_deleted: showDeleted ? 1 : 0,
+        page, limit: PAGE,
+      });
+      const payload = res?.data;
+      const items: WaLog[] = Array.isArray(payload) ? payload
+        : Array.isArray(payload?.items) ? payload.items
+        : Array.isArray(res?.items) ? res.items : [];
+      collected.push(...items);
+      const pg = payload?.pagination ?? res?.pagination ?? null;
+      const total = pg?.total_pages ?? 1;
+      if (page >= total || items.length < PAGE) break;
+      page += 1;
+    }
+    return collected;
+  }, [filters, search, recipient, showDeleted]);
+
+  const activeFilterChips = useMemo(() => {
+    const chips: { label: string; value: string }[] = [];
+    if (filters.status) chips.push({ label: "Status", value: filters.status });
+    if (filters.category) chips.push({ label: "Category", value: filters.category });
+    if (filters.message_purpose) chips.push({ label: "Purpose", value: filters.message_purpose });
+    if (filters.event_id) {
+      const ev = events.find((e) => e.event_id === filters.event_id);
+      if (ev) chips.push({ label: "Event", value: ev.event_name });
+    }
+    if (filters.error_code) chips.push({ label: "Error", value: WA_ERROR_LABELS[filters.error_code] || filters.error_code });
+    if (filters.whatsapp_available) chips.push({ label: "WhatsApp", value: filters.whatsapp_available });
+    if (filters.fallback_status) chips.push({ label: "Fallback", value: filters.fallback_status });
+    if (search) chips.push({ label: "Search", value: search });
+    if (recipient) chips.push({ label: "Phone", value: recipient });
+    return chips;
+  }, [filters, events, search, recipient]);
+
+  const onExport = async (kind: "xlsx" | "pdf") => {
+    setExporting(true);
+    try {
+      const all = await fetchAllForExport();
+      if (!all.length) {
+        toast({ title: "Nothing to export", description: "No logs match the current filters." });
+        return;
+      }
+      if (kind === "xlsx") exportLogsToExcel(all);
+      else await exportLogsToPdf(all, activeFilterChips);
+      toast({ title: "Report ready", description: `${all.length} record${all.length === 1 ? "" : "s"} exported.` });
+    } catch (e: any) {
+      toast({ title: "Export failed", description: e?.message ?? "Try again.", variant: "destructive" });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const statusFilter = filters.status ?? "";
   const setStatusFilter = (s: string) => setFilters((f) => ({ ...f, status: s || undefined, page: 1 }));
 
@@ -316,7 +388,23 @@ export default function WhatsappLogs() {
           <Button variant="outline" size="sm" onClick={() => setShowFilters((s) => !s)}>
             <Filter className="h-4 w-4 mr-2" /> {showFilters ? "Hide filters" : "More filters"}
           </Button>
-          <Button variant="outline" size="sm" onClick={() => { fetchLogs(); fetchStats(); }}>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" disabled={exporting || logs.length === 0}>
+                {exporting ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileSpreadsheet className="h-4 w-4 mr-2" />}
+                Download
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => onExport("xlsx")}>
+                <FileSpreadsheet className="h-4 w-4 mr-2 text-emerald-600" /> Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onExport("pdf")}>
+                <FileText className="h-4 w-4 mr-2 text-rose-600" /> PDF report
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button variant="outline" size="sm" onClick={() => { fetchLogs(); fetchStats(); fetchAux(); }}>
             <RefreshCw className="h-4 w-4 mr-2" /> Refresh
           </Button>
         </div>
@@ -433,6 +521,19 @@ export default function WhatsappLogs() {
                 <SelectItem value="sent">SMS sent</SelectItem>
                 <SelectItem value="delivered">SMS delivered</SelectItem>
                 <SelectItem value="failed">SMS failed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="md:col-span-3">
+            <Select value={filters.error_code ?? "__all"} onValueChange={(v) => setFilters((f) => ({ ...f, error_code: v === "__all" ? undefined : v, page: 1 }))}>
+              <SelectTrigger><SelectValue placeholder="Specific error" /></SelectTrigger>
+              <SelectContent className="max-h-80">
+                <SelectItem value="__all">Any error</SelectItem>
+                {Object.entries(WA_ERROR_LABELS).map(([code, label]) => (
+                  <SelectItem key={code} value={code}>
+                    <span className="font-mono text-xs text-slate-500 mr-2">{code}</span>{label}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

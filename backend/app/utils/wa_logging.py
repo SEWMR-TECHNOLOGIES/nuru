@@ -192,7 +192,12 @@ _HUMAN_ERRORS = {
     "470":    "Message failed because more than 24 hours have passed since the customer last replied.",
 }
 
-_NOT_ON_WA_CODES = {"131026", "133010", "131053"}
+# Codes that genuinely mean "this phone is not reachable on WhatsApp".
+# IMPORTANT: 131053 is a *media upload/rejection* error (e.g. PNG with alpha,
+# image too big). It says nothing about whether the recipient is on WhatsApp,
+# so it MUST NOT mark the number as unreachable — doing so was hiding people
+# from invitation lists even when their number was perfectly valid.
+_NOT_ON_WA_CODES = {"131026", "133010"}
 
 
 def _category_for(action: str) -> str:
