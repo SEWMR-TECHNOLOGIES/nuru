@@ -509,3 +509,99 @@ def resend_log(
 
     new_row = db.query(WAMessageLog).filter(WAMessageLog.id == new_id).first()
     return standard_response(True, "Resend queued", _serialize(new_row) if new_row else {"id": new_id})
+
+
+@router.post("/bulk-resend")
+def bulk_resend_logs(
+    body: dict = Body(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Queue a resend for many logs at once.
+
+    Each retry is enqueued via the existing WhatsApp send pipeline, which
+    fans out to Celery workers in production (so resending 100 messages
+    runs in parallel, not serially). A fresh ``wa_message_logs`` row is
+    created per retry and linked back to the original via
+    ``parent_log_id`` for audit history.
+
+    Body: ``{ "ids": ["uuid", ...] }``.
+    Response: ``{ queued, skipped, failures: [{id, reason}] }``.
+    """
+    raw_ids = body.get("ids") or []
+    if not isinstance(raw_ids, list) or not raw_ids:
+        raise HTTPException(400, "ids[] required")
+    if len(raw_ids) > 500:
+        raise HTTPException(400, "Too many ids in one batch (max 500)")
+
+    ids: list[uuid.UUID] = []
+    for v in raw_ids:
+        try:
+            ids.append(uuid.UUID(str(v)))
+        except Exception:
+            continue
+    if not ids:
+        raise HTTPException(400, "no valid ids")
+
+    base = db.query(WAMessageLog).filter(WAMessageLog.id.in_(ids))
+    if not _is_admin(current_user):
+        base = _scope_to_user(base, db, current_user)
+    rows = base.all()
+
+    queued = 0
+    skipped = 0
+    failures: list[dict] = []
+
+    from utils.wa_logging import log_attempt
+    from utils.whatsapp import _send_whatsapp
+
+    for row in rows:
+        if row.deleted_at:
+            skipped += 1
+            failures.append({"id": str(row.id), "reason": "deleted"})
+            continue
+        if row.status not in _RETRYABLE_STATUSES:
+            skipped += 1
+            failures.append({"id": str(row.id), "reason": f"status '{row.status}' not retryable"})
+            continue
+        if not row.action:
+            skipped += 1
+            failures.append({"id": str(row.id), "reason": "missing action"})
+            continue
+
+        req = row.request_payload or {}
+        params = req.get("params") if (isinstance(req, dict) and "params" in req) else (req if isinstance(req, dict) else {})
+
+        try:
+            new_id = log_attempt(
+                action=row.action,
+                phone=row.recipient_phone,
+                params=params or {},
+                parent_log_id=str(row.id),
+                retry_count=(row.retry_count or 0) + 1,
+                meta={
+                    "event_id": str(row.event_id) if row.event_id else None,
+                    "event_name": row.event_name_snapshot,
+                    "recipient_type": row.recipient_type,
+                    "recipient_id": str(row.recipient_id) if row.recipient_id else None,
+                    "recipient_name": row.recipient_name,
+                    "message_purpose": row.message_purpose,
+                    "source_module": row.source_module,
+                    "related_entity_type": row.related_entity_type,
+                    "related_entity_id": str(row.related_entity_id) if row.related_entity_id else None,
+                },
+            )
+            if not new_id:
+                raise RuntimeError("could not create retry log row")
+            # Fans out to Celery (one task per recipient → parallel workers).
+            _send_whatsapp(row.action, row.recipient_phone, params or {}, log_id=new_id)
+            queued += 1
+        except Exception as e:  # noqa: BLE001
+            skipped += 1
+            failures.append({"id": str(row.id), "reason": str(e)[:200]})
+
+    return standard_response(
+        True,
+        f"Queued {queued} resend(s)" + (f", skipped {skipped}" if skipped else ""),
+        {"queued": queued, "skipped": skipped, "failures": failures},
+    )

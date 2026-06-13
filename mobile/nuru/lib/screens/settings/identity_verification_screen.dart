@@ -23,11 +23,11 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
   static const _maxBytes = 5 * 1024 * 1024;
   static const _allowedExt = {'jpg', 'jpeg', 'png', 'webp'};
 
-  // Mockup palette
+  // Palette — Nuru primary (gold) replaces the legacy orange accents.
   static const _navy = Color(0xFF0A1C40);
   static const _navySoft = Color(0xFF1A2A4F);
-  static const _orange = Color(0xFFFF7A2D);
-  static const _orangeSoft = Color(0x1FFF7A2D);
+  static const Color _orange = AppColors.primary;      // Nuru gold
+  static const Color _orangeSoft = AppColors.primarySoft;
   static const _greenSoft = Color(0x14169B5C);
   static const _green = Color(0xFF169B5C);
   static const _cardBorder = Color(0xFFE6E9F2);
@@ -507,9 +507,6 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
             style: _f(size: 11.5, color: _muted, height: 1.5),
           ),
         ])),
-        const SizedBox(width: 8),
-        SvgPicture.asset('assets/icons/secure-shield-icon.svg', width: 22, height: 22,
-            colorFilter: const ColorFilter.mode(_navy, BlendMode.srcIn)),
       ]),
     );
   }
@@ -532,8 +529,8 @@ class _IdentityVerificationScreenState extends State<IdentityVerificationScreen>
         child: _submitting
             ? const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.4))
             : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                SvgPicture.asset('assets/icons/lock-icon.svg', width: 16, height: 16,
-                    colorFilter: const ColorFilter.mode(_orange, BlendMode.srcIn)),
+                SvgPicture.asset('assets/icons/send-icon.svg', width: 16, height: 16,
+                    colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn)),
                 const SizedBox(width: 10),
                 Text('Submit for verification',
                   style: _f(size: 15, weight: FontWeight.w700, color: Colors.white)),

@@ -77,16 +77,23 @@ export function exportLogsToExcel(logs: WaLog[], filename = "whatsapp-logs") {
   XLSX.writeFile(wb, `${filename}-${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
-async function loadLogoDataUrl(): Promise<string | null> {
+async function loadLogo(): Promise<{ dataUrl: string; w: number; h: number } | null> {
   try {
     const res = await fetch(nuruLogo);
     const blob = await res.blob();
-    return await new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onloadend = () => resolve(reader.result as string);
-      reader.onerror = () => resolve(null);
-      reader.readAsDataURL(blob);
+    const dataUrl: string = await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onloadend = () => resolve(r.result as string);
+      r.onerror = () => reject(new Error("logo read failed"));
+      r.readAsDataURL(blob);
     });
+    const dims: { w: number; h: number } = await new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+      img.onerror = () => resolve({ w: 1, h: 1 });
+      img.src = dataUrl;
+    });
+    return { dataUrl, w: dims.w, h: dims.h };
   } catch { return null; }
 }
 
@@ -110,27 +117,35 @@ export async function exportLogsToPdf(
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
 
-  // ── Header band ────────────────────────────────────────────────
-  doc.setFillColor(15, 23, 42); // slate-900
-  doc.rect(0, 0, pageWidth, 64, "F");
-
-  const logo = await loadLogoDataUrl();
+  // ── Clean header (no background fill, logo preserved) ──────────
+  const margin = 32;
+  const logo = await loadLogo();
+  let textX = margin;
   if (logo) {
-    try { doc.addImage(logo, "PNG", 24, 14, 36, 36); } catch { /* ignore */ }
+    const targetH = 36;
+    const targetW = Math.max(8, (logo.w / Math.max(1, logo.h)) * targetH);
+    try { doc.addImage(logo.dataUrl, "PNG", margin, 24, targetW, targetH); } catch { /* ignore */ }
+    textX = margin + targetW + 12;
   }
 
-  doc.setTextColor(255, 255, 255);
+  doc.setTextColor(15, 23, 42);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(16);
-  doc.text("Nuru · WhatsApp Logs", logo ? 72 : 24, 32);
+  doc.text("WhatsApp Logs", textX, 42);
+
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(10);
-  doc.setTextColor(203, 213, 225); // slate-300
+  doc.setFontSize(9.5);
+  doc.setTextColor(100, 116, 139);
   doc.text(
-    `Generated ${new Date().toLocaleString()} · ${logs.length} record${logs.length === 1 ? "" : "s"}`,
-    logo ? 72 : 24,
-    50,
+    `Generated ${new Date().toLocaleString()}  ·  ${logs.length} record${logs.length === 1 ? "" : "s"}`,
+    textX,
+    58,
   );
+
+  // Thin hairline rule under header.
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.5);
+  doc.line(margin, 74, pageWidth - margin, 74);
 
   // ── Active filters chip line ─────────────────────────────────
   let cursorY = 84;
@@ -199,7 +214,7 @@ export async function exportLogsToPdf(
       doc.setFontSize(8);
       doc.setTextColor(148, 163, 184);
       doc.text(
-        `Page ${pageNum}  ·  Nuru WhatsApp Logs`,
+        `Page ${pageNum}  ·  WhatsApp Logs`,
         pageWidth / 2,
         pageHeight - 18,
         { align: "center" },
