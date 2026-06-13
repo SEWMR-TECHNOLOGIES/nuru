@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../../core/widgets/nuru_refresh_indicator.dart';
+import '../../../core/widgets/nuru_date_time_picker.dart';
 import '../../../core/widgets/app_icon.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/text_styles.dart';
@@ -1650,7 +1651,7 @@ class _EventChecklistTabState extends State<EventChecklistTab>
               _label('Due date'),
               GestureDetector(
                 onTap: () async {
-                  final d = await showDatePicker(
+                  final d = await showNuruDatePicker(
                     context: ctx,
                     initialDate:
                         dueDate ?? DateTime.now().add(const Duration(days: 7)),

@@ -2260,6 +2260,7 @@ def get_guests(event_id: str, page: int = 1, limit: int = 50, rsvp_status: str =
         "confirmed": status_counts.get("confirmed", 0),
         "pending": status_counts.get("pending", 0),
         "declined": status_counts.get("declined", 0),
+        "maybe": status_counts.get("maybe", 0),
         "checked_in": checked_in_count,
         "invitations_sent": invitations_sent,
     }

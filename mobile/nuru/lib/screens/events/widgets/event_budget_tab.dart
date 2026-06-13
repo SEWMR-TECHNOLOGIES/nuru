@@ -404,15 +404,15 @@ class _EventBudgetTabState extends State<EventBudgetTab>
     return Row(children: [
       Expanded(
           child: _exportBtn(
-              'PDF', 'file-pdf', AppColors.error, () => _download('pdf'))),
+              'PDF', 'pdf-file-type', () => _download('pdf'))),
       const SizedBox(width: 10),
       Expanded(
           child: _exportBtn(
-              'Excel', 'file-excel', AppColors.success, () => _download('xlsx'))),
+              'Excel', 'excel-document', () => _download('xlsx'))),
     ]);
   }
 
-  Widget _exportBtn(String label, String icon, Color color, VoidCallback onTap) {
+  Widget _exportBtn(String label, String icon, VoidCallback onTap) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -423,10 +423,11 @@ class _EventBudgetTabState extends State<EventBudgetTab>
           border: Border.all(color: AppColors.borderLight),
         ),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          AppIcon(icon, size: 16, color: color),
+          AppIcon(icon, size: 18),
           const SizedBox(width: 8),
           Text(label,
-              style: appText(size: 13, weight: FontWeight.w700, color: color)),
+              style: appText(size: 13, weight: FontWeight.w700,
+                  color: AppColors.textPrimary)),
         ]),
       ),
     );

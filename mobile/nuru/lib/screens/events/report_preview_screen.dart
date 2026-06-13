@@ -141,10 +141,15 @@ class _ReportPreviewScreenState extends State<ReportPreviewScreen> {
                           Container(
                             width: 64, height: 64,
                             decoration: BoxDecoration(
-                              color: const Color(0xFFFEF2F2),
+                              color: const Color(0xFFF3F4F6),
                               borderRadius: BorderRadius.circular(20),
                             ),
-                            child: const Icon(Icons.picture_as_pdf_rounded, size: 32, color: Color(0xFFEF4444)),
+                            child: Center(
+                              child: SvgPicture.asset(
+                                'assets/icons/pdf-file-type-icon.svg',
+                                width: 32, height: 32,
+                              ),
+                            ),
                           ),
                           const SizedBox(height: 16),
                           Text('Unable to preview PDF', style: appText(size: 16, weight: FontWeight.w700)),

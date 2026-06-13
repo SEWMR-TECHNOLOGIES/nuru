@@ -22,6 +22,7 @@ from utils.message_templates import resolve_user_language
 from utils.validation_functions import validate_email, validate_phone_number, validate_password_strength, validate_username
 from utils.name_validation import validate_name
 from utils.user_payload import build_user_payload
+from utils.phone_numbers import normalize_phone
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -801,6 +802,43 @@ def check_username(
         "username": username,
         "suggestions": suggestions,
     })
+
+
+# ──────────────────────────────────────────────
+# Public User Profile (by phone) — used by mobile call sheet to detect
+# whether a contact is on Nuru regardless of the name the organiser saved.
+# Matches by the last 9 digits so 0712…, +255712…, 255712… all resolve
+# to the same account.
+# ──────────────────────────────────────────────
+@router.get("/by-phone/{phone}")
+def get_public_user_profile_by_phone(
+    phone: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    raw = (phone or "").strip()
+    if not raw:
+        return standard_response(False, "Phone is required")
+    # Try a normalized lookup first (cheap, hits the index).
+    norm = normalize_phone(raw)
+    digits = "".join(c for c in raw if c.isdigit())
+    last9 = (norm.get("national_number") or digits)[-9:] if (norm.get("national_number") or digits) else ""
+    if len(last9) < 9:
+        return standard_response(False, "User not found")
+
+    target = (
+        db.query(User)
+        .filter(User.is_active == True, User.phone.isnot(None))
+        .filter(sa_func.right(sa_func.regexp_replace(User.phone, r'[^0-9]', '', 'g'), 9) == last9)
+        .first()
+    )
+    if not target:
+        return standard_response(False, "User not found")
+
+    payload = build_user_payload(db, target)
+    payload.pop("email", None)
+    payload.pop("phone", None)
+    return standard_response(True, "User profile retrieved", payload)
 
 
 # ──────────────────────────────────────────────

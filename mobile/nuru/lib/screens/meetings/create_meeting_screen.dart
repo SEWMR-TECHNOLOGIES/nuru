@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:nuru/core/services/meetings_service.dart';
 import 'package:nuru/core/l10n/app_translations.dart';
 import 'package:nuru/providers/locale_provider.dart';
+import 'package:nuru/core/widgets/nuru_date_time_picker.dart';
 
 class CreateMeetingScreen extends StatefulWidget {
   final String eventId;
@@ -240,7 +241,7 @@ class _CreateMeetingScreenState extends State<CreateMeetingScreen> {
         InkWell(
           borderRadius: BorderRadius.circular(14),
           onTap: () async {
-            final d = await showDatePicker(
+            final d = await showNuruDatePicker(
               context: context,
               firstDate: DateTime.now(),
               lastDate: DateTime.now().add(const Duration(days: 365)),
