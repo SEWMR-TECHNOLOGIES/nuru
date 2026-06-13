@@ -647,30 +647,46 @@ class _CircleScreenState extends State<CircleScreen> {
             final text = ctrl.text.trim();
             if (text.isEmpty || sending) return;
             setSheet(() => sending = true);
+            // Always start (or fetch existing) conversation first, then send
+            // the message explicitly so it works both for brand-new and
+            // existing conversations (the backend only persists `message` for
+            // newly created ones).
             final res = await MessagesService.startConversation(
               recipientId: userId,
-              message: text,
             );
             if (!mounted) return;
-            if (res['success'] == true && res['data'] != null) {
-              final convId = res['data']['id']?.toString();
-              Navigator.pop(ctx);
-              if (convId != null) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ChatDetailScreen(
-                      conversationId: convId,
-                      name: name,
-                      avatar: avatar,
-                    ),
-                  ),
-                );
-              }
-            } else {
+            if (res['success'] != true || res['data'] == null) {
               setSheet(() => sending = false);
               AppSnackbar.error(context, res['message']?.toString() ?? 'Failed to send message');
+              return;
             }
+            final convId = res['data']['id']?.toString();
+            if (convId == null) {
+              setSheet(() => sending = false);
+              AppSnackbar.error(context, 'Failed to send message');
+              return;
+            }
+            final sendRes = await MessagesService.sendMessage(
+              convId,
+              content: text,
+            );
+            if (!mounted) return;
+            if (sendRes['success'] != true) {
+              setSheet(() => sending = false);
+              AppSnackbar.error(context, sendRes['message']?.toString() ?? 'Failed to send message');
+              return;
+            }
+            Navigator.pop(ctx);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ChatDetailScreen(
+                  conversationId: convId,
+                  name: name,
+                  avatar: avatar,
+                ),
+              ),
+            );
           }
 
           return Padding(
@@ -717,11 +733,11 @@ class _CircleScreenState extends State<CircleScreen> {
                   const SizedBox(height: 18),
                   Container(
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF7F7F9),
+                      color: Colors.white,
                       borderRadius: BorderRadius.circular(18),
                       border: Border.all(color: AppColors.borderLight),
                     ),
-                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                     child: TextField(
                       controller: ctrl,
                       focusNode: focus,
@@ -732,7 +748,10 @@ class _CircleScreenState extends State<CircleScreen> {
                       minLines: 4,
                       textInputAction: TextInputAction.newline,
                       style: GoogleFonts.inter(fontSize: 14.5, color: AppColors.textPrimary, height: 1.45),
-                      decoration: InputDecoration.collapsed(
+                      decoration: InputDecoration(
+                        isCollapsed: true,
+                        border: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
                         hintText: 'Write a message…',
                         hintStyle: GoogleFonts.inter(fontSize: 14.5, color: AppColors.textTertiary),
                       ),

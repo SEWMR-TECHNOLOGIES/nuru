@@ -102,10 +102,17 @@ def _derive_wa_jpg_url(png_url: str) -> Optional[str]:
     if not png_url:
         return None
     base, _, query = png_url.partition("?")
-    if not base.lower().endswith(".png"):
+    low = base.lower()
+    if low.endswith(".png"):
+        wa = base[:-4] + ".wa.jpg"
+    elif low.endswith(".jpeg"):
+        wa = base[:-5] + ".wa.jpg"
+    elif low.endswith(".jpg"):
+        wa = base[:-4] + ".wa.jpg"
+    else:
         return None
-    wa = base[:-4] + ".wa.jpg"
     return wa + (("?" + query) if query else "")
+
 
 
 def _split_url_for_upload(png_url: str) -> Tuple[str, str]:
@@ -127,8 +134,16 @@ def _split_url_for_upload(png_url: str) -> Tuple[str, str]:
         target_path = "/".join(path_parts) + "/"
     else:
         target_path = "/".join(path_parts) + "/"
-    base = filename[:-4] if filename.lower().endswith(".png") else filename
+    # Strip any known extension to derive the WA filename base.
+    fl = filename.lower()
+    if fl.endswith(".jpeg"):
+        base = filename[:-5]
+    elif fl.endswith(".png") or fl.endswith(".jpg"):
+        base = filename[:-4]
+    else:
+        base = filename
     return target_path, f"{base}.wa.jpg"
+
 
 
 def _head_ok(url: str, timeout: float = 6.0) -> bool:
@@ -171,10 +186,30 @@ def ensure_whatsapp_media_for_png_url(png_url: str) -> dict:
         out["error"] = "empty url"
         return out
 
+    src_low = png_url.partition("?")[0].lower()
+    is_png = src_low.endswith(".png")
+    is_jpg = src_low.endswith(".jpg") or src_low.endswith(".jpeg")
+    if not (is_png or is_jpg):
+        out["error"] = "url is not png/jpg"
+        return out
+    if is_jpg:
+        out["content_type"] = "image/jpeg"
+        # If the source JPG is already comfortably within Meta's limit,
+        # there is nothing to do — return the original URL.
+        try:
+            h = requests.head(png_url, timeout=6, allow_redirects=True)
+            cl = h.headers.get("content-length")
+            if h.status_code == 200 and cl and cl.isdigit() and int(cl) <= MAX_BYTES:
+                out["size"] = int(cl)
+                return out
+        except Exception:
+            pass
+
     wa_url = _derive_wa_jpg_url(png_url)
     if not wa_url:
-        out["error"] = "url does not end with .png"
+        out["error"] = "cannot derive wa.jpg url"
         return out
+
 
     # Fast path — already generated.
     if _head_ok(wa_url):

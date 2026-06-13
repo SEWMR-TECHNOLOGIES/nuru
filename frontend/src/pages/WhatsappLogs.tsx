@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import {
   listWhatsappLogs, getWhatsappLog, getWhatsappLogStats, resendWhatsappLog,
+  bulkResendWhatsappLogs,
   deleteWhatsappLog, bulkDeleteWhatsappLogs, restoreWhatsappLog,
   listWhatsappLogEvents, listWhatsappLogPurposes,
   type WaLog, type WaLogDetail, type WaLogStatus, type WaLogQuery,
@@ -155,6 +156,9 @@ export default function WhatsappLogs() {
   const [resendTarget, setResendTarget] = useState<WaLog | null>(null);
   const [resendBusy, setResendBusy] = useState(false);
 
+  const [bulkResendOpen, setBulkResendOpen] = useState(false);
+  const [bulkResendBusy, setBulkResendBusy] = useState(false);
+
   const [confirmDelete, setConfirmDelete] = useState<{ ids: string[]; bulk: boolean } | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
 
@@ -254,6 +258,52 @@ export default function WhatsappLogs() {
     } catch (e: any) {
       toast({ title: "Couldn't resend", description: e?.message ?? "", variant: "destructive" });
     } finally { setResendBusy(false); }
+  };
+
+  const selectedLogs = useMemo(
+    () => logs.filter((l) => selected.has(l.id)),
+    [logs, selected],
+  );
+  const retryableSelected = useMemo(
+    () => selectedLogs.filter((l) => l.retryable),
+    [selectedLogs],
+  );
+
+  const onBulkResend = async () => {
+    if (retryableSelected.length === 0) return;
+    setBulkResendBusy(true);
+    try {
+      const ids = retryableSelected.map((l) => l.id);
+      const r = await bulkResendWhatsappLogs(ids);
+      const data = r?.data;
+      toast({
+        title: "Bulk resend queued",
+        description: `Queued ${data?.queued ?? 0}` +
+          (data?.skipped ? ` · skipped ${data.skipped}` : "") +
+          ". Each retry runs on its own worker, so large batches send in parallel.",
+      });
+      setBulkResendOpen(false);
+      setSelected(new Set());
+      await Promise.all([fetchLogs(), fetchStats()]);
+    } catch (e: any) {
+      toast({ title: "Bulk resend failed", description: e?.message ?? "", variant: "destructive" });
+    } finally {
+      setBulkResendBusy(false);
+    }
+  };
+
+  const hasActiveFilters = useMemo(() => (
+    !!(filters.status || filters.category || filters.message_purpose ||
+       filters.event_id || filters.error_code || filters.whatsapp_available ||
+       filters.fallback_status || filters.recipient_type || filters.message_type ||
+       search || recipient || showDeleted)
+  ), [filters, search, recipient, showDeleted]);
+
+  const resetAllFilters = () => {
+    setFilters({ page: 1, limit: filters.limit ?? 25 });
+    setSearch("");
+    setRecipient("");
+    setShowDeleted(false);
   };
 
   const onDelete = async () => {
@@ -384,9 +434,18 @@ export default function WhatsappLogs() {
           <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-slate-900">WhatsApp Logs</h1>
           <p className="text-sm text-slate-500">Every WhatsApp message Nuru tried to send — what worked, what failed, and why.</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => setShowFilters((s) => !s)}>
             <Filter className="h-4 w-4 mr-2" /> {showFilters ? "Hide filters" : "More filters"}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={resetAllFilters}
+            disabled={!hasActiveFilters}
+            title="Clear all filters"
+          >
+            <XCircle className="h-4 w-4 mr-2" /> Reset filters
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -548,12 +607,29 @@ export default function WhatsappLogs() {
 
       {/* Bulk-actions bar */}
       {selected.size > 0 && (
-        <div className="flex items-center justify-between rounded-xl border bg-amber-50/60 border-amber-200 px-4 py-2 text-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-amber-50/60 border-amber-200 px-4 py-2 text-sm">
           <div className="text-amber-900">
             <span className="font-semibold">{selected.size}</span> selected
+            {retryableSelected.length > 0 && (
+              <span className="ml-2 text-amber-700/80">
+                · {retryableSelected.length} retryable
+              </span>
+            )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="ghost" size="sm" onClick={() => setSelected(new Set())}>Clear</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={retryableSelected.length === 0}
+              onClick={() => setBulkResendOpen(true)}
+              title={retryableSelected.length === 0
+                ? "Select failed / rejected messages to resend"
+                : `Resend ${retryableSelected.length} message(s)`}
+            >
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Resend selected {retryableSelected.length > 0 ? `(${retryableSelected.length})` : ""}
+            </Button>
             <Button variant="destructive" size="sm"
               onClick={() => setConfirmDelete({ ids: Array.from(selected), bulk: true })}>
               <Trash2 className="h-4 w-4 mr-2" /> Delete selected
@@ -919,6 +995,39 @@ export default function WhatsappLogs() {
             <AlertDialogAction onClick={onResend} disabled={resendBusy}>
               {resendBusy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RotateCcw className="h-4 w-4 mr-2" />}
               Yes, resend
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk resend confirm */}
+      <AlertDialog open={bulkResendOpen} onOpenChange={(o) => !o && setBulkResendOpen(false)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Resend {retryableSelected.length} WhatsApp message{retryableSelected.length === 1 ? "" : "s"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Each message is queued as its own background job, so resending many
+              messages runs in parallel across workers — not one after another.
+              Original failure records are kept for audit history.
+              {selected.size > retryableSelected.length && (
+                <>
+                  {" "}
+                  <span className="block mt-2 text-amber-700">
+                    {selected.size - retryableSelected.length} selected log
+                    {selected.size - retryableSelected.length === 1 ? "" : "s"} will
+                    be skipped (not in a retryable state).
+                  </span>
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={bulkResendBusy}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={onBulkResend} disabled={bulkResendBusy || retryableSelected.length === 0}>
+              {bulkResendBusy ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RotateCcw className="h-4 w-4 mr-2" />}
+              Yes, resend {retryableSelected.length}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

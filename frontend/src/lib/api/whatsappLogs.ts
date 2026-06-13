@@ -109,6 +109,14 @@ export function getWhatsappLog(id: string): Promise<ApiResponse<WaLogDetail>> {
 export function resendWhatsappLog(id: string): Promise<ApiResponse<WaLog>> {
   return post<WaLog>(`/whatsapp/logs/${id}/resend`, {});
 }
+export interface WaBulkResendResult {
+  queued: number;
+  skipped: number;
+  failures: { id: string; reason: string }[];
+}
+export function bulkResendWhatsappLogs(ids: string[]): Promise<ApiResponse<WaBulkResendResult>> {
+  return post<WaBulkResendResult>(`/whatsapp/logs/bulk-resend`, { ids });
+}
 export function deleteWhatsappLog(id: string): Promise<ApiResponse<WaLog>> {
   return del<WaLog>(`/whatsapp/logs/${id}`);
 }

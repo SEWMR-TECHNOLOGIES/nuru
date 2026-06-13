@@ -518,6 +518,88 @@ class _ActivityTabs extends StatelessWidget {
   }
 }
 
+// ─── Purpose icon resolver ────────────────────────────────────────────────────
+/// Picks an SVG icon name that matches the *purpose* of a wallet entry,
+/// not just its credit/debit direction.
+///
+/// Inputs are lowercased and matched against a richer keyword list so that
+/// a transaction whose `target_type` is `event_contribution` and whose
+/// description is "Contribution to Bella's wedding" both resolve to a
+/// donation-style icon.
+class _PurposeIcon {
+  final String name;
+  final Color tint;
+  final Color soft;
+  const _PurposeIcon(this.name, this.tint, this.soft);
+}
+
+_PurposeIcon _resolvePurpose({
+  required String type,
+  required String description,
+  required bool isCredit,
+}) {
+  final t = '$type $description'.toLowerCase();
+
+  bool has(List<String> needles) => needles.any((n) => t.contains(n));
+
+  Color creditTint = AppColors.success;
+  Color creditSoft = AppColors.successSoft;
+  Color debitTint  = AppColors.primary;
+  Color debitSoft  = AppColors.primary.withOpacity(0.10);
+
+  if (has(['contribution', 'pledge', 'donation', 'harambee'])) {
+    return _PurposeIcon('donation', AppColors.accent, AppColors.accentSoft);
+  }
+  if (has(['ticket'])) {
+    return _PurposeIcon('ticket', AppColors.primary, AppColors.primarySoft);
+  }
+  if (has(['booking', 'vendor', 'service'])) {
+    return _PurposeIcon('bag', AppColors.blue, AppColors.blueSoft);
+  }
+  if (has(['topup', 'top_up', 'top up', 'deposit', 'fund'])) {
+    return _PurposeIcon('plus', AppColors.success, AppColors.successSoft);
+  }
+  if (has(['payout', 'withdraw'])) {
+    return _PurposeIcon('arrow-right', AppColors.warning, AppColors.warningSoft);
+  }
+  if (has(['refund', 'reversal', 'return'])) {
+    return _PurposeIcon('download', AppColors.info, AppColors.infoSoft);
+  }
+  if (has(['meeting', 'committee'])) {
+    return _PurposeIcon('users', AppColors.blue, AppColors.blueSoft);
+  }
+  if (has(['expense', 'spend'])) {
+    return _PurposeIcon('money', AppColors.warning, AppColors.warningSoft);
+  }
+  if (has(['rsvp', 'invitation'])) {
+    return _PurposeIcon('email', AppColors.blue, AppColors.blueSoft);
+  }
+  if (has(['fee', 'commission', 'charge'])) {
+    return _PurposeIcon('card', AppColors.textSecondary, AppColors.surfaceMuted);
+  }
+  if (has(['release', 'settlement', 'escrow'])) {
+    return _PurposeIcon('shield', AppColors.success, AppColors.successSoft);
+  }
+  if (has(['gift', 'reward', 'bonus'])) {
+    return _PurposeIcon('star', AppColors.primary, AppColors.primarySoft);
+  }
+  return _PurposeIcon(
+    isCredit ? 'download' : 'send',
+    isCredit ? creditTint : debitTint,
+    isCredit ? creditSoft : debitSoft,
+  );
+}
+
+String _humanTitle(String raw) {
+  if (raw.isEmpty) return 'Transaction';
+  return raw
+      .replaceAll('_', ' ')
+      .split(' ')
+      .where((s) => s.isNotEmpty)
+      .map((s) => s[0].toUpperCase() + s.substring(1))
+      .join(' ');
+}
+
 // ─── Ledger list ──────────────────────────────────────────────────────────────
 
 class _LedgerList extends StatelessWidget {
@@ -538,58 +620,173 @@ class _LedgerList extends StatelessWidget {
       return const _EmptyState(text: 'No wallet activity yet.');
     return ListView.separated(
       itemCount: entries.length,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      separatorBuilder: (_, __) =>
-          const Divider(height: 1, color: AppColors.divider),
-      itemBuilder: (_, i) {
-        final e = entries[i];
-        final type = (e['entry_type'] ?? '').toString();
-        final isCredit = ['credit', 'release', 'settlement'].contains(type);
-        final amount = (e['amount'] ?? 0) as num;
-        return ListTile(
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 4,
-            vertical: 4,
-          ),
-          leading: CircleAvatar(
-            backgroundColor:
-                isCredit ? AppColors.successSoft : AppColors.warningSoft,
-            child: AppIcon(
-              isCredit ? 'download' : 'arrow-right',
-              color: isCredit ? AppColors.success : AppColors.warning,
-              size: 18,
-            ),
-          ),
-          title: Text(
-            (e['description'] ?? type.replaceAll('_', ' ')).toString(),
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-          ),
-          subtitle: Text(
-            '${e['reference_code'] ?? '—'} · ${_fmtDate(e['created_at'])}',
-            style: const TextStyle(fontSize: 11, color: AppColors.textTertiary),
-          ),
-          trailing: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (_, i) => _LedgerCard(entry: entries[i], currency: currency),
+    );
+  }
+}
+
+/// Redesigned ledger row — a card mirroring the transaction card style so
+/// the two tabs look consistent, with a purpose-aware icon, clear
+/// signed amount, running balance pill and reference tag.
+class _LedgerCard extends StatelessWidget {
+  final Map<String, dynamic> entry;
+  final String currency;
+  const _LedgerCard({required this.entry, required this.currency});
+
+  @override
+  Widget build(BuildContext context) {
+    final type = (entry['entry_type'] ?? '').toString();
+    final desc = (entry['description'] ?? '').toString();
+    final isCredit = const ['credit', 'release', 'settlement', 'refund', 'topup']
+        .contains(type.toLowerCase());
+    final amount = (entry['amount'] ?? 0) as num;
+    final balanceAfter = (entry['balance_after'] ?? 0) as num;
+    final refCode = (entry['reference_code'] ?? '').toString();
+
+    final purpose = _resolvePurpose(
+      type: type,
+      description: desc,
+      isCredit: isCredit,
+    );
+
+    final title = desc.isNotEmpty ? desc : _humanTitle(type);
+    final accent = isCredit ? AppColors.success : AppColors.textPrimary;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.borderLight),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '${isCredit ? '+' : '−'} ${formatMoney(amount, currency: currency)}',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: isCredit ? AppColors.success : AppColors.textPrimary,
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: purpose.soft,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                alignment: Alignment.center,
+                child: AppIcon(purpose.name, size: 18, color: purpose.tint),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textPrimary,
+                        height: 1.25,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _fmtDate(entry['created_at']),
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.textTertiary,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              Text(
-                'Bal ${formatMoney((e['balance_after'] ?? 0) as num, currency: currency)}',
-                style: const TextStyle(
-                  fontSize: 10,
-                  color: AppColors.textTertiary,
-                ),
+              const SizedBox(width: 10),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${isCredit ? '+' : '−'} ${formatMoney(amount, currency: currency)}',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: accent,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceMuted,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      'BAL ${formatMoney(balanceAfter, currency: currency)}',
+                      style: const TextStyle(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textSecondary,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        );
-      },
+          if (refCode.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Container(height: 1, color: AppColors.borderLight),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Text('REF',
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textTertiary,
+                      letterSpacing: 0.8,
+                    )),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    refCode,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textSecondary,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: isCredit ? AppColors.successSoft : AppColors.warningSoft,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    _humanTitle(type).toUpperCase(),
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      color: isCredit ? AppColors.success : AppColors.warning,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -603,60 +800,187 @@ class _TransactionList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (loading && transactions.isEmpty)
+    if (loading && transactions.isEmpty) {
       return const NuruSkeletonList(itemCount: 6, showTrailing: true);
-    if (transactions.isEmpty)
+    }
+    if (transactions.isEmpty) {
       return const _EmptyState(text: 'No transactions yet.');
+    }
     return ListView.separated(
       itemCount: transactions.length,
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      separatorBuilder: (_, __) =>
-          const Divider(height: 1, color: AppColors.divider),
-      itemBuilder: (_, i) {
-        final tx = transactions[i];
-        final status = (tx['status'] ?? '').toString();
-        return ListTile(
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 4,
-            vertical: 4,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      itemBuilder: (_, i) => _TransactionCard(tx: transactions[i]),
+    );
+  }
+}
+
+class _TransactionCard extends StatelessWidget {
+  final Map<String, dynamic> tx;
+  const _TransactionCard({required this.tx});
+
+  bool get _isCredit {
+    final t = (tx['target_type'] ?? '').toString().toLowerCase();
+    final dir = (tx['direction'] ?? '').toString().toLowerCase();
+    if (dir == 'credit' || dir == 'in') return true;
+    if (dir == 'debit' || dir == 'out') return false;
+    return t.contains('topup') || t.contains('refund') || t.contains('payout_in');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final status = (tx['status'] ?? '').toString();
+    final code = (tx['transaction_code'] ?? '').toString();
+    final amount = (tx['gross_amount'] ?? 0) as num;
+    final currency = (tx['currency_code'] ?? '').toString();
+    final title = (tx['description'] ??
+            (tx['target_type'] ?? 'Transaction').toString().replaceAll('_', ' '))
+        .toString();
+    final method = (tx['payment_method'] ?? tx['provider'] ?? '').toString();
+    final credit = _isCredit;
+    final accent = credit ? AppColors.success : AppColors.textPrimary;
+    final purpose = _resolvePurpose(
+      type: (tx['target_type'] ?? '').toString(),
+      description: title,
+      isCredit: credit,
+    );
+
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ReceiptScreen(transactionCode: code),
+            ),
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: AppColors.borderLight),
           ),
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => ReceiptScreen(
-                  transactionCode: (tx['transaction_code'] ?? '').toString(),
-                ),
-              ),
-            );
-          },
-          title: Text(
-            (tx['description'] ??
-                    (tx['target_type'] ?? '').toString().replaceAll('_', ' '))
-                .toString(),
-            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-          ),
-          subtitle: Text(
-            '${tx['transaction_code']} · ${_fmtDate(tx['initiated_at'])}',
-            style: const TextStyle(fontSize: 11, color: AppColors.textTertiary),
-          ),
-          trailing: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.end,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                formatMoney(
-                  (tx['gross_amount'] ?? 0) as num,
-                  currency: (tx['currency_code'] ?? '').toString(),
-                ),
-                style: const TextStyle(fontWeight: FontWeight.w700),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: purpose.soft,
+                      borderRadius: BorderRadius.circular(13),
+                    ),
+                    alignment: Alignment.center,
+                    child: AppIcon(
+                      purpose.name,
+                      size: 18,
+                      color: purpose.tint,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          _fmtDate(tx['initiated_at']),
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: AppColors.textTertiary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${credit ? '+' : '−'} ${formatMoney(amount, currency: currency)}',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: accent,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      _StatusChip(status: status),
+                    ],
+                  ),
+                ],
               ),
-              const SizedBox(height: 2),
-              _StatusChip(status: status),
+              const SizedBox(height: 12),
+              Container(height: 1, color: AppColors.borderLight),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  const Text('REF',
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textTertiary,
+                        letterSpacing: 0.8,
+                      )),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      code.isEmpty ? '—' : code,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ),
+                  if (method.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceMuted,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        method.toUpperCase(),
+                        style: const TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textSecondary,
+                          letterSpacing: 0.6,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
             ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }
@@ -687,15 +1011,21 @@ class _StatusChip extends StatelessWidget {
         bg = AppColors.surfaceMuted;
         fg = AppColors.textSecondary;
     }
+    final label = status.isEmpty ? '—' : status;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
-        status,
-        style: TextStyle(color: fg, fontSize: 9, fontWeight: FontWeight.w700),
+        label.toUpperCase(),
+        style: TextStyle(
+          color: fg,
+          fontSize: 9.5,
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.6,
+        ),
       ),
     );
   }

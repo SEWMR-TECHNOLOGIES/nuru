@@ -109,16 +109,21 @@ def _send_whatsapp_sync(action: str, phone: str, params: dict, log_id: str | Non
             params = dict(params)  # don't mutate the caller's dict
             for k in ("image_url", "media_url", "header_image"):
                 v = params.get(k)
-                if isinstance(v, str) and v.lower().endswith(".png"):
-                    info = ensure_whatsapp_media_for_png_url(v) or {}
-                    safe = info.get("url")
-                    if safe and safe != v:
-                        print(
-                            f"[WhatsApp] media-safe swap action={action} key={k} "
-                            f"png={v} jpg={safe} reused={info.get('reused')} "
-                            f"size={info.get('size')} err={info.get('error')!r}"
-                        )
-                        params[k] = safe
+                if not isinstance(v, str):
+                    continue
+                vl = v.lower().partition("?")[0]
+                if not (vl.endswith(".png") or vl.endswith(".jpg") or vl.endswith(".jpeg")):
+                    continue
+                info = ensure_whatsapp_media_for_png_url(v) or {}
+                safe = info.get("url")
+                if safe and safe != v:
+                    print(
+                        f"[WhatsApp] media-safe swap action={action} key={k} "
+                        f"src={v} jpg={safe} reused={info.get('reused')} "
+                        f"size={info.get('size')} err={info.get('error')!r}"
+                    )
+                    params[k] = safe
+
     except Exception as _media_exc:  # noqa: BLE001
         print(f"[WhatsApp] media-safe swap skipped: {_media_exc}")
 
