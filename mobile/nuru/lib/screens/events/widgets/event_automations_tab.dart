@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:intl/intl.dart';
+import '../../../core/widgets/nuru_date_time_picker.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/automations_service.dart';
@@ -797,20 +798,15 @@ class _AutomationEditorSheetState extends State<_AutomationEditorSheet> {
 
   Future<void> _pickDateTime() async {
     final now = DateTime.now();
-    final date = await showDatePicker(
+    final picked = await showNuruDateTimePicker(
       context: context,
-      initialDate: _scheduleAt ?? now.add(const Duration(hours: 1)),
+      initial: _scheduleAt ?? now.add(const Duration(hours: 1)),
       firstDate: now,
       lastDate: now.add(const Duration(days: 365)),
     );
-    if (date == null || !mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(_scheduleAt ?? now.add(const Duration(hours: 1))),
-    );
-    if (time == null) return;
+    if (picked == null || !mounted) return;
     setState(() {
-      _scheduleAt = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+      _scheduleAt = picked;
     });
   }
 

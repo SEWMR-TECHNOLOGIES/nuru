@@ -9,6 +9,7 @@ import '../../../core/services/report_generator.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/widgets/app_icon.dart';
 import '../../../core/widgets/app_snackbar.dart';
+import '../../../core/widgets/nuru_date_time_picker.dart';
 import '../report_preview_screen.dart';
 import '../../../core/widgets/deleting_overlay.dart';
 import '../../../core/theme/text_styles.dart';
@@ -556,7 +557,7 @@ class _EventExpensesTabState extends State<EventExpensesTab>
               _label('Date'),
               GestureDetector(
                 onTap: () async {
-                  final d = await showDatePicker(
+                  final d = await showNuruDatePicker(
                     context: ctx,
                     initialDate: expenseDate ?? DateTime.now(),
                     firstDate:

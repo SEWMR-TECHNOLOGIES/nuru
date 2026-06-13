@@ -2932,7 +2932,7 @@ class _EventContributionsTabState extends State<EventContributionsTab>
                       color: Colors.white,
                     ),
                     child: Row(children: [
-                      const Icon(Icons.table_chart_rounded, size: 28, color: AppColors.primary),
+                      const AppIcon('excel-document', size: 28),
                       const SizedBox(width: 10),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text('File Format', style: appText(size: 13, weight: FontWeight.w600)),
@@ -3837,14 +3837,14 @@ class _EventContributionsTabState extends State<EventContributionsTab>
                       Navigator.pop(ctx);
                       _downloadReport('pdf');
                     },
-                    icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
+                    icon: const AppIcon('pdf-file-type', size: 18),
                     label: Text(
                       'PDF',
                       style: appText(size: 13, weight: FontWeight.w600),
                     ),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.error,
-                      side: const BorderSide(color: AppColors.error),
+                      foregroundColor: AppColors.textPrimary,
+                      side: const BorderSide(color: AppColors.borderLight),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -3859,14 +3859,14 @@ class _EventContributionsTabState extends State<EventContributionsTab>
                       Navigator.pop(ctx);
                       _downloadReport('xlsx');
                     },
-                    icon: const Icon(Icons.table_chart_rounded, size: 16),
+                    icon: const AppIcon('excel-document', size: 18),
                     label: Text(
                       'Excel',
                       style: appText(size: 13, weight: FontWeight.w600),
                     ),
                     style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.accent,
-                      side: BorderSide(color: AppColors.accent),
+                      foregroundColor: AppColors.textPrimary,
+                      side: const BorderSide(color: AppColors.borderLight),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),

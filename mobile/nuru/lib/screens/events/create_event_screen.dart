@@ -13,6 +13,7 @@ import '../../core/services/events_service.dart';
 import '../../core/services/api_service.dart';
 import '../../core/services/ticketing_service.dart';
 import '../../core/widgets/app_snackbar.dart';
+import '../../core/widgets/nuru_date_time_picker.dart';
 import '../../core/widgets/amount_input.dart';
 import '../../core/widgets/agreement_gate.dart';
 import 'event_detail_screen.dart';
@@ -2069,15 +2070,11 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   Widget _datePicker(String label, DateTime? value, ValueChanged<DateTime> onPick) {
     return GestureDetector(
       onTap: () async {
-        final date = await showDatePicker(
+        final date = await showNuruDatePicker(
           context: context,
           initialDate: value ?? DateTime.now(),
           firstDate: DateTime.now().subtract(const Duration(days: 30)),
           lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
-          builder: (ctx, child) => Theme(
-            data: Theme.of(ctx).copyWith(colorScheme: const ColorScheme.light(primary: AppColors.primary, onPrimary: Colors.white, surface: Colors.white)),
-            child: child!,
-          ),
         );
         if (date != null && mounted) onPick(date);
       },
@@ -2099,22 +2096,9 @@ class _CreateEventScreenState extends State<CreateEventScreen> {
   Widget _timePicker(String label, TimeOfDay? value, ValueChanged<TimeOfDay> onPick) {
     return GestureDetector(
       onTap: () async {
-        final time = await showTimePicker(
+        final time = await showNuruTimePicker(
           context: context,
           initialTime: value ?? TimeOfDay.now(),
-          initialEntryMode: TimePickerEntryMode.input,
-          builder: (ctx, child) => Theme(
-            data: Theme.of(ctx).copyWith(
-              colorScheme: const ColorScheme.light(primary: AppColors.primary, onPrimary: Colors.white, surface: Colors.white),
-              timePickerTheme: TimePickerThemeData(
-                backgroundColor: Colors.white,
-                hourMinuteShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                dayPeriodShape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-              ),
-            ),
-            child: MediaQuery(data: MediaQuery.of(ctx).copyWith(alwaysUse24HourFormat: true), child: child!),
-          ),
         );
         if (time != null && mounted) onPick(time);
       },

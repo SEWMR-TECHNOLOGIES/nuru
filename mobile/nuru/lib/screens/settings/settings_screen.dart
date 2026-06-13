@@ -12,6 +12,7 @@ import '../../core/services/api_service.dart';
 import '../../core/services/events_service.dart';
 import '../../core/widgets/app_snackbar.dart';
 import '../../core/widgets/language_selector.dart';
+import '../../core/widgets/nuru_date_time_picker.dart';
 import '../../core/l10n/l10n_helper.dart';
 import '../auth/widgets/auth_text_field.dart';
 import 'identity_verification_screen.dart';
@@ -1600,10 +1601,9 @@ class _NotificationsSectionState extends State<_NotificationsSection> {
       hour: int.tryParse(parts[0]) ?? 22,
       minute: int.tryParse(parts.length > 1 ? parts[1] : '0') ?? 0,
     );
-    final picked = await showTimePicker(context: context, initialTime: initial);
+    final picked = await showNuruTimePicker(context: context, initialTime: initial);
     if (picked != null) {
-      final s =
-          '${picked.hour.toString().padLeft(2, '0')}:${picked.minute.toString().padLeft(2, '0')}';
+      final s = nuruFormatTime24(picked);
       _update(key, s);
     }
   }

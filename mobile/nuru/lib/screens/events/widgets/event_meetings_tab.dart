@@ -1,4 +1,5 @@
 import '../../../core/widgets/nuru_refresh_indicator.dart';
+import '../../../core/widgets/nuru_date_time_picker.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/text_styles.dart';
 import 'package:flutter/material.dart';
@@ -245,18 +246,14 @@ class _EventMeetingsTabState extends State<EventMeetingsTab> {
                       ),
                     ] else ...[
                       _buildPickerButton(icon: Icons.calendar_today_rounded, label: selectedDate != null ? DateFormat('EEEE, MMM d, yyyy').format(selectedDate!) : _t('pick_date'), isSelected: selectedDate != null, theme: theme, onTap: () async {
-                        final d = await showDatePicker(context: ctx, initialDate: selectedDate ?? DateTime.now(), firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 365)));
+                        final d = await showNuruDatePicker(context: ctx, initialDate: selectedDate ?? DateTime.now(), firstDate: DateTime.now(), lastDate: DateTime.now().add(const Duration(days: 365)));
                         if (d != null) setModalState(() => selectedDate = d);
                       }),
                       const SizedBox(height: 12),
                       _buildPickerButton(icon: Icons.access_time_rounded, label: selectedTime != null ? '${selectedTime!.hour.toString().padLeft(2, '0')}:${selectedTime!.minute.toString().padLeft(2, '0')}' : _t('pick_time'), isSelected: selectedTime != null, theme: theme, onTap: () async {
-                        final t = await showTimePicker(
+                        final t = await showNuruTimePicker(
                           context: ctx,
                           initialTime: selectedTime ?? const TimeOfDay(hour: 9, minute: 0),
-                          builder: (c, child) => MediaQuery(
-                            data: MediaQuery.of(c).copyWith(alwaysUse24HourFormat: true),
-                            child: child!,
-                          ),
                         );
                         if (t != null) setModalState(() => selectedTime = t);
                       }),

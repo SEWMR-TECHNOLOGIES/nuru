@@ -2643,14 +2643,10 @@ class _EventDetailScreenState extends State<EventDetailScreen>
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFFEE2E2),
+                  color: const Color(0xFFF3F4F6),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(
-                  Icons.picture_as_pdf_rounded,
-                  size: 20,
-                  color: Color(0xFFDC2626),
-                ),
+                child: const Center(child: AppIcon('pdf-file-type', size: 22)),
               ),
               title: Text(
                 context.trw('pdf_report'),
@@ -2670,14 +2666,10 @@ class _EventDetailScreenState extends State<EventDetailScreen>
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFDCFCE7),
+                  color: const Color(0xFFF3F4F6),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(
-                  Icons.table_chart_rounded,
-                  size: 20,
-                  color: Color(0xFF16A34A),
-                ),
+                child: const Center(child: AppIcon('excel-document', size: 22)),
               ),
               title: Text(
                 context.trw('excel_report'),

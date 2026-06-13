@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:open_filex/open_filex.dart';
 import '../../../core/widgets/nuru_refresh_indicator.dart';
 import '../../../core/widgets/app_icon.dart';
+import '../../../core/widgets/call_options_sheet.dart';
 import '../../../core/widgets/self_scrolling_pills.dart';
 import '../../../core/widgets/nuru_search_bar.dart';
 import '../../../core/theme/app_colors.dart';
@@ -208,13 +209,13 @@ class _EventRsvpTabState extends State<EventRsvpTab> with AutomaticKeepAliveClie
     final checkedIn = (_summary['checked_in'] ?? 0) as int;
     final invitationsSent = (_summary['invitations_sent'] ?? 0) as int;
     return Row(children: [
-      Expanded(child: _miniStat('event-calendar-check', 'Checked in', '$checkedIn')),
+      Expanded(child: _miniStat('check-in-reception', 'Checked in', '$checkedIn', tint: false)),
       const SizedBox(width: 10),
       Expanded(child: _miniStat('send', 'Invitations sent', '$invitationsSent')),
     ]);
   }
 
-  Widget _miniStat(String icon, String label, String value) => Container(
+  Widget _miniStat(String icon, String label, String value, {bool tint = true}) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
     decoration: BoxDecoration(
       color: Colors.white,
@@ -225,7 +226,7 @@ class _EventRsvpTabState extends State<EventRsvpTab> with AutomaticKeepAliveClie
       Container(
         width: 32, height: 32,
         decoration: const BoxDecoration(color: Color(0xFFF3F4F6), shape: BoxShape.circle),
-        child: Center(child: AppIcon(icon, size: 14, color: AppColors.textSecondary)),
+        child: Center(child: AppIcon(icon, size: 16, color: tint ? AppColors.textSecondary : null)),
       ),
       const SizedBox(width: 10),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
@@ -363,10 +364,31 @@ class _EventRsvpTabState extends State<EventRsvpTab> with AutomaticKeepAliveClie
             ),
             if (phone.isNotEmpty) ...[
               const SizedBox(width: 8),
-              const AppIcon('phone', size: 11, color: AppColors.textTertiary),
-              const SizedBox(width: 4),
-              Flexible(child: Text(phone,
-                  style: appText(size: 11, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis)),
+              Flexible(
+                child: InkWell(
+                  onTap: () => showCallOptions(context,
+                      name: name, phone: phone,
+                      avatarUrl: avatar.isNotEmpty ? avatar : null),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      const AppIcon('phone', size: 11, color: AppColors.primary),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          phone,
+                          style: appText(
+                              size: 11,
+                              weight: FontWeight.w600,
+                              color: AppColors.primary),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ]),
+                  ),
+                ),
+              ),
             ],
           ]),
         ])),
@@ -414,8 +436,8 @@ class _EventRsvpTabState extends State<EventRsvpTab> with AutomaticKeepAliveClie
       child: Row(children: [
         Container(
           width: 36, height: 36,
-          decoration: BoxDecoration(color: AppColors.primarySoft, borderRadius: BorderRadius.circular(10)),
-          child: const Center(child: AppIcon('file-pdf', size: 16, color: AppColors.primary)),
+          decoration: BoxDecoration(color: const Color(0xFFF3F4F6), borderRadius: BorderRadius.circular(10)),
+          child: const Center(child: AppIcon('document-text', size: 18)),
         ),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
@@ -539,11 +561,11 @@ class _EventRsvpTabState extends State<EventRsvpTab> with AutomaticKeepAliveClie
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: () { Navigator.pop(ctx); _generateReport('pdf'); },
-                icon: const Icon(Icons.picture_as_pdf_rounded, size: 16),
+                icon: const AppIcon('pdf-file-type', size: 18),
                 label: Text('PDF', style: appText(size: 13, weight: FontWeight.w600)),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.error,
-                  side: const BorderSide(color: AppColors.error),
+                  foregroundColor: AppColors.textPrimary,
+                  side: const BorderSide(color: AppColors.borderLight),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
@@ -553,11 +575,11 @@ class _EventRsvpTabState extends State<EventRsvpTab> with AutomaticKeepAliveClie
             Expanded(
               child: OutlinedButton.icon(
                 onPressed: () { Navigator.pop(ctx); _generateReport('xlsx'); },
-                icon: const Icon(Icons.table_chart_rounded, size: 16),
+                icon: const AppIcon('excel-document', size: 18),
                 label: Text('Excel', style: appText(size: 13, weight: FontWeight.w600)),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.accent,
-                  side: const BorderSide(color: AppColors.accent),
+                  foregroundColor: AppColors.textPrimary,
+                  side: const BorderSide(color: AppColors.borderLight),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
